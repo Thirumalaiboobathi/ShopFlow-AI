@@ -12,7 +12,11 @@ from dataclasses import dataclass
 from typing import Dict, List
 
 from .models import Dataset
-from .pricing import cheaper_alternatives, detect_price_increases
+from .pricing import (
+    PRICE_ALERT_THRESHOLD_PERCENT,
+    cheaper_alternatives,
+    detect_price_increases,
+)
 from .shortage import shortages
 from .velocity import INFINITE_COVERAGE, coverage_weeks, velocity_for
 
@@ -163,7 +167,9 @@ def ambiguity_groups(data: Dataset) -> List[AmbiguityGroup]:
     return sorted(groups, key=lambda g: (g.distinguishingAttribute, g.skuIds))
 
 
-def supplier_price_increases(data: Dataset, threshold_percent: float = 1.0):
+def supplier_price_increases(
+    data: Dataset, threshold_percent: float = PRICE_ALERT_THRESHOLD_PERCENT
+):
     return detect_price_increases(data, threshold_percent)
 
 

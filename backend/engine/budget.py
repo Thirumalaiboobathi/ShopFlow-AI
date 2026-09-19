@@ -40,7 +40,7 @@ import math
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
-from .models import Dataset, money
+from .models import ALL_OR_NOTHING, Dataset, money
 from .pricing import current_cost, margin_per_rupee
 from .shortage import committed_demand, shortages, uncommitted_stock
 from .velocity import INFINITE_COVERAGE, coverage_weeks, velocity_for
@@ -123,6 +123,34 @@ class BudgetPlan:
             l.decision == BUY for l in self.lines if l.tier == TIER1
         )
 
+    def merged_lines(self) -> List[dict]:
+        """One row per SKU for display, with the tier split kept underneath.
+
+        A SKU can legitimately be funded twice - once to honour a customer
+        order and again to restock the shelf - which reads as a duplicate on
+        screen. The UI shows the combined quantity; the per-tier allocations
+        remain intact here so the decision stays auditable.
+        """
+        order: List[str] = []
+        grouped: Dict[str, List[PlanLine]] = {}
+        for line in self.lines:
+            if line.skuId not in grouped:
+                grouped[line.skuId] = []
+                order.append(line.skuId)
+            grouped[line.skuId].append(line)
+
+        merged = []
+        for skuId in order:
+            parts = grouped[skuId]
+            merged.append({
+                "skuId": skuId,
+                "totalFundedQty": sum(p.fundedQty for p in parts),
+                "totalRequestedQty": sum(p.requestedQty for p in parts),
+                "totalCost": money(sum(p.lineCost for p in parts)),
+                "tiers": [p.as_dict() for p in parts],
+            })
+        return merged
+
     def as_dict(self) -> dict:
         return {
             "budget": money(self.budget),
@@ -134,6 +162,7 @@ class BudgetPlan:
             "purchased": [l.as_dict() for l in self.purchased],
             "deferred": [l.as_dict() for l in self.deferred],
             "lines": [l.as_dict() for l in self.lines],
+            "mergedLines": self.merged_lines(),
         }
 
 
@@ -264,12 +293,19 @@ def allocate_budget(data: Dataset, budget: float) -> BudgetPlan:
             affordable = min(requested, int((remaining + EPSILON) // unit_cost))
         affordable = max(0, affordable)
 
+        # A product that cannot be usefully part-delivered is funded in full or
+        # not at all - buying half a matched set helps nobody.
+        policy = data.product(s.skuId).fulfilmentPolicy
+        if policy == ALL_OR_NOTHING and affordable < requested:
+            affordable = 0
+
         line_cost = money(unit_cost * affordable)
         evidence = {
             **s.as_evidence(),
             "unitCost": unit_cost,
             "fullLineCost": money(full_cost),
             "budgetRemainingBefore": money(remaining),
+            "fulfilmentPolicy": policy,
             "policy": "Tier 1 - committed customer orders are funded first, "
                       "earliest promised date first.",
         }
@@ -292,7 +328,13 @@ def allocate_budget(data: Dataset, budget: float) -> BudgetPlan:
             )
         else:
             decision = DEFER
-            reason = f"Budget exhausted before this committed shortage could be funded."
+            if policy == ALL_OR_NOTHING:
+                reason = (
+                    f"Budget cannot cover all {requested} units, and this product "
+                    f"cannot be part-delivered."
+                )
+            else:
+                reason = "Budget exhausted before this committed shortage could be funded."
             risk = (
                 f"All {requested} units still short - the promised order for "
                 f"{s.committedQty} units cannot be delivered."

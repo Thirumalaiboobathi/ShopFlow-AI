@@ -237,10 +237,147 @@ about its own design was wrong and the behaviour under test was right.
 
 ---
 
+---
+
+## Day 1, Stage 2 — 2026-09-19 — First public deployment
+
+> **The first public deployment was intentionally performed before feature
+> completion to eliminate ship-gate risk.** A challenge that requires a live,
+> publicly reachable URL is lost by failing to deploy, not by shipping a thin
+> first version. The foundation went out today so that every later change is a
+> deploy to something already proven, never a first attempt under deadline.
+
+### Review decisions applied before deployment
+
+Four decisions were taken at the Stage 1 review and implemented first.
+
+1. **Tier display.** The engine keeps Tier 1 and Tier 2 allocations separate;
+   `BudgetPlan.merged_lines()` produces one row per SKU for the UI with the
+   per-tier split nested underneath, so the combined figure is readable and the
+   decision stays auditable.
+2. **Price alert threshold.** `PRICE_ALERT_THRESHOLD_PERCENT = 5.0`, defined
+   once in `engine/pricing.py` and imported everywhere. Effect on the seed:
+   flagged SKUs fell from **51 to 1** — the planted +6.78% wire rise — while 1%
+   remains available for analysis.
+3. **Partial fulfilment.** `Product.fulfilmentPolicy` is now explicit:
+   `PARTIAL_ALLOWED` (default) or `ALL_OR_NOTHING`. The allocator refuses to
+   part-fund an indivisible line and says so. Kept deliberately small.
+4. **Voice probe bucket.** Deleted rather than promoted to production.
+
+### Cleanup — voice probe bucket
+
+**Agent action.** Inspected `shopflow-voiceprobe-675613597178-ap-south-1`
+before touching it: region `ap-south-1`, unversioned, **exactly one object** —
+`probe/9fc…cf5.mp3`, 45,980 bytes, created 01:47 today by the Polly probe.
+Confirmed as the experimental resource, then deleted the object and the bucket.
+
+**Verification.** `head-bucket` returns 404. A full bucket listing confirms the
+other seven buckets (SilentSignal, AwsDeployDoctor, Amplify, CDK assets) are
+untouched.
+
+### Infrastructure created
+
+**Region.** `ap-south-1` (Mumbai). **Tooling.** `aws-cdk-lib` 2.270.0 (Python),
+CDK CLI 2.1142.0 via `npx`. CDK bootstrap already existed and was reused.
+
+**Command.**
+
+```
+cd infrastructure
+npx aws-cdk@2 deploy --require-approval never \
+  -c alertEmail=<email> -c monthlyBudgetUsd=25
+```
+
+**Stack** `ShopFlowStack` → `CREATE_COMPLETE` in **213.9s**.
+ARN `arn:aws:cloudformation:ap-south-1:675613597178:stack/ShopFlowStack/de4d66a0-…`
+
+| Resource | Name |
+| --- | --- |
+| DynamoDB table | `shopflow-demo` (PK/SK, GSI1, on-demand, PITR, AWS-managed encryption) |
+| Uploads bucket | `shopflow-uploads-675613597178` (private, AES256, TLS-only, 30-day expiry) |
+| Site bucket | `shopflow-site-675613597178` (private, AES256, CloudFront OAC only) |
+| CloudFront | `EKAOMJLJWM7VZ` — OAC to S3, `/api/*` to API Gateway |
+| HTTP API | `shopflow-api`, route `GET /api/health`, throttled 20 rps / 40 burst |
+| Lambda | `shopflow-health` (Python 3.13, 256 MB, 10s) |
+| Log groups | `/aws/lambda/shopflow-health`, `/aws/apigateway/shopflow-api`, 14-day retention |
+| Budget | `shopflow-monthly`, USD 25, alerts at 50/80/100% |
+
+All tagged `Project=ShopFlow`, `ManagedBy=CDK`, `Environment=prod`.
+
+**Architecture note — why `/api/*` goes through CloudFront.** The API is served
+from the same domain as the site rather than its own. One origin means no CORS
+configuration, one URL for a judge to remember, and the option to put WAF or
+caching in front of both later without changing the frontend.
+
+### Public URL
+
+**https://d3m3lwn03zb2eu.cloudfront.net**
+
+Health: **https://d3m3lwn03zb2eu.cloudfront.net/api/health**
+
+### Verification — performed, not assumed
+
+| Check | Result |
+| --- | --- |
+| Site HTTP status | `200 OK`, 8,426 bytes |
+| Served by CloudFront | `Via: 1.1 …cloudfront.net (CloudFront)`, `Server: AmazonS3` |
+| Security headers | HSTS `max-age=31536000; includeSubDomains`, `X-Frame-Options: DENY` |
+| Landing page content | 8/8 required strings present (title, tagline, category, lane, Bedrock, deterministic engine, workflow, CTA) |
+| Health via CloudFront | `200`, `{"status":"ok","checks":{"dynamodb":{"status":"ok","latencyMs":234.4}}}` |
+| Health at API origin | `200`, DynamoDB `ok` in 4.4 ms |
+| Site bucket direct access | **403 Forbidden** — private, reachable only through CloudFront |
+| Uploads bucket | all four public-access blocks `true` |
+| Lambda IAM scope | read-only, `shopflow-demo` table + its indexes only |
+| CloudWatch | real invocations logged: 236.72 ms cold (484 ms init), 9.10 ms warm |
+| Budget | `shopflow-monthly`, USD 25, MONTHLY — confirmed via `describe-budgets` |
+| Isolation | `AwsDeployDoctorStack` last updated 2026-09-11, `CDKToolkit` 2026-08-20 — neither touched |
+
+### Errors encountered and fixed
+
+1. **CDK CLI absent.** Not installed globally; used `npx aws-cdk@2` and
+   installed `aws-cdk-lib` for Python rather than adding a global dependency.
+2. **Route/path mismatch, caught at review before deploying.** The API route
+   was first written as `/health`, but CloudFront forwards the `/api/*` prefix
+   unchanged, so the origin would have received `/api/health` and returned 404.
+   Route corrected to `/api/health`. Found by reading the synthesised template,
+   not by a failed deployment.
+3. **Wrong origin request policy, same review.** `CORS_S3_ORIGIN` was initially
+   applied to the API behaviour. It forwards the `Host` header, which API
+   Gateway rejects. Changed to `ALL_VIEWER_EXCEPT_HOST_HEADER`.
+4. **Deprecated CDK properties.** `point_in_time_recovery` and Lambda
+   `log_retention` replaced with `point_in_time_recovery_specification` and an
+   explicit `LogGroup`, avoiding a deprecated log-retention custom resource.
+5. **PowerShell here-string mangling.** `git commit -m @'…'@` with quotes in the
+   body was parsed as pathspecs; switched to `git commit -F <file>`.
+
+### Coding-agent evidence captured
+
+1. **Agent inspecting the AWS environment** — identity, region, bootstrap,
+   existing stacks/buckets/tables enumerated read-only before any change.
+2. **Agent probing Bedrock** — every candidate model actually invoked, not just
+   listed; access limits discovered and recorded.
+3. **Agent creating CDK infrastructure** — `infrastructure/` authored from
+   scratch.
+4. **Agent reviewing its own synthesised template** — bucket public-access
+   blocks, encryption, throttling, route key and IAM policy scope inspected
+   before deploying; two defects found and fixed at this step.
+5. **Agent deploying the stack** — `CREATE_COMPLETE` in 213.9s.
+6. **Agent verifying the deployment** — HTTP status, headers, page content,
+   both health paths, bucket privacy, budget, CloudWatch log events.
+7. **Agent performing safe destructive work** — voice-probe bucket inspected,
+   confirmed, deleted, and the deletion verified without affecting other
+   projects.
+
+Screenshots to capture in the AWS console for the submission: CloudFormation
+stack view, CloudFront distribution, DynamoDB table, Lambda function,
+CloudWatch log stream, and the live URL in a browser.
+
+---
+
 ### Open items carried into Day 2
 
 - Anthropic use-case form — **human action**, blocks nothing.
 - Real Tamil-English recording — **human action**, needed before any voice
   accuracy claim.
-- `shopflow-voiceprobe-…` bucket to be folded into the stack or deleted.
-- First CDK deployment and public URL.
+- Console screenshots for the submission evidence pack.
+- Seed the `shopflow-demo` table from the generator and expose read APIs.

@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ShopFlow AI — From messy orders to smarter purchasing decisions</title>
+<meta name="description" content="ShopFlow AI helps independent electrical retailers understand customer orders, verify inventory, detect supplier price changes and make purchasing decisions when cash is limited.">
+<meta name="robots" content="index,follow">
+<meta property="og:title" content="ShopFlow AI">
+<meta property="og:description" content="An AI operations assistant for independent electrical retailers. From messy orders to smarter purchasing decisions.">
+<meta property="og:type" content="website">
+<style>
+  :root{
+    --bg:#fbfaf8; --panel:#ffffff; --ink:#15181d; --muted:#5d6472;
+    --line:#e4e2dd; --accent:#0a5c4a; --accent-soft:#e8f1ee; --warn:#8a5a00;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0f1114; --panel:#161a1f; --ink:#e9eaec; --muted:#9aa3b2;
+      --line:#272c33; --accent:#4fd1ac; --accent-soft:#12251f; --warn:#e0b567;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0f1114; --panel:#161a1f; --ink:#e9eaec; --muted:#9aa3b2;
+    --line:#272c33; --accent:#4fd1ac; --accent-soft:#12251f; --warn:#e0b567;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:16px/1.65 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:820px; margin:0 auto; padding:0 20px}
+  header{padding-block:64px 40px; border-bottom:1px solid var(--line)}
+  .mark{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap}
+  .mark h1{font-size:clamp(1.9rem,5vw,2.6rem); letter-spacing:-.02em; margin:0; font-weight:650}
+  .mark .ai{color:var(--accent)}
+  .tag{margin:14px 0 0; font-size:clamp(1.05rem,2.6vw,1.3rem); color:var(--ink); font-weight:500}
+  .lede{margin:18px 0 0; color:var(--muted); max-width:62ch}
+  .chips{display:flex; gap:8px; flex-wrap:wrap; margin-top:26px}
+  .chip{
+    font-size:.78rem; letter-spacing:.04em; text-transform:uppercase;
+    padding:5px 11px; border:1px solid var(--line); border-radius:999px;
+    color:var(--muted); background:var(--panel);
+  }
+  .chip strong{color:var(--ink); font-weight:600}
+  section{padding-block:44px; border-bottom:1px solid var(--line)}
+  h2{font-size:.82rem; letter-spacing:.09em; text-transform:uppercase;
+     color:var(--muted); margin:0 0 20px; font-weight:600}
+  ol.flow{list-style:none; margin:0; padding:0; display:grid; gap:1px;
+          background:var(--line); border:1px solid var(--line); border-radius:10px; overflow:hidden}
+  ol.flow li{background:var(--panel); padding:16px 18px; display:flex; gap:14px; align-items:flex-start}
+  ol.flow .n{
+    flex:none; width:26px; height:26px; border-radius:7px; background:var(--accent-soft);
+    color:var(--accent); font-size:.8rem; font-weight:700;
+    display:grid; place-items:center; margin-top:1px;
+  }
+  ol.flow .t{font-weight:600}
+  ol.flow .d{color:var(--muted); font-size:.93rem; margin-top:2px}
+  .principle{
+    background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--accent);
+    border-radius:8px; padding:20px 22px;
+  }
+  .principle p{margin:0 0 10px}
+  .principle p:last-child{margin-bottom:0; color:var(--muted); font-size:.94rem}
+  .split{display:grid; gap:18px; grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:16px 18px}
+  .card h3{margin:0 0 6px; font-size:.95rem}
+  .card p{margin:0; color:var(--muted); font-size:.91rem}
+  .status{
+    display:flex; gap:14px; align-items:flex-start; background:var(--panel);
+    border:1px solid var(--line); border-radius:8px; padding:18px 20px;
+  }
+  .dot{flex:none; width:9px; height:9px; border-radius:50%; background:var(--warn); margin-top:8px}
+  .status strong{display:block}
+  .status span{color:var(--muted); font-size:.93rem}
+  footer{padding-block:32px 56px; color:var(--muted); font-size:.87rem}
+  footer a{color:var(--accent)}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.9em}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="mark"><h1>ShopFlow<span class="ai"> AI</span></h1></div>
+  <p class="tag">From messy orders to smarter purchasing decisions.</p>
+  <p class="lede">
+    ShopFlow helps independent electrical retailers understand customer orders,
+    verify inventory, detect supplier price changes and make purchasing
+    decisions when cash is limited.
+  </p>
+  <div class="chips">
+    <span class="chip">Category&nbsp;<strong>Commercial Potential</strong></span>
+    <span class="chip">Lane&nbsp;<strong>Startup</strong></span>
+    <span class="chip">Built for&nbsp;<strong>Electrical retail, India</strong></span>
+  </div>
+</header>
+
+<section>
+  <h2>The workflow</h2>
+  <ol class="flow">
+    <li><span class="n">1</span><span><span class="t">Order</span>
+      <span class="d">A contractor sends a spoken or typed order in everyday shop language. ShopFlow maps it to real catalogue SKUs — and asks when a request is ambiguous instead of guessing.</span></span></li>
+    <li><span class="n">2</span><span><span class="t">Verify</span>
+      <span class="d">Each line is checked against live inventory to find exactly what is short.</span></span></li>
+    <li><span class="n">3</span><span><span class="t">Quote</span>
+      <span class="d">A clean quotation the owner can read out or share straight away.</span></span></li>
+    <li><span class="n">4</span><span><span class="t">Supplier intelligence</span>
+      <span class="d">A photographed dealer price list is read and compared against what the shop paid before, surfacing increases that would otherwise pass unnoticed.</span></span></li>
+    <li><span class="n">5</span><span><span class="t">Budget</span>
+      <span class="d">The owner states the cash actually available. That constraint is real, and it binds.</span></span></li>
+    <li><span class="n">6</span><span><span class="t">Decision</span>
+      <span class="d">A purchase plan: what to buy now, what to defer, and what deferring risks. Customer commitments come first.</span></span></li>
+    <li><span class="n">7</span><span><span class="t">Why</span>
+      <span class="d">Every recommendation opens up into the full calculation behind it — stock, velocity, lead time, margin, budget remaining.</span></span></li>
+  </ol>
+</section>
+
+<section>
+  <h2>The trust principle</h2>
+  <div class="principle">
+    <p><strong>The AI never invents business numbers.</strong></p>
+    <p>
+      The language model understands speech, selects tools, asks for
+      clarification and explains results. Every quantity, price, shortage and
+      recommendation is produced by a separate deterministic engine that has no
+      access to a model at all. That separation is enforced by the architecture
+      and covered by tests, not asserted in a prompt.
+    </p>
+  </div>
+</section>
+
+<section>
+  <h2>Built on</h2>
+  <div class="split">
+    <div class="card">
+      <h3>Amazon Bedrock</h3>
+      <p>Understands spoken and written orders, and reads photographed supplier price lists.</p>
+    </div>
+    <div class="card">
+      <h3>Deterministic business engine</h3>
+      <p>Pure, testable logic that owns every number: inventory, velocity, price changes and budget allocation.</p>
+    </div>
+    <div class="card">
+      <h3>AWS</h3>
+      <p>Served from CloudFront over private S3, with Lambda, API Gateway and DynamoDB behind it in the Mumbai region.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Status</h2>
+  <div class="status">
+    <span class="dot" aria-hidden="true"></span>
+    <span>
+      <strong>Demo coming online</strong>
+      <span>
+        The production foundation is deployed and publicly reachable. The
+        interactive demo — order intake, quotation, supplier price reading and
+        the budget decision — is being shipped onto it now. No login will be
+        required to try it.
+      </span>
+    </span>
+  </div>
+</section>
+
+<footer>
+  <p>
+    ShopFlow AI — an operations assistant for independent electrical retailers.
+    Built for the AWS “Zero to Shipped” challenge.
+    Service health: <a href="/api/health"><code>/api/health</code></a>
+  </p>
+</footer>
+
+</div>
+</body>
+</html>

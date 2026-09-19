@@ -10,7 +10,8 @@
     "sellingPrice": 4592.0,
     "costPrice": 4100.0,
     "supplierId": "SUP-BALAJI",
-    "name": "Finolex 1.0 sqmm FR Wire Red 90m coil"
+    "name": "Finolex 1.0 sqmm FR Wire Red 90m coil",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "W-FIN-1.0-BLU-90M",
@@ -23,7 +24,8 @@
     "sellingPrice": 4592.0,
     "costPrice": 4100.0,
     "supplierId": "SUP-BALAJI",
-    "name": "Finolex 1.0 sqmm FR Wire Blue 90m coil"
+    "name": "Finolex 1.0 sqmm FR Wire Blue 90m coil",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "W-FIN-1.0-BLK-90M",
@@ -36,7 +38,8 @@
     "sellingPrice": 4592.0,
     "costPrice": 4100.0,
     "supplierId": "SUP-BALAJI",
-    "name": "Finolex 1.0 sqmm FR Wire Black 90m coil"
+    "name": "Finolex 1.0 sqmm FR Wire Black 90m coil",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "W-FIN-1.5-RED-90M",
@@ -49,7 +52,8 @@
     "sellingPrice": 6608.0,
     "costPrice": 5900.0,
     "supplierId": "SUP-BALAJI",
-    "name": "Finolex 1.5 sqmm FR Wire Red 90m coil"
+    "name": "Finolex 1.5 sqmm FR Wire Red 90m coil",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "W-FIN-1.5-BLU-90M",
@@ -62,7 +66,8 @@
     "sellingPrice": 6608.0,
     "costPrice": 5900.0,
     "supplierId": "SUP-BALAJI",
-    "name": "Finolex 1.5 sqmm FR Wire Blue 90m coil"
+    "name": "Finolex 1.5 sqmm FR Wire Blue 90m coil",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "W-FIN-1.5-BLK-90M",
@@ -75,7 +80,8 @@
     "sellingPrice": 6608.0,
     "costPrice": 5900.0,
     "supplierId": "SUP-BALAJI",
-    "name": "Finolex 1.5 sqmm FR Wire Black 90m coil"
+    "name": "Finolex 1.5 sqmm FR Wire Black 90m coil",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "W-FIN-2.5-RED-90M",
@@ -88,7 +94,8 @@
     "sellingPrice": 10752.0,
     "costPrice": 9600.0,
     "supplierId": "SUP-BALAJI",
-    "name": "Finolex 2.5 sqmm FR Wire Red 90m coil"
+    "name": "Finolex 2.5 sqmm FR Wire Red 90m coil",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "W-FIN-2.5-BLU-90M",
@@ -101,7 +108,8 @@
     "sellingPrice": 10752.0,
     "costPrice": 9600.0,
     "supplierId": "SUP-BALAJI",
-    "name": "Finolex 2.5 sqmm FR Wire Blue 90m coil"
+    "name": "Finolex 2.5 sqmm FR Wire Blue 90m coil",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "W-FIN-2.5-BLK-90M",
@@ -114,7 +122,8 @@
     "sellingPrice": 10752.0,
     "costPrice": 9600.0,
     "supplierId": "SUP-BALAJI",
-    "name": "Finolex 2.5 sqmm FR Wire Black 90m coil"
+    "name": "Finolex 2.5 sqmm FR Wire Black 90m coil",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "W-FIN-4.0-RED-90M",
@@ -127,7 +136,8 @@
     "sellingPrice": 17024.0,
     "costPrice": 15200.0,
     "supplierId": "SUP-BALAJI",
-    "name": "Finolex 4.0 sqmm FR Wire Red 90m coil"
+    "name": "Finolex 4.0 sqmm FR Wire Red 90m coil",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "W-FIN-4.0-BLU-90M",
@@ -140,7 +150,8 @@
     "sellingPrice": 17024.0,
     "costPrice": 15200.0,
     "supplierId": "SUP-BALAJI",
-    "name": "Finolex 4.0 sqmm FR Wire Blue 90m coil"
+    "name": "Finolex 4.0 sqmm FR Wire Blue 90m coil",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "W-FIN-4.0-BLK-90M",
@@ -153,7 +164,8 @@
     "sellingPrice": 17024.0,
     "costPrice": 15200.0,
     "supplierId": "SUP-BALAJI",
-    "name": "Finolex 4.0 sqmm FR Wire Black 90m coil"
+    "name": "Finolex 4.0 sqmm FR Wire Black 90m coil",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "W-POL-1.0-RED-90M",
@@ -166,7 +178,8 @@
     "sellingPrice": 4454.24,
     "costPrice": 3977.0,
     "supplierId": "SUP-ANNAI",
-    "name": "Polycab 1.0 sqmm FR Wire Red 90m coil"
+    "name": "Polycab 1.0 sqmm FR Wire Red 90m coil",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "W-POL-1.0-BLU-90M",
@@ -179,7 +192,8 @@
     "sellingPrice": 4454.24,
     "costPrice": 3977.0,
     "supplierId": "SUP-ANNAI",
-    "name": "Polycab 1.0 sqmm FR Wire Blue 90m coil"
+    "name": "Polycab 1.0 sqmm FR Wire Blue 90m coil",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "W-POL-1.0-BLK-90M",
@@ -192,7 +206,8 @@
     "sellingPrice": 4454.24,
     "costPrice": 3977.0,
     "supplierId": "SUP-ANNAI",
-    "name": "Polycab 1.0 sqmm FR Wire Black 90m coil"
+    "name": "Polycab 1.0 sqmm FR Wire Black 90m coil",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "W-POL-1.5-RED-90M",
@@ -205,7 +220,8 @@
     "sellingPrice": 6409.76,
     "costPrice": 5723.0,
     "supplierId": "SUP-ANNAI",
-    "name": "Polycab 1.5 sqmm FR Wire Red 90m coil"
+    "name": "Polycab 1.5 sqmm FR Wire Red 90m coil",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "W-POL-1.5-BLU-90M",
@@ -218,7 +234,8 @@
     "sellingPrice": 6409.76,
     "costPrice": 5723.0,
     "supplierId": "SUP-ANNAI",
-    "name": "Polycab 1.5 sqmm FR Wire Blue 90m coil"
+    "name": "Polycab 1.5 sqmm FR Wire Blue 90m coil",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "W-POL-1.5-BLK-90M",
@@ -231,7 +248,8 @@
     "sellingPrice": 6409.76,
     "costPrice": 5723.0,
     "supplierId": "SUP-ANNAI",
-    "name": "Polycab 1.5 sqmm FR Wire Black 90m coil"
+    "name": "Polycab 1.5 sqmm FR Wire Black 90m coil",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "W-POL-2.5-RED-90M",
@@ -244,7 +262,8 @@
     "sellingPrice": 10429.44,
     "costPrice": 9312.0,
     "supplierId": "SUP-ANNAI",
-    "name": "Polycab 2.5 sqmm FR Wire Red 90m coil"
+    "name": "Polycab 2.5 sqmm FR Wire Red 90m coil",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "W-POL-2.5-BLU-90M",
@@ -257,7 +276,8 @@
     "sellingPrice": 10429.44,
     "costPrice": 9312.0,
     "supplierId": "SUP-ANNAI",
-    "name": "Polycab 2.5 sqmm FR Wire Blue 90m coil"
+    "name": "Polycab 2.5 sqmm FR Wire Blue 90m coil",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "W-POL-2.5-BLK-90M",
@@ -270,7 +290,8 @@
     "sellingPrice": 10429.44,
     "costPrice": 9312.0,
     "supplierId": "SUP-ANNAI",
-    "name": "Polycab 2.5 sqmm FR Wire Black 90m coil"
+    "name": "Polycab 2.5 sqmm FR Wire Black 90m coil",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "W-HAV-1.5-RED-90M",
@@ -283,7 +304,8 @@
     "sellingPrice": 6806.24,
     "costPrice": 6077.0,
     "supplierId": "SUP-BALAJI",
-    "name": "Havells 1.5 sqmm FR Wire Red 90m coil"
+    "name": "Havells 1.5 sqmm FR Wire Red 90m coil",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "W-HAV-1.5-BLK-90M",
@@ -296,7 +318,8 @@
     "sellingPrice": 6806.24,
     "costPrice": 6077.0,
     "supplierId": "SUP-BALAJI",
-    "name": "Havells 1.5 sqmm FR Wire Black 90m coil"
+    "name": "Havells 1.5 sqmm FR Wire Black 90m coil",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "W-HAV-2.5-RED-90M",
@@ -309,7 +332,8 @@
     "sellingPrice": 11074.56,
     "costPrice": 9888.0,
     "supplierId": "SUP-BALAJI",
-    "name": "Havells 2.5 sqmm FR Wire Red 90m coil"
+    "name": "Havells 2.5 sqmm FR Wire Red 90m coil",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "W-HAV-2.5-BLK-90M",
@@ -322,7 +346,8 @@
     "sellingPrice": 11074.56,
     "costPrice": 9888.0,
     "supplierId": "SUP-BALAJI",
-    "name": "Havells 2.5 sqmm FR Wire Black 90m coil"
+    "name": "Havells 2.5 sqmm FR Wire Black 90m coil",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "W-RRK-1.0-RED-90M",
@@ -335,7 +360,8 @@
     "sellingPrice": 4224.64,
     "costPrice": 3772.0,
     "supplierId": "SUP-KMT",
-    "name": "RR Kabel 1.0 sqmm FR Wire Red 90m coil"
+    "name": "RR Kabel 1.0 sqmm FR Wire Red 90m coil",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "W-RRK-1.0-BLU-90M",
@@ -348,7 +374,8 @@
     "sellingPrice": 4224.64,
     "costPrice": 3772.0,
     "supplierId": "SUP-KMT",
-    "name": "RR Kabel 1.0 sqmm FR Wire Blue 90m coil"
+    "name": "RR Kabel 1.0 sqmm FR Wire Blue 90m coil",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "W-RRK-1.0-BLK-90M",
@@ -361,7 +388,8 @@
     "sellingPrice": 4224.64,
     "costPrice": 3772.0,
     "supplierId": "SUP-KMT",
-    "name": "RR Kabel 1.0 sqmm FR Wire Black 90m coil"
+    "name": "RR Kabel 1.0 sqmm FR Wire Black 90m coil",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "W-RRK-1.5-RED-90M",
@@ -374,7 +402,8 @@
     "sellingPrice": 6079.36,
     "costPrice": 5428.0,
     "supplierId": "SUP-KMT",
-    "name": "RR Kabel 1.5 sqmm FR Wire Red 90m coil"
+    "name": "RR Kabel 1.5 sqmm FR Wire Red 90m coil",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "W-RRK-1.5-BLU-90M",
@@ -387,7 +416,8 @@
     "sellingPrice": 6079.36,
     "costPrice": 5428.0,
     "supplierId": "SUP-KMT",
-    "name": "RR Kabel 1.5 sqmm FR Wire Blue 90m coil"
+    "name": "RR Kabel 1.5 sqmm FR Wire Blue 90m coil",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "W-RRK-1.5-BLK-90M",
@@ -400,7 +430,8 @@
     "sellingPrice": 6079.36,
     "costPrice": 5428.0,
     "supplierId": "SUP-KMT",
-    "name": "RR Kabel 1.5 sqmm FR Wire Black 90m coil"
+    "name": "RR Kabel 1.5 sqmm FR Wire Black 90m coil",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "W-RRK-2.5-RED-90M",
@@ -413,7 +444,8 @@
     "sellingPrice": 9891.84,
     "costPrice": 8832.0,
     "supplierId": "SUP-KMT",
-    "name": "RR Kabel 2.5 sqmm FR Wire Red 90m coil"
+    "name": "RR Kabel 2.5 sqmm FR Wire Red 90m coil",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "W-RRK-2.5-BLU-90M",
@@ -426,7 +458,8 @@
     "sellingPrice": 9891.84,
     "costPrice": 8832.0,
     "supplierId": "SUP-KMT",
-    "name": "RR Kabel 2.5 sqmm FR Wire Blue 90m coil"
+    "name": "RR Kabel 2.5 sqmm FR Wire Blue 90m coil",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "W-RRK-2.5-BLK-90M",
@@ -439,7 +472,8 @@
     "sellingPrice": 9891.84,
     "costPrice": 8832.0,
     "supplierId": "SUP-KMT",
-    "name": "RR Kabel 2.5 sqmm FR Wire Black 90m coil"
+    "name": "RR Kabel 2.5 sqmm FR Wire Black 90m coil",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "W-FIN-1.5-RED-180M",
@@ -452,7 +486,8 @@
     "sellingPrice": 12819.52,
     "costPrice": 11446.0,
     "supplierId": "SUP-BALAJI",
-    "name": "Finolex 1.5 sqmm FR Wire Red 180m coil"
+    "name": "Finolex 1.5 sqmm FR Wire Red 180m coil",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "SW-ANC-1W10A",
@@ -465,7 +500,8 @@
     "sellingPrice": 78.3,
     "costPrice": 58.0,
     "supplierId": "SUP-BALAJI",
-    "name": "Anchor Modular Switch 1-Way 10A White"
+    "name": "Anchor Modular Switch 1-Way 10A White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "SW-ANC-2W10A",
@@ -478,7 +514,8 @@
     "sellingPrice": 124.2,
     "costPrice": 92.0,
     "supplierId": "SUP-BALAJI",
-    "name": "Anchor Modular Switch 2-Way 10A White"
+    "name": "Anchor Modular Switch 2-Way 10A White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "SW-ANC-1W16A",
@@ -491,7 +528,8 @@
     "sellingPrice": 170.1,
     "costPrice": 126.0,
     "supplierId": "SUP-BALAJI",
-    "name": "Anchor Modular Switch 1-Way 16A White"
+    "name": "Anchor Modular Switch 1-Way 16A White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "SW-ANC-BELL",
@@ -504,7 +542,8 @@
     "sellingPrice": 99.9,
     "costPrice": 74.0,
     "supplierId": "SUP-BALAJI",
-    "name": "Anchor Modular Switch Bell Push White"
+    "name": "Anchor Modular Switch Bell Push White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "SW-ANC-SKT6A",
@@ -517,7 +556,8 @@
     "sellingPrice": 118.8,
     "costPrice": 88.0,
     "supplierId": "SUP-BALAJI",
-    "name": "Anchor Modular Switch Socket 6A White"
+    "name": "Anchor Modular Switch Socket 6A White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "SW-ANC-SKT16A",
@@ -530,7 +570,8 @@
     "sellingPrice": 199.8,
     "costPrice": 148.0,
     "supplierId": "SUP-BALAJI",
-    "name": "Anchor Modular Switch Socket 16A White"
+    "name": "Anchor Modular Switch Socket 16A White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "SW-LEG-1W10A",
@@ -543,7 +584,8 @@
     "sellingPrice": 144.86,
     "costPrice": 107.3,
     "supplierId": "SUP-VELAN",
-    "name": "Legrand Modular Switch 1-Way 10A White"
+    "name": "Legrand Modular Switch 1-Way 10A White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "SW-LEG-2W10A",
@@ -556,7 +598,8 @@
     "sellingPrice": 229.77,
     "costPrice": 170.2,
     "supplierId": "SUP-VELAN",
-    "name": "Legrand Modular Switch 2-Way 10A White"
+    "name": "Legrand Modular Switch 2-Way 10A White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "SW-LEG-1W16A",
@@ -569,7 +612,8 @@
     "sellingPrice": 314.69,
     "costPrice": 233.1,
     "supplierId": "SUP-VELAN",
-    "name": "Legrand Modular Switch 1-Way 16A White"
+    "name": "Legrand Modular Switch 1-Way 16A White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "SW-LEG-BELL",
@@ -582,7 +626,8 @@
     "sellingPrice": 184.82,
     "costPrice": 136.9,
     "supplierId": "SUP-VELAN",
-    "name": "Legrand Modular Switch Bell Push White"
+    "name": "Legrand Modular Switch Bell Push White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "SW-LEG-SKT6A",
@@ -595,7 +640,8 @@
     "sellingPrice": 219.78,
     "costPrice": 162.8,
     "supplierId": "SUP-VELAN",
-    "name": "Legrand Modular Switch Socket 6A White"
+    "name": "Legrand Modular Switch Socket 6A White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "SW-LEG-SKT16A",
@@ -608,7 +654,8 @@
     "sellingPrice": 369.63,
     "costPrice": 273.8,
     "supplierId": "SUP-VELAN",
-    "name": "Legrand Modular Switch Socket 16A White"
+    "name": "Legrand Modular Switch Socket 16A White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "SW-GM-1W10A",
@@ -621,7 +668,8 @@
     "sellingPrice": 68.9,
     "costPrice": 51.04,
     "supplierId": "SUP-ANNAI",
-    "name": "GM Modular Modular Switch 1-Way 10A White"
+    "name": "GM Modular Modular Switch 1-Way 10A White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "SW-GM-2W10A",
@@ -634,7 +682,8 @@
     "sellingPrice": 109.3,
     "costPrice": 80.96,
     "supplierId": "SUP-ANNAI",
-    "name": "GM Modular Modular Switch 2-Way 10A White"
+    "name": "GM Modular Modular Switch 2-Way 10A White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "SW-GM-1W16A",
@@ -647,7 +696,8 @@
     "sellingPrice": 149.69,
     "costPrice": 110.88,
     "supplierId": "SUP-ANNAI",
-    "name": "GM Modular Modular Switch 1-Way 16A White"
+    "name": "GM Modular Modular Switch 1-Way 16A White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "SW-GM-BELL",
@@ -660,7 +710,8 @@
     "sellingPrice": 87.91,
     "costPrice": 65.12,
     "supplierId": "SUP-ANNAI",
-    "name": "GM Modular Modular Switch Bell Push White"
+    "name": "GM Modular Modular Switch Bell Push White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "SW-GM-SKT6A",
@@ -673,7 +724,8 @@
     "sellingPrice": 104.54,
     "costPrice": 77.44,
     "supplierId": "SUP-ANNAI",
-    "name": "GM Modular Modular Switch Socket 6A White"
+    "name": "GM Modular Modular Switch Socket 6A White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "SW-GM-SKT16A",
@@ -686,7 +738,8 @@
     "sellingPrice": 175.82,
     "costPrice": 130.24,
     "supplierId": "SUP-ANNAI",
-    "name": "GM Modular Modular Switch Socket 16A White"
+    "name": "GM Modular Modular Switch Socket 16A White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "SW-HAV-1W10A",
@@ -699,7 +752,8 @@
     "sellingPrice": 95.53,
     "costPrice": 70.76,
     "supplierId": "SUP-BALAJI",
-    "name": "Havells Modular Switch 1-Way 10A White"
+    "name": "Havells Modular Switch 1-Way 10A White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "SW-HAV-2W10A",
@@ -712,7 +766,8 @@
     "sellingPrice": 151.52,
     "costPrice": 112.24,
     "supplierId": "SUP-BALAJI",
-    "name": "Havells Modular Switch 2-Way 10A White"
+    "name": "Havells Modular Switch 2-Way 10A White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "SW-HAV-1W16A",
@@ -725,7 +780,8 @@
     "sellingPrice": 207.52,
     "costPrice": 153.72,
     "supplierId": "SUP-BALAJI",
-    "name": "Havells Modular Switch 1-Way 16A White"
+    "name": "Havells Modular Switch 1-Way 16A White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "SW-HAV-BELL",
@@ -738,7 +794,8 @@
     "sellingPrice": 121.88,
     "costPrice": 90.28,
     "supplierId": "SUP-BALAJI",
-    "name": "Havells Modular Switch Bell Push White"
+    "name": "Havells Modular Switch Bell Push White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "SW-HAV-SKT6A",
@@ -751,7 +808,8 @@
     "sellingPrice": 144.94,
     "costPrice": 107.36,
     "supplierId": "SUP-BALAJI",
-    "name": "Havells Modular Switch Socket 6A White"
+    "name": "Havells Modular Switch Socket 6A White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "SW-HAV-SKT16A",
@@ -764,7 +822,8 @@
     "sellingPrice": 243.76,
     "costPrice": 180.56,
     "supplierId": "SUP-BALAJI",
-    "name": "Havells Modular Switch Socket 16A White"
+    "name": "Havells Modular Switch Socket 16A White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "MCB-HAV-SP-6A-C",
@@ -777,7 +836,8 @@
     "sellingPrice": 377.6,
     "costPrice": 295.0,
     "supplierId": "SUP-BALAJI",
-    "name": "Havells MCB SP 6A C-Curve"
+    "name": "Havells MCB SP 6A C-Curve",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "MCB-HAV-SP-10A-C",
@@ -790,7 +850,8 @@
     "sellingPrice": 390.4,
     "costPrice": 305.0,
     "supplierId": "SUP-BALAJI",
-    "name": "Havells MCB SP 10A C-Curve"
+    "name": "Havells MCB SP 10A C-Curve",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "MCB-HAV-SP-16A-C",
@@ -803,7 +864,8 @@
     "sellingPrice": 407.04,
     "costPrice": 318.0,
     "supplierId": "SUP-BALAJI",
-    "name": "Havells MCB SP 16A C-Curve"
+    "name": "Havells MCB SP 16A C-Curve",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "MCB-HAV-SP-20A-C",
@@ -816,7 +878,8 @@
     "sellingPrice": 430.08,
     "costPrice": 336.0,
     "supplierId": "SUP-BALAJI",
-    "name": "Havells MCB SP 20A C-Curve"
+    "name": "Havells MCB SP 20A C-Curve",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "MCB-HAV-SP-32A-C",
@@ -829,7 +892,8 @@
     "sellingPrice": 458.24,
     "costPrice": 358.0,
     "supplierId": "SUP-BALAJI",
-    "name": "Havells MCB SP 32A C-Curve"
+    "name": "Havells MCB SP 32A C-Curve",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "MCB-HAV-SP-40A-C",
@@ -842,7 +906,8 @@
     "sellingPrice": 514.56,
     "costPrice": 402.0,
     "supplierId": "SUP-BALAJI",
-    "name": "Havells MCB SP 40A C-Curve"
+    "name": "Havells MCB SP 40A C-Curve",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "MCB-HAV-DP-6A-C",
@@ -855,7 +920,8 @@
     "sellingPrice": 736.32,
     "costPrice": 575.25,
     "supplierId": "SUP-BALAJI",
-    "name": "Havells MCB DP 6A C-Curve"
+    "name": "Havells MCB DP 6A C-Curve",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "MCB-HAV-DP-10A-C",
@@ -868,7 +934,8 @@
     "sellingPrice": 761.28,
     "costPrice": 594.75,
     "supplierId": "SUP-BALAJI",
-    "name": "Havells MCB DP 10A C-Curve"
+    "name": "Havells MCB DP 10A C-Curve",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "MCB-HAV-DP-16A-C",
@@ -881,7 +948,8 @@
     "sellingPrice": 793.73,
     "costPrice": 620.1,
     "supplierId": "SUP-BALAJI",
-    "name": "Havells MCB DP 16A C-Curve"
+    "name": "Havells MCB DP 16A C-Curve",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "MCB-HAV-DP-20A-C",
@@ -894,7 +962,8 @@
     "sellingPrice": 838.66,
     "costPrice": 655.2,
     "supplierId": "SUP-BALAJI",
-    "name": "Havells MCB DP 20A C-Curve"
+    "name": "Havells MCB DP 20A C-Curve",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "MCB-HAV-DP-32A-C",
@@ -907,7 +976,8 @@
     "sellingPrice": 893.57,
     "costPrice": 698.1,
     "supplierId": "SUP-BALAJI",
-    "name": "Havells MCB DP 32A C-Curve"
+    "name": "Havells MCB DP 32A C-Curve",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "MCB-HAV-DP-40A-C",
@@ -920,7 +990,8 @@
     "sellingPrice": 1003.39,
     "costPrice": 783.9,
     "supplierId": "SUP-BALAJI",
-    "name": "Havells MCB DP 40A C-Curve"
+    "name": "Havells MCB DP 40A C-Curve",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "MCB-SCH-SP-6A-C",
@@ -933,7 +1004,8 @@
     "sellingPrice": 445.57,
     "costPrice": 348.1,
     "supplierId": "SUP-VELAN",
-    "name": "Schneider MCB SP 6A C-Curve"
+    "name": "Schneider MCB SP 6A C-Curve",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "MCB-SCH-SP-10A-C",
@@ -946,7 +1018,8 @@
     "sellingPrice": 460.67,
     "costPrice": 359.9,
     "supplierId": "SUP-VELAN",
-    "name": "Schneider MCB SP 10A C-Curve"
+    "name": "Schneider MCB SP 10A C-Curve",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "MCB-SCH-SP-16A-C",
@@ -959,7 +1032,8 @@
     "sellingPrice": 480.31,
     "costPrice": 375.24,
     "supplierId": "SUP-VELAN",
-    "name": "Schneider MCB SP 16A C-Curve"
+    "name": "Schneider MCB SP 16A C-Curve",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "MCB-SCH-SP-20A-C",
@@ -972,7 +1046,8 @@
     "sellingPrice": 507.49,
     "costPrice": 396.48,
     "supplierId": "SUP-VELAN",
-    "name": "Schneider MCB SP 20A C-Curve"
+    "name": "Schneider MCB SP 20A C-Curve",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "MCB-SCH-SP-32A-C",
@@ -985,7 +1060,8 @@
     "sellingPrice": 540.72,
     "costPrice": 422.44,
     "supplierId": "SUP-VELAN",
-    "name": "Schneider MCB SP 32A C-Curve"
+    "name": "Schneider MCB SP 32A C-Curve",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "MCB-SCH-SP-40A-C",
@@ -998,7 +1074,8 @@
     "sellingPrice": 607.18,
     "costPrice": 474.36,
     "supplierId": "SUP-VELAN",
-    "name": "Schneider MCB SP 40A C-Curve"
+    "name": "Schneider MCB SP 40A C-Curve",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "MCB-SCH-DP-6A-C",
@@ -1011,7 +1088,8 @@
     "sellingPrice": 868.86,
     "costPrice": 678.79,
     "supplierId": "SUP-VELAN",
-    "name": "Schneider MCB DP 6A C-Curve"
+    "name": "Schneider MCB DP 6A C-Curve",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "MCB-SCH-DP-10A-C",
@@ -1024,7 +1102,8 @@
     "sellingPrice": 898.31,
     "costPrice": 701.8,
     "supplierId": "SUP-VELAN",
-    "name": "Schneider MCB DP 10A C-Curve"
+    "name": "Schneider MCB DP 10A C-Curve",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "MCB-SCH-DP-16A-C",
@@ -1037,7 +1116,8 @@
     "sellingPrice": 936.6,
     "costPrice": 731.72,
     "supplierId": "SUP-VELAN",
-    "name": "Schneider MCB DP 16A C-Curve"
+    "name": "Schneider MCB DP 16A C-Curve",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "MCB-SCH-DP-20A-C",
@@ -1050,7 +1130,8 @@
     "sellingPrice": 989.61,
     "costPrice": 773.14,
     "supplierId": "SUP-VELAN",
-    "name": "Schneider MCB DP 20A C-Curve"
+    "name": "Schneider MCB DP 20A C-Curve",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "MCB-SCH-DP-32A-C",
@@ -1063,7 +1144,8 @@
     "sellingPrice": 1054.41,
     "costPrice": 823.76,
     "supplierId": "SUP-VELAN",
-    "name": "Schneider MCB DP 32A C-Curve"
+    "name": "Schneider MCB DP 32A C-Curve",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "MCB-SCH-DP-40A-C",
@@ -1076,7 +1158,8 @@
     "sellingPrice": 1184.0,
     "costPrice": 925.0,
     "supplierId": "SUP-VELAN",
-    "name": "Schneider MCB DP 40A C-Curve"
+    "name": "Schneider MCB DP 40A C-Curve",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "MCB-LEG-SP-6A-C",
@@ -1089,7 +1172,8 @@
     "sellingPrice": 505.98,
     "costPrice": 395.3,
     "supplierId": "SUP-VELAN",
-    "name": "Legrand MCB SP 6A C-Curve"
+    "name": "Legrand MCB SP 6A C-Curve",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "MCB-LEG-SP-10A-C",
@@ -1102,7 +1186,8 @@
     "sellingPrice": 523.14,
     "costPrice": 408.7,
     "supplierId": "SUP-VELAN",
-    "name": "Legrand MCB SP 10A C-Curve"
+    "name": "Legrand MCB SP 10A C-Curve",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "MCB-LEG-SP-16A-C",
@@ -1115,7 +1200,8 @@
     "sellingPrice": 545.43,
     "costPrice": 426.12,
     "supplierId": "SUP-VELAN",
-    "name": "Legrand MCB SP 16A C-Curve"
+    "name": "Legrand MCB SP 16A C-Curve",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "MCB-LEG-SP-20A-C",
@@ -1128,7 +1214,8 @@
     "sellingPrice": 576.31,
     "costPrice": 450.24,
     "supplierId": "SUP-VELAN",
-    "name": "Legrand MCB SP 20A C-Curve"
+    "name": "Legrand MCB SP 20A C-Curve",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "MCB-LEG-SP-32A-C",
@@ -1141,7 +1228,8 @@
     "sellingPrice": 614.04,
     "costPrice": 479.72,
     "supplierId": "SUP-VELAN",
-    "name": "Legrand MCB SP 32A C-Curve"
+    "name": "Legrand MCB SP 32A C-Curve",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "MCB-LEG-SP-40A-C",
@@ -1154,7 +1242,8 @@
     "sellingPrice": 689.51,
     "costPrice": 538.68,
     "supplierId": "SUP-VELAN",
-    "name": "Legrand MCB SP 40A C-Curve"
+    "name": "Legrand MCB SP 40A C-Curve",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "MCB-LEG-DP-6A-C",
@@ -1167,7 +1256,8 @@
     "sellingPrice": 986.67,
     "costPrice": 770.84,
     "supplierId": "SUP-VELAN",
-    "name": "Legrand MCB DP 6A C-Curve"
+    "name": "Legrand MCB DP 6A C-Curve",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "MCB-LEG-DP-10A-C",
@@ -1180,7 +1270,8 @@
     "sellingPrice": 1020.12,
     "costPrice": 796.97,
     "supplierId": "SUP-VELAN",
-    "name": "Legrand MCB DP 10A C-Curve"
+    "name": "Legrand MCB DP 10A C-Curve",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "MCB-LEG-DP-16A-C",
@@ -1193,7 +1284,8 @@
     "sellingPrice": 1063.6,
     "costPrice": 830.93,
     "supplierId": "SUP-VELAN",
-    "name": "Legrand MCB DP 16A C-Curve"
+    "name": "Legrand MCB DP 16A C-Curve",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "MCB-LEG-DP-20A-C",
@@ -1206,7 +1298,8 @@
     "sellingPrice": 1123.8,
     "costPrice": 877.97,
     "supplierId": "SUP-VELAN",
-    "name": "Legrand MCB DP 20A C-Curve"
+    "name": "Legrand MCB DP 20A C-Curve",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "MCB-LEG-DP-32A-C",
@@ -1219,7 +1312,8 @@
     "sellingPrice": 1197.38,
     "costPrice": 935.45,
     "supplierId": "SUP-VELAN",
-    "name": "Legrand MCB DP 32A C-Curve"
+    "name": "Legrand MCB DP 32A C-Curve",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "MCB-LEG-DP-40A-C",
@@ -1232,7 +1326,8 @@
     "sellingPrice": 1344.55,
     "costPrice": 1050.43,
     "supplierId": "SUP-VELAN",
-    "name": "Legrand MCB DP 40A C-Curve"
+    "name": "Legrand MCB DP 40A C-Curve",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "LED-PHI-5W-CW",
@@ -1245,7 +1340,8 @@
     "sellingPrice": 89.9,
     "costPrice": 62.0,
     "supplierId": "SUP-KMT",
-    "name": "Philips LED Bulb 5W B22 Cool White"
+    "name": "Philips LED Bulb 5W B22 Cool White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "LED-PHI-5W-WW",
@@ -1258,7 +1354,8 @@
     "sellingPrice": 89.9,
     "costPrice": 62.0,
     "supplierId": "SUP-KMT",
-    "name": "Philips LED Bulb 5W B22 Warm White"
+    "name": "Philips LED Bulb 5W B22 Warm White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "LED-PHI-9W-CW",
@@ -1271,7 +1368,8 @@
     "sellingPrice": 121.8,
     "costPrice": 84.0,
     "supplierId": "SUP-KMT",
-    "name": "Philips LED Bulb 9W B22 Cool White"
+    "name": "Philips LED Bulb 9W B22 Cool White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "LED-PHI-9W-WW",
@@ -1284,7 +1382,8 @@
     "sellingPrice": 121.8,
     "costPrice": 84.0,
     "supplierId": "SUP-KMT",
-    "name": "Philips LED Bulb 9W B22 Warm White"
+    "name": "Philips LED Bulb 9W B22 Warm White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "LED-PHI-12W-CW",
@@ -1297,7 +1396,8 @@
     "sellingPrice": 171.1,
     "costPrice": 118.0,
     "supplierId": "SUP-KMT",
-    "name": "Philips LED Bulb 12W B22 Cool White"
+    "name": "Philips LED Bulb 12W B22 Cool White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "LED-PHI-12W-WW",
@@ -1310,7 +1410,8 @@
     "sellingPrice": 171.1,
     "costPrice": 118.0,
     "supplierId": "SUP-KMT",
-    "name": "Philips LED Bulb 12W B22 Warm White"
+    "name": "Philips LED Bulb 12W B22 Warm White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "LED-PHI-18W-CW",
@@ -1323,7 +1424,8 @@
     "sellingPrice": 255.2,
     "costPrice": 176.0,
     "supplierId": "SUP-KMT",
-    "name": "Philips LED Bulb 18W B22 Cool White"
+    "name": "Philips LED Bulb 18W B22 Cool White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "LED-PHI-18W-WW",
@@ -1336,7 +1438,8 @@
     "sellingPrice": 255.2,
     "costPrice": 176.0,
     "supplierId": "SUP-KMT",
-    "name": "Philips LED Bulb 18W B22 Warm White"
+    "name": "Philips LED Bulb 18W B22 Warm White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "LED-SYS-5W-CW",
@@ -1349,7 +1452,8 @@
     "sellingPrice": 73.72,
     "costPrice": 50.84,
     "supplierId": "SUP-KMT",
-    "name": "Syska LED Bulb 5W B22 Cool White"
+    "name": "Syska LED Bulb 5W B22 Cool White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "LED-SYS-5W-WW",
@@ -1362,7 +1466,8 @@
     "sellingPrice": 73.72,
     "costPrice": 50.84,
     "supplierId": "SUP-KMT",
-    "name": "Syska LED Bulb 5W B22 Warm White"
+    "name": "Syska LED Bulb 5W B22 Warm White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "LED-SYS-9W-CW",
@@ -1375,7 +1480,8 @@
     "sellingPrice": 99.88,
     "costPrice": 68.88,
     "supplierId": "SUP-KMT",
-    "name": "Syska LED Bulb 9W B22 Cool White"
+    "name": "Syska LED Bulb 9W B22 Cool White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "LED-SYS-9W-WW",
@@ -1388,7 +1494,8 @@
     "sellingPrice": 99.88,
     "costPrice": 68.88,
     "supplierId": "SUP-KMT",
-    "name": "Syska LED Bulb 9W B22 Warm White"
+    "name": "Syska LED Bulb 9W B22 Warm White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "LED-SYS-12W-CW",
@@ -1401,7 +1508,8 @@
     "sellingPrice": 140.3,
     "costPrice": 96.76,
     "supplierId": "SUP-KMT",
-    "name": "Syska LED Bulb 12W B22 Cool White"
+    "name": "Syska LED Bulb 12W B22 Cool White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "LED-SYS-12W-WW",
@@ -1414,7 +1522,8 @@
     "sellingPrice": 140.3,
     "costPrice": 96.76,
     "supplierId": "SUP-KMT",
-    "name": "Syska LED Bulb 12W B22 Warm White"
+    "name": "Syska LED Bulb 12W B22 Warm White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "LED-SYS-18W-CW",
@@ -1427,7 +1536,8 @@
     "sellingPrice": 209.26,
     "costPrice": 144.32,
     "supplierId": "SUP-KMT",
-    "name": "Syska LED Bulb 18W B22 Cool White"
+    "name": "Syska LED Bulb 18W B22 Cool White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "LED-SYS-18W-WW",
@@ -1440,7 +1550,8 @@
     "sellingPrice": 209.26,
     "costPrice": 144.32,
     "supplierId": "SUP-KMT",
-    "name": "Syska LED Bulb 18W B22 Warm White"
+    "name": "Syska LED Bulb 18W B22 Warm White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "LED-HAV-5W-CW",
@@ -1453,7 +1564,8 @@
     "sellingPrice": 83.61,
     "costPrice": 57.66,
     "supplierId": "SUP-BALAJI",
-    "name": "Havells LED Bulb 5W B22 Cool White"
+    "name": "Havells LED Bulb 5W B22 Cool White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "LED-HAV-5W-WW",
@@ -1466,7 +1578,8 @@
     "sellingPrice": 83.61,
     "costPrice": 57.66,
     "supplierId": "SUP-BALAJI",
-    "name": "Havells LED Bulb 5W B22 Warm White"
+    "name": "Havells LED Bulb 5W B22 Warm White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "LED-HAV-9W-CW",
@@ -1479,7 +1592,8 @@
     "sellingPrice": 113.27,
     "costPrice": 78.12,
     "supplierId": "SUP-BALAJI",
-    "name": "Havells LED Bulb 9W B22 Cool White"
+    "name": "Havells LED Bulb 9W B22 Cool White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "LED-HAV-9W-WW",
@@ -1492,7 +1606,8 @@
     "sellingPrice": 113.27,
     "costPrice": 78.12,
     "supplierId": "SUP-BALAJI",
-    "name": "Havells LED Bulb 9W B22 Warm White"
+    "name": "Havells LED Bulb 9W B22 Warm White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "LED-HAV-12W-CW",
@@ -1505,7 +1620,8 @@
     "sellingPrice": 159.12,
     "costPrice": 109.74,
     "supplierId": "SUP-BALAJI",
-    "name": "Havells LED Bulb 12W B22 Cool White"
+    "name": "Havells LED Bulb 12W B22 Cool White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "LED-HAV-12W-WW",
@@ -1518,7 +1634,8 @@
     "sellingPrice": 159.12,
     "costPrice": 109.74,
     "supplierId": "SUP-BALAJI",
-    "name": "Havells LED Bulb 12W B22 Warm White"
+    "name": "Havells LED Bulb 12W B22 Warm White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "LED-HAV-18W-CW",
@@ -1531,7 +1648,8 @@
     "sellingPrice": 237.34,
     "costPrice": 163.68,
     "supplierId": "SUP-BALAJI",
-    "name": "Havells LED Bulb 18W B22 Cool White"
+    "name": "Havells LED Bulb 18W B22 Cool White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "LED-HAV-18W-WW",
@@ -1544,7 +1662,8 @@
     "sellingPrice": 237.34,
     "costPrice": 163.68,
     "supplierId": "SUP-BALAJI",
-    "name": "Havells LED Bulb 18W B22 Warm White"
+    "name": "Havells LED Bulb 18W B22 Warm White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "FAN-CRO-1200MM-BRN",
@@ -1557,7 +1676,8 @@
     "sellingPrice": 1805.6,
     "costPrice": 1480.0,
     "supplierId": "SUP-ANNAI",
-    "name": "Crompton Ceiling Fan 1200mm Brown"
+    "name": "Crompton Ceiling Fan 1200mm Brown",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "FAN-CRO-1200MM-WHT",
@@ -1570,7 +1690,8 @@
     "sellingPrice": 1805.6,
     "costPrice": 1480.0,
     "supplierId": "SUP-ANNAI",
-    "name": "Crompton Ceiling Fan 1200mm White"
+    "name": "Crompton Ceiling Fan 1200mm White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "FAN-CRO-900MM-BRN",
@@ -1583,7 +1704,8 @@
     "sellingPrice": 1552.82,
     "costPrice": 1272.8,
     "supplierId": "SUP-ANNAI",
-    "name": "Crompton Ceiling Fan 900mm Brown"
+    "name": "Crompton Ceiling Fan 900mm Brown",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "FAN-CRO-900MM-WHT",
@@ -1596,7 +1718,8 @@
     "sellingPrice": 1552.82,
     "costPrice": 1272.8,
     "supplierId": "SUP-ANNAI",
-    "name": "Crompton Ceiling Fan 900mm White"
+    "name": "Crompton Ceiling Fan 900mm White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "FAN-ORI-1200MM-BRN",
@@ -1609,7 +1732,8 @@
     "sellingPrice": 1976.4,
     "costPrice": 1620.0,
     "supplierId": "SUP-KMT",
-    "name": "Orient Ceiling Fan 1200mm Brown"
+    "name": "Orient Ceiling Fan 1200mm Brown",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "FAN-ORI-1200MM-WHT",
@@ -1622,7 +1746,8 @@
     "sellingPrice": 1976.4,
     "costPrice": 1620.0,
     "supplierId": "SUP-KMT",
-    "name": "Orient Ceiling Fan 1200mm White"
+    "name": "Orient Ceiling Fan 1200mm White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "FAN-ORI-900MM-BRN",
@@ -1635,7 +1760,8 @@
     "sellingPrice": 1699.7,
     "costPrice": 1393.2,
     "supplierId": "SUP-KMT",
-    "name": "Orient Ceiling Fan 900mm Brown"
+    "name": "Orient Ceiling Fan 900mm Brown",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "FAN-ORI-900MM-WHT",
@@ -1648,7 +1774,8 @@
     "sellingPrice": 1699.7,
     "costPrice": 1393.2,
     "supplierId": "SUP-KMT",
-    "name": "Orient Ceiling Fan 900mm White"
+    "name": "Orient Ceiling Fan 900mm White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "FAN-HAV-1200MM-BRN",
@@ -1661,7 +1788,8 @@
     "sellingPrice": 2305.8,
     "costPrice": 1890.0,
     "supplierId": "SUP-BALAJI",
-    "name": "Havells Ceiling Fan 1200mm Brown"
+    "name": "Havells Ceiling Fan 1200mm Brown",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "FAN-HAV-1200MM-WHT",
@@ -1674,7 +1802,8 @@
     "sellingPrice": 2305.8,
     "costPrice": 1890.0,
     "supplierId": "SUP-BALAJI",
-    "name": "Havells Ceiling Fan 1200mm White"
+    "name": "Havells Ceiling Fan 1200mm White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "FAN-HAV-900MM-BRN",
@@ -1687,7 +1816,8 @@
     "sellingPrice": 1982.99,
     "costPrice": 1625.4,
     "supplierId": "SUP-BALAJI",
-    "name": "Havells Ceiling Fan 900mm Brown"
+    "name": "Havells Ceiling Fan 900mm Brown",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "FAN-HAV-900MM-WHT",
@@ -1700,7 +1830,8 @@
     "sellingPrice": 1982.99,
     "costPrice": 1625.4,
     "supplierId": "SUP-BALAJI",
-    "name": "Havells Ceiling Fan 900mm White"
+    "name": "Havells Ceiling Fan 900mm White",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "ACC-CONDUIT-20",
@@ -1713,7 +1844,8 @@
     "sellingPrice": 93.0,
     "costPrice": 62.0,
     "supplierId": "SUP-ANNAI",
-    "name": "PVC Conduit Pipe 20mm"
+    "name": "PVC Conduit Pipe 20mm",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "ACC-CONDUIT-25",
@@ -1726,7 +1858,8 @@
     "sellingPrice": 126.0,
     "costPrice": 84.0,
     "supplierId": "SUP-ANNAI",
-    "name": "PVC Conduit Pipe 25mm"
+    "name": "PVC Conduit Pipe 25mm",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "ACC-JB-4X4",
@@ -1739,7 +1872,8 @@
     "sellingPrice": 69.0,
     "costPrice": 46.0,
     "supplierId": "SUP-ANNAI",
-    "name": "Junction Box 4x4"
+    "name": "Junction Box 4x4",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "ACC-JB-6X4",
@@ -1752,7 +1886,8 @@
     "sellingPrice": 102.0,
     "costPrice": 68.0,
     "supplierId": "SUP-ANNAI",
-    "name": "Junction Box 6x4"
+    "name": "Junction Box 6x4",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "ACC-TAPE-PVC",
@@ -1765,7 +1900,8 @@
     "sellingPrice": 16.5,
     "costPrice": 11.0,
     "supplierId": "SUP-ANNAI",
-    "name": "PVC Insulation Tape"
+    "name": "PVC Insulation Tape",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "ACC-HOLDER-B22",
@@ -1778,7 +1914,8 @@
     "sellingPrice": 51.0,
     "costPrice": 34.0,
     "supplierId": "SUP-ANNAI",
-    "name": "Batten Holder B22"
+    "name": "Batten Holder B22",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "ACC-ROSE-CEIL",
@@ -1791,7 +1928,8 @@
     "sellingPrice": 43.5,
     "costPrice": 29.0,
     "supplierId": "SUP-ANNAI",
-    "name": "Ceiling Rose 3-Plate"
+    "name": "Ceiling Rose 3-Plate",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "ACC-PLUG-3PIN",
@@ -1804,7 +1942,8 @@
     "sellingPrice": 63.0,
     "costPrice": 42.0,
     "supplierId": "SUP-ANNAI",
-    "name": "3-Pin Plug Top 6A"
+    "name": "3-Pin Plug Top 6A",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "ACC-EXT-4WAY",
@@ -1817,7 +1956,8 @@
     "sellingPrice": 402.0,
     "costPrice": 268.0,
     "supplierId": "SUP-ANNAI",
-    "name": "Extension Board 4-Way"
+    "name": "Extension Board 4-Way",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "ACC-LUG-CU-10",
@@ -1830,7 +1970,8 @@
     "sellingPrice": 27.0,
     "costPrice": 18.0,
     "supplierId": "SUP-ANNAI",
-    "name": "Copper Lug 10 sqmm"
+    "name": "Copper Lug 10 sqmm",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "ACC-GLAND-PG13",
@@ -1843,7 +1984,8 @@
     "sellingPrice": 39.0,
     "costPrice": 26.0,
     "supplierId": "SUP-ANNAI",
-    "name": "Cable Gland PG13"
+    "name": "Cable Gland PG13",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "ACC-CLIP-CLAMP",
@@ -1856,7 +1998,8 @@
     "sellingPrice": 57.0,
     "costPrice": 38.0,
     "supplierId": "SUP-ANNAI",
-    "name": "Cable Clip Clamp 20mm"
+    "name": "Cable Clip Clamp 20mm",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "ACC-FUSE-WIRE",
@@ -1869,7 +2012,8 @@
     "sellingPrice": 36.0,
     "costPrice": 24.0,
     "supplierId": "SUP-ANNAI",
-    "name": "Fuse Wire Spool"
+    "name": "Fuse Wire Spool",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "ACC-BELL-DOOR",
@@ -1882,7 +2026,8 @@
     "sellingPrice": 279.0,
     "costPrice": 186.0,
     "supplierId": "SUP-ANNAI",
-    "name": "Door Bell Ding Dong"
+    "name": "Door Bell Ding Dong",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "ACC-REG-FAN",
@@ -1895,7 +2040,8 @@
     "sellingPrice": 222.0,
     "costPrice": 148.0,
     "supplierId": "SUP-ANNAI",
-    "name": "Fan Regulator Step Type"
+    "name": "Fan Regulator Step Type",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   },
   {
     "skuId": "ACC-TESTER-LINE",
@@ -1908,6 +2054,7 @@
     "sellingPrice": 48.0,
     "costPrice": 32.0,
     "supplierId": "SUP-ANNAI",
-    "name": "Line Tester Screwdriver"
+    "name": "Line Tester Screwdriver",
+    "fulfilmentPolicy": "PARTIAL_ALLOWED"
   }
 ]

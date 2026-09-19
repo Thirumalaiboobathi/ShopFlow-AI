@@ -7,6 +7,11 @@ from typing import List, Optional
 
 from .models import Dataset, SupplierPrice, money
 
+# Supplier price moves below this are noise in a market where dealer rates
+# drift constantly. Defined once and imported everywhere: callers that need a
+# finer lens (analysis, tests) pass an explicit threshold instead.
+PRICE_ALERT_THRESHOLD_PERCENT = 5.0
+
 
 @dataclass(frozen=True)
 class PriceDelta:
@@ -86,7 +91,7 @@ def price_delta(data: Dataset, skuId: str) -> Optional[PriceDelta]:
 
 
 def detect_price_increases(
-    data: Dataset, threshold_percent: float = 1.0
+    data: Dataset, threshold_percent: float = PRICE_ALERT_THRESHOLD_PERCENT
 ) -> List[PriceDelta]:
     """Every SKU whose latest supplier price rose by more than the threshold.
 

@@ -19,7 +19,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from data.generator import DEMO_ORDER_SKUS, build_dataset  # noqa: E402
 from engine.budget import allocate_budget  # noqa: E402
 from engine.models import Dataset  # noqa: E402
-from engine.pricing import cheaper_alternatives, current_cost, price_delta  # noqa: E402
+from engine.pricing import (  # noqa: E402
+    PRICE_ALERT_THRESHOLD_PERCENT,
+    cheaper_alternatives,
+    current_cost,
+    price_delta,
+)
 from engine.scenarios import scenario_report  # noqa: E402
 from engine.shortage import shortages  # noqa: E402
 from engine.velocity import coverage_for, velocity_for  # noqa: E402
@@ -51,11 +56,17 @@ def build_scenario(data: Dataset | None = None, budget: float = DEMO_BUDGET) -> 
     quote_total = round(sum(l["lineTotal"] for l in order_view), 2)
     plan = allocate_budget(data, budget)
 
+    # Every movement on an ordered item is reported, but only those above the
+    # alert threshold are flagged - dealer rates drift constantly and a 0.6%
+    # move is not something to interrupt the owner about.
     deltas = []
     for line in order.lines:
         d = price_delta(data, line.skuId)
         if d and d.percentChange:
-            deltas.append(d.as_evidence())
+            deltas.append({
+                **d.as_evidence(),
+                "isAlert": d.percentChange > PRICE_ALERT_THRESHOLD_PERCENT,
+            })
 
     return {
         "shopId": "demo",

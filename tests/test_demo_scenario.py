@@ -47,6 +47,13 @@ def test_supplier_price_rise_on_the_wire_is_surfaced(scenario):
     assert rise["previousCost"] == 5900.0
     assert rise["currentCost"] == 6300.0
     assert rise["percentChange"] == pytest.approx(6.78, abs=0.01)
+    assert rise["isAlert"] is True
+
+
+def test_trivial_price_drift_is_reported_but_not_alerted(scenario):
+    minor = {d["skuId"]: d for d in scenario["priceChanges"]}["SW-ANC-1W10A"]
+    assert minor["percentChange"] < 5.0
+    assert minor["isAlert"] is False
 
 
 def test_budget_genuinely_binds(scenario):

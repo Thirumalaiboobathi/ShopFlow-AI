@@ -15,6 +15,17 @@ def money(value: float) -> float:
     return round(value + 0.0, 2)
 
 
+# How a committed order line may be funded when cash is short.
+#   PARTIAL_ALLOWED - buying some of the units still helps the customer
+#                     (wire coils, switches, bulbs - anything sold by count)
+#   ALL_OR_NOTHING  - a half delivery is worthless, so buy all or defer all
+#                     (a matched set, or a single indivisible item)
+# Everything is PARTIAL_ALLOWED today. The field exists so the distinction is
+# recorded in the model rather than assumed by the allocator.
+PARTIAL_ALLOWED = "PARTIAL_ALLOWED"
+ALL_OR_NOTHING = "ALL_OR_NOTHING"
+
+
 @dataclass(frozen=True)
 class Product:
     skuId: str
@@ -28,6 +39,7 @@ class Product:
     costPrice: float
     supplierId: str
     name: str
+    fulfilmentPolicy: str = PARTIAL_ALLOWED
 
     @property
     def marginPerUnit(self) -> float:
