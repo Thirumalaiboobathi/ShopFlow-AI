@@ -1,0 +1,22 @@
+[
+  {
+    "supplierId": "SUP-BALAJI",
+    "name": "Sri Balaji Electricals",
+    "leadTimeDays": 3
+  },
+  {
+    "supplierId": "SUP-ANNAI",
+    "name": "Annai Agencies",
+    "leadTimeDays": 5
+  },
+  {
+    "supplierId": "SUP-KMT",
+    "name": "KMT Traders",
+    "leadTimeDays": 7
+  },
+  {
+    "supplierId": "SUP-VELAN",
+    "name": "Velan Distributors",
+    "leadTimeDays": 10
+  }
+]

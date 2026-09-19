@@ -1,0 +1,10 @@
+[project]
+name = "shopflow"
+version = "0.1.0"
+description = "ShopFlow AI - operations assistant for independent electrical retailers"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+pythonpath = ["backend", "."]
+testpaths = ["tests"]
+addopts = "-q"

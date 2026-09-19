@@ -1,0 +1,23 @@
+[
+  {
+    "orderId": "ORD-2026-0918-01",
+    "customerName": "Murugan Electricals (contractor)",
+    "placedDate": "2026-09-18",
+    "promisedDate": "2026-09-21",
+    "lines": [
+      {
+        "skuId": "SW-ANC-1W10A",
+        "quantity": 20
+      },
+      {
+        "skuId": "W-FIN-1.5-RED-90M",
+        "quantity": 3
+      },
+      {
+        "skuId": "MCB-HAV-SP-32A-C",
+        "quantity": 2
+      }
+    ],
+    "committed": true
+  }
+]

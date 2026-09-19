@@ -1,0 +1,2654 @@
+[
+  {
+    "skuId": "W-FIN-1.0-RED-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 4100.0
+  },
+  {
+    "skuId": "W-FIN-1.0-RED-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 4100.0
+  },
+  {
+    "skuId": "W-FIN-1.0-RED-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 4100.0
+  },
+  {
+    "skuId": "W-FIN-1.0-BLU-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 4100.0
+  },
+  {
+    "skuId": "W-FIN-1.0-BLU-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 4100.0
+  },
+  {
+    "skuId": "W-FIN-1.0-BLU-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 4100.0
+  },
+  {
+    "skuId": "W-FIN-1.0-BLK-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 4051.38
+  },
+  {
+    "skuId": "W-FIN-1.0-BLK-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 4075.55
+  },
+  {
+    "skuId": "W-FIN-1.0-BLK-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 4100.0
+  },
+  {
+    "skuId": "W-FIN-1.5-RED-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 5750.0
+  },
+  {
+    "skuId": "W-FIN-1.5-RED-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 5900.0
+  },
+  {
+    "skuId": "W-FIN-1.5-RED-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 6300.0
+  },
+  {
+    "skuId": "W-FIN-1.5-BLU-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 5947.58
+  },
+  {
+    "skuId": "W-FIN-1.5-BLU-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 5923.69
+  },
+  {
+    "skuId": "W-FIN-1.5-BLU-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 5900.0
+  },
+  {
+    "skuId": "W-FIN-1.5-BLK-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 5900.0
+  },
+  {
+    "skuId": "W-FIN-1.5-BLK-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 5900.0
+  },
+  {
+    "skuId": "W-FIN-1.5-BLK-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 5900.0
+  },
+  {
+    "skuId": "W-FIN-2.5-RED-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 9600.0
+  },
+  {
+    "skuId": "W-FIN-2.5-RED-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 9600.0
+  },
+  {
+    "skuId": "W-FIN-2.5-RED-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 9600.0
+  },
+  {
+    "skuId": "W-FIN-2.5-BLU-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 9677.42
+  },
+  {
+    "skuId": "W-FIN-2.5-BLU-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 9638.55
+  },
+  {
+    "skuId": "W-FIN-2.5-BLU-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 9600.0
+  },
+  {
+    "skuId": "W-FIN-2.5-BLK-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 9600.0
+  },
+  {
+    "skuId": "W-FIN-2.5-BLK-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 9600.0
+  },
+  {
+    "skuId": "W-FIN-2.5-BLK-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 9600.0
+  },
+  {
+    "skuId": "W-FIN-4.0-RED-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 14615.38
+  },
+  {
+    "skuId": "W-FIN-4.0-RED-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 14901.96
+  },
+  {
+    "skuId": "W-FIN-4.0-RED-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 15200.0
+  },
+  {
+    "skuId": "W-FIN-4.0-BLU-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 15200.0
+  },
+  {
+    "skuId": "W-FIN-4.0-BLU-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 15200.0
+  },
+  {
+    "skuId": "W-FIN-4.0-BLU-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 15200.0
+  },
+  {
+    "skuId": "W-FIN-4.0-BLK-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 14829.27
+  },
+  {
+    "skuId": "W-FIN-4.0-BLK-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 15012.35
+  },
+  {
+    "skuId": "W-FIN-4.0-BLK-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 15200.0
+  },
+  {
+    "skuId": "W-POL-1.0-RED-90M",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 4009.07
+  },
+  {
+    "skuId": "W-POL-1.0-RED-90M",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 3992.97
+  },
+  {
+    "skuId": "W-POL-1.0-RED-90M",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 3977.0
+  },
+  {
+    "skuId": "W-POL-1.0-BLU-90M",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 3977.0
+  },
+  {
+    "skuId": "W-POL-1.0-BLU-90M",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 3977.0
+  },
+  {
+    "skuId": "W-POL-1.0-BLU-90M",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 3977.0
+  },
+  {
+    "skuId": "W-POL-1.0-BLK-90M",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 3824.04
+  },
+  {
+    "skuId": "W-POL-1.0-BLK-90M",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 3899.02
+  },
+  {
+    "skuId": "W-POL-1.0-BLK-90M",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 3977.0
+  },
+  {
+    "skuId": "W-POL-1.5-RED-90M",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 5583.41
+  },
+  {
+    "skuId": "W-POL-1.5-RED-90M",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 5652.35
+  },
+  {
+    "skuId": "W-POL-1.5-RED-90M",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 5723.0
+  },
+  {
+    "skuId": "W-POL-1.5-BLU-90M",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 5655.14
+  },
+  {
+    "skuId": "W-POL-1.5-BLU-90M",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 5688.87
+  },
+  {
+    "skuId": "W-POL-1.5-BLU-90M",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 5723.0
+  },
+  {
+    "skuId": "W-POL-1.5-BLK-90M",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 5723.0
+  },
+  {
+    "skuId": "W-POL-1.5-BLK-90M",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 5723.0
+  },
+  {
+    "skuId": "W-POL-1.5-BLK-90M",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 5723.0
+  },
+  {
+    "skuId": "W-POL-2.5-RED-90M",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 9084.88
+  },
+  {
+    "skuId": "W-POL-2.5-RED-90M",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 9197.04
+  },
+  {
+    "skuId": "W-POL-2.5-RED-90M",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 9312.0
+  },
+  {
+    "skuId": "W-POL-2.5-BLU-90M",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 9312.0
+  },
+  {
+    "skuId": "W-POL-2.5-BLU-90M",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 9312.0
+  },
+  {
+    "skuId": "W-POL-2.5-BLU-90M",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 9312.0
+  },
+  {
+    "skuId": "W-POL-2.5-BLK-90M",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 9312.0
+  },
+  {
+    "skuId": "W-POL-2.5-BLK-90M",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 9312.0
+  },
+  {
+    "skuId": "W-POL-2.5-BLK-90M",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 9312.0
+  },
+  {
+    "skuId": "W-HAV-1.5-RED-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 6077.0
+  },
+  {
+    "skuId": "W-HAV-1.5-RED-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 6077.0
+  },
+  {
+    "skuId": "W-HAV-1.5-RED-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 6077.0
+  },
+  {
+    "skuId": "W-HAV-1.5-BLK-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 5843.27
+  },
+  {
+    "skuId": "W-HAV-1.5-BLK-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 5957.84
+  },
+  {
+    "skuId": "W-HAV-1.5-BLK-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 6077.0
+  },
+  {
+    "skuId": "W-HAV-2.5-RED-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 9967.74
+  },
+  {
+    "skuId": "W-HAV-2.5-RED-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 9927.71
+  },
+  {
+    "skuId": "W-HAV-2.5-RED-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 9888.0
+  },
+  {
+    "skuId": "W-HAV-2.5-BLK-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 9967.74
+  },
+  {
+    "skuId": "W-HAV-2.5-BLK-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 9927.71
+  },
+  {
+    "skuId": "W-HAV-2.5-BLK-90M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 9888.0
+  },
+  {
+    "skuId": "W-RRK-1.0-RED-90M",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 3772.0
+  },
+  {
+    "skuId": "W-RRK-1.0-RED-90M",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 3772.0
+  },
+  {
+    "skuId": "W-RRK-1.0-RED-90M",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 3772.0
+  },
+  {
+    "skuId": "W-RRK-1.0-BLU-90M",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 3680.0
+  },
+  {
+    "skuId": "W-RRK-1.0-BLU-90M",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 3725.43
+  },
+  {
+    "skuId": "W-RRK-1.0-BLU-90M",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 3772.0
+  },
+  {
+    "skuId": "W-RRK-1.0-BLK-90M",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 3802.42
+  },
+  {
+    "skuId": "W-RRK-1.0-BLK-90M",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 3787.15
+  },
+  {
+    "skuId": "W-RRK-1.0-BLK-90M",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 3772.0
+  },
+  {
+    "skuId": "W-RRK-1.5-RED-90M",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 5428.0
+  },
+  {
+    "skuId": "W-RRK-1.5-RED-90M",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 5428.0
+  },
+  {
+    "skuId": "W-RRK-1.5-RED-90M",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 5428.0
+  },
+  {
+    "skuId": "W-RRK-1.5-BLU-90M",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 5428.0
+  },
+  {
+    "skuId": "W-RRK-1.5-BLU-90M",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 5428.0
+  },
+  {
+    "skuId": "W-RRK-1.5-BLU-90M",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 5428.0
+  },
+  {
+    "skuId": "W-RRK-1.5-BLK-90M",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 5295.61
+  },
+  {
+    "skuId": "W-RRK-1.5-BLK-90M",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 5360.99
+  },
+  {
+    "skuId": "W-RRK-1.5-BLK-90M",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 5428.0
+  },
+  {
+    "skuId": "W-RRK-2.5-RED-90M",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 8492.31
+  },
+  {
+    "skuId": "W-RRK-2.5-RED-90M",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 8658.82
+  },
+  {
+    "skuId": "W-RRK-2.5-RED-90M",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 8832.0
+  },
+  {
+    "skuId": "W-RRK-2.5-BLU-90M",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 8832.0
+  },
+  {
+    "skuId": "W-RRK-2.5-BLU-90M",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 8832.0
+  },
+  {
+    "skuId": "W-RRK-2.5-BLU-90M",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 8832.0
+  },
+  {
+    "skuId": "W-RRK-2.5-BLK-90M",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 8832.0
+  },
+  {
+    "skuId": "W-RRK-2.5-BLK-90M",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 8832.0
+  },
+  {
+    "skuId": "W-RRK-2.5-BLK-90M",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 8832.0
+  },
+  {
+    "skuId": "W-FIN-1.5-RED-180M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 11310.28
+  },
+  {
+    "skuId": "W-FIN-1.5-RED-180M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 11377.73
+  },
+  {
+    "skuId": "W-FIN-1.5-RED-180M",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 11446.0
+  },
+  {
+    "skuId": "SW-ANC-1W10A",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 57.31
+  },
+  {
+    "skuId": "SW-ANC-1W10A",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 57.65
+  },
+  {
+    "skuId": "SW-ANC-1W10A",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 58.0
+  },
+  {
+    "skuId": "SW-ANC-2W10A",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 92.0
+  },
+  {
+    "skuId": "SW-ANC-2W10A",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 92.0
+  },
+  {
+    "skuId": "SW-ANC-2W10A",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 92.0
+  },
+  {
+    "skuId": "SW-ANC-1W16A",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 126.0
+  },
+  {
+    "skuId": "SW-ANC-1W16A",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 126.0
+  },
+  {
+    "skuId": "SW-ANC-1W16A",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 126.0
+  },
+  {
+    "skuId": "SW-ANC-BELL",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 74.6
+  },
+  {
+    "skuId": "SW-ANC-BELL",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 74.3
+  },
+  {
+    "skuId": "SW-ANC-BELL",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 74.0
+  },
+  {
+    "skuId": "SW-ANC-SKT6A",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 88.0
+  },
+  {
+    "skuId": "SW-ANC-SKT6A",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 88.0
+  },
+  {
+    "skuId": "SW-ANC-SKT6A",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 88.0
+  },
+  {
+    "skuId": "SW-ANC-SKT16A",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 144.39
+  },
+  {
+    "skuId": "SW-ANC-SKT16A",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 146.17
+  },
+  {
+    "skuId": "SW-ANC-SKT16A",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 148.0
+  },
+  {
+    "skuId": "SW-LEG-1W10A",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 104.68
+  },
+  {
+    "skuId": "SW-LEG-1W10A",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 105.98
+  },
+  {
+    "skuId": "SW-LEG-1W10A",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 107.3
+  },
+  {
+    "skuId": "SW-LEG-2W10A",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 168.18
+  },
+  {
+    "skuId": "SW-LEG-2W10A",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 169.18
+  },
+  {
+    "skuId": "SW-LEG-2W10A",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 170.2
+  },
+  {
+    "skuId": "SW-LEG-1W16A",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 233.1
+  },
+  {
+    "skuId": "SW-LEG-1W16A",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 233.1
+  },
+  {
+    "skuId": "SW-LEG-1W16A",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 233.1
+  },
+  {
+    "skuId": "SW-LEG-BELL",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 133.56
+  },
+  {
+    "skuId": "SW-LEG-BELL",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 135.21
+  },
+  {
+    "skuId": "SW-LEG-BELL",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 136.9
+  },
+  {
+    "skuId": "SW-LEG-SKT6A",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 164.11
+  },
+  {
+    "skuId": "SW-LEG-SKT6A",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 163.45
+  },
+  {
+    "skuId": "SW-LEG-SKT6A",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 162.8
+  },
+  {
+    "skuId": "SW-LEG-SKT16A",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 267.12
+  },
+  {
+    "skuId": "SW-LEG-SKT16A",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 270.42
+  },
+  {
+    "skuId": "SW-LEG-SKT16A",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 273.8
+  },
+  {
+    "skuId": "SW-GM-1W10A",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 51.04
+  },
+  {
+    "skuId": "SW-GM-1W10A",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 51.04
+  },
+  {
+    "skuId": "SW-GM-1W10A",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 51.04
+  },
+  {
+    "skuId": "SW-GM-2W10A",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 80.96
+  },
+  {
+    "skuId": "SW-GM-2W10A",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 80.96
+  },
+  {
+    "skuId": "SW-GM-2W10A",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 80.96
+  },
+  {
+    "skuId": "SW-GM-1W16A",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 108.18
+  },
+  {
+    "skuId": "SW-GM-1W16A",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 109.51
+  },
+  {
+    "skuId": "SW-GM-1W16A",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 110.88
+  },
+  {
+    "skuId": "SW-GM-BELL",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 65.12
+  },
+  {
+    "skuId": "SW-GM-BELL",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 65.12
+  },
+  {
+    "skuId": "SW-GM-BELL",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 65.12
+  },
+  {
+    "skuId": "SW-GM-SKT6A",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 74.46
+  },
+  {
+    "skuId": "SW-GM-SKT6A",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 75.92
+  },
+  {
+    "skuId": "SW-GM-SKT6A",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 77.44
+  },
+  {
+    "skuId": "SW-GM-SKT16A",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 130.24
+  },
+  {
+    "skuId": "SW-GM-SKT16A",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 130.24
+  },
+  {
+    "skuId": "SW-GM-SKT16A",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 130.24
+  },
+  {
+    "skuId": "SW-HAV-1W10A",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 70.76
+  },
+  {
+    "skuId": "SW-HAV-1W10A",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 70.76
+  },
+  {
+    "skuId": "SW-HAV-1W10A",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 70.76
+  },
+  {
+    "skuId": "SW-HAV-2W10A",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 107.92
+  },
+  {
+    "skuId": "SW-HAV-2W10A",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 110.04
+  },
+  {
+    "skuId": "SW-HAV-2W10A",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 112.24
+  },
+  {
+    "skuId": "SW-HAV-1W16A",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 153.72
+  },
+  {
+    "skuId": "SW-HAV-1W16A",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 153.72
+  },
+  {
+    "skuId": "SW-HAV-1W16A",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 153.72
+  },
+  {
+    "skuId": "SW-HAV-BELL",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 86.81
+  },
+  {
+    "skuId": "SW-HAV-BELL",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 88.51
+  },
+  {
+    "skuId": "SW-HAV-BELL",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 90.28
+  },
+  {
+    "skuId": "SW-HAV-SKT6A",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 104.74
+  },
+  {
+    "skuId": "SW-HAV-SKT6A",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 106.03
+  },
+  {
+    "skuId": "SW-HAV-SKT6A",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 107.36
+  },
+  {
+    "skuId": "SW-HAV-SKT16A",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 182.02
+  },
+  {
+    "skuId": "SW-HAV-SKT16A",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 181.29
+  },
+  {
+    "skuId": "SW-HAV-SKT16A",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 180.56
+  },
+  {
+    "skuId": "MCB-HAV-SP-6A-C",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 295.0
+  },
+  {
+    "skuId": "MCB-HAV-SP-6A-C",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 295.0
+  },
+  {
+    "skuId": "MCB-HAV-SP-6A-C",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 295.0
+  },
+  {
+    "skuId": "MCB-HAV-SP-10A-C",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 297.56
+  },
+  {
+    "skuId": "MCB-HAV-SP-10A-C",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 301.23
+  },
+  {
+    "skuId": "MCB-HAV-SP-10A-C",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 305.0
+  },
+  {
+    "skuId": "MCB-HAV-SP-16A-C",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 314.23
+  },
+  {
+    "skuId": "MCB-HAV-SP-16A-C",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 316.1
+  },
+  {
+    "skuId": "MCB-HAV-SP-16A-C",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 318.0
+  },
+  {
+    "skuId": "MCB-HAV-SP-20A-C",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 323.08
+  },
+  {
+    "skuId": "MCB-HAV-SP-20A-C",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 329.41
+  },
+  {
+    "skuId": "MCB-HAV-SP-20A-C",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 336.0
+  },
+  {
+    "skuId": "MCB-HAV-SP-32A-C",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 358.0
+  },
+  {
+    "skuId": "MCB-HAV-SP-32A-C",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 358.0
+  },
+  {
+    "skuId": "MCB-HAV-SP-32A-C",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 358.0
+  },
+  {
+    "skuId": "MCB-HAV-SP-32A-C",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 325.78
+  },
+  {
+    "skuId": "MCB-HAV-SP-40A-C",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 392.2
+  },
+  {
+    "skuId": "MCB-HAV-SP-40A-C",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 397.04
+  },
+  {
+    "skuId": "MCB-HAV-SP-40A-C",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 402.0
+  },
+  {
+    "skuId": "MCB-HAV-DP-6A-C",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 579.89
+  },
+  {
+    "skuId": "MCB-HAV-DP-6A-C",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 577.56
+  },
+  {
+    "skuId": "MCB-HAV-DP-6A-C",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 575.25
+  },
+  {
+    "skuId": "MCB-HAV-DP-10A-C",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 580.24
+  },
+  {
+    "skuId": "MCB-HAV-DP-10A-C",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 587.41
+  },
+  {
+    "skuId": "MCB-HAV-DP-10A-C",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 594.75
+  },
+  {
+    "skuId": "MCB-HAV-DP-16A-C",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 612.75
+  },
+  {
+    "skuId": "MCB-HAV-DP-16A-C",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 616.4
+  },
+  {
+    "skuId": "MCB-HAV-DP-16A-C",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 620.1
+  },
+  {
+    "skuId": "MCB-HAV-DP-20A-C",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 647.43
+  },
+  {
+    "skuId": "MCB-HAV-DP-20A-C",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 651.29
+  },
+  {
+    "skuId": "MCB-HAV-DP-20A-C",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 655.2
+  },
+  {
+    "skuId": "MCB-HAV-DP-32A-C",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 698.1
+  },
+  {
+    "skuId": "MCB-HAV-DP-32A-C",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 698.1
+  },
+  {
+    "skuId": "MCB-HAV-DP-32A-C",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 698.1
+  },
+  {
+    "skuId": "MCB-HAV-DP-40A-C",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 764.78
+  },
+  {
+    "skuId": "MCB-HAV-DP-40A-C",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 774.22
+  },
+  {
+    "skuId": "MCB-HAV-DP-40A-C",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 783.9
+  },
+  {
+    "skuId": "MCB-SCH-SP-6A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 334.71
+  },
+  {
+    "skuId": "MCB-SCH-SP-6A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 341.27
+  },
+  {
+    "skuId": "MCB-SCH-SP-6A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 348.1
+  },
+  {
+    "skuId": "MCB-SCH-SP-10A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 362.8
+  },
+  {
+    "skuId": "MCB-SCH-SP-10A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 361.35
+  },
+  {
+    "skuId": "MCB-SCH-SP-10A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 359.9
+  },
+  {
+    "skuId": "MCB-SCH-SP-16A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 366.09
+  },
+  {
+    "skuId": "MCB-SCH-SP-16A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 370.61
+  },
+  {
+    "skuId": "MCB-SCH-SP-16A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 375.24
+  },
+  {
+    "skuId": "MCB-SCH-SP-20A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 386.81
+  },
+  {
+    "skuId": "MCB-SCH-SP-20A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 391.59
+  },
+  {
+    "skuId": "MCB-SCH-SP-20A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 396.48
+  },
+  {
+    "skuId": "MCB-SCH-SP-32A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 417.43
+  },
+  {
+    "skuId": "MCB-SCH-SP-32A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 419.92
+  },
+  {
+    "skuId": "MCB-SCH-SP-32A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 422.44
+  },
+  {
+    "skuId": "MCB-SCH-SP-40A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 468.74
+  },
+  {
+    "skuId": "MCB-SCH-SP-40A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 471.53
+  },
+  {
+    "skuId": "MCB-SCH-SP-40A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 474.36
+  },
+  {
+    "skuId": "MCB-SCH-DP-6A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 678.79
+  },
+  {
+    "skuId": "MCB-SCH-DP-6A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 678.79
+  },
+  {
+    "skuId": "MCB-SCH-DP-6A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 678.79
+  },
+  {
+    "skuId": "MCB-SCH-DP-10A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 693.48
+  },
+  {
+    "skuId": "MCB-SCH-DP-10A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 697.61
+  },
+  {
+    "skuId": "MCB-SCH-DP-10A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 701.8
+  },
+  {
+    "skuId": "MCB-SCH-DP-16A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 737.62
+  },
+  {
+    "skuId": "MCB-SCH-DP-16A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 734.66
+  },
+  {
+    "skuId": "MCB-SCH-DP-16A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 731.72
+  },
+  {
+    "skuId": "MCB-SCH-DP-20A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 779.38
+  },
+  {
+    "skuId": "MCB-SCH-DP-20A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 776.24
+  },
+  {
+    "skuId": "MCB-SCH-DP-20A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 773.14
+  },
+  {
+    "skuId": "MCB-SCH-DP-32A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 813.99
+  },
+  {
+    "skuId": "MCB-SCH-DP-32A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 818.85
+  },
+  {
+    "skuId": "MCB-SCH-DP-32A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 823.76
+  },
+  {
+    "skuId": "MCB-SCH-DP-40A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 925.0
+  },
+  {
+    "skuId": "MCB-SCH-DP-40A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 925.0
+  },
+  {
+    "skuId": "MCB-SCH-DP-40A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 925.0
+  },
+  {
+    "skuId": "MCB-LEG-SP-6A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 390.61
+  },
+  {
+    "skuId": "MCB-LEG-SP-6A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 392.94
+  },
+  {
+    "skuId": "MCB-LEG-SP-6A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 395.3
+  },
+  {
+    "skuId": "MCB-LEG-SP-10A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 392.98
+  },
+  {
+    "skuId": "MCB-LEG-SP-10A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 400.69
+  },
+  {
+    "skuId": "MCB-LEG-SP-10A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 408.7
+  },
+  {
+    "skuId": "MCB-LEG-SP-16A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 409.73
+  },
+  {
+    "skuId": "MCB-LEG-SP-16A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 417.76
+  },
+  {
+    "skuId": "MCB-LEG-SP-16A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 426.12
+  },
+  {
+    "skuId": "MCB-LEG-SP-20A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 450.24
+  },
+  {
+    "skuId": "MCB-LEG-SP-20A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 450.24
+  },
+  {
+    "skuId": "MCB-LEG-SP-20A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 450.24
+  },
+  {
+    "skuId": "MCB-LEG-SP-32A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 479.72
+  },
+  {
+    "skuId": "MCB-LEG-SP-32A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 479.72
+  },
+  {
+    "skuId": "MCB-LEG-SP-32A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 479.72
+  },
+  {
+    "skuId": "MCB-LEG-SP-40A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 532.29
+  },
+  {
+    "skuId": "MCB-LEG-SP-40A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 535.47
+  },
+  {
+    "skuId": "MCB-LEG-SP-40A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 538.68
+  },
+  {
+    "skuId": "MCB-LEG-DP-6A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 741.19
+  },
+  {
+    "skuId": "MCB-LEG-DP-6A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 755.73
+  },
+  {
+    "skuId": "MCB-LEG-DP-6A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 770.84
+  },
+  {
+    "skuId": "MCB-LEG-DP-10A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 796.97
+  },
+  {
+    "skuId": "MCB-LEG-DP-10A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 796.97
+  },
+  {
+    "skuId": "MCB-LEG-DP-10A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 796.97
+  },
+  {
+    "skuId": "MCB-LEG-DP-16A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 837.63
+  },
+  {
+    "skuId": "MCB-LEG-DP-16A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 834.27
+  },
+  {
+    "skuId": "MCB-LEG-DP-16A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 830.93
+  },
+  {
+    "skuId": "MCB-LEG-DP-20A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 867.56
+  },
+  {
+    "skuId": "MCB-LEG-DP-20A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 872.73
+  },
+  {
+    "skuId": "MCB-LEG-DP-20A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 877.97
+  },
+  {
+    "skuId": "MCB-LEG-DP-32A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 912.63
+  },
+  {
+    "skuId": "MCB-LEG-DP-32A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 923.9
+  },
+  {
+    "skuId": "MCB-LEG-DP-32A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 935.45
+  },
+  {
+    "skuId": "MCB-LEG-DP-40A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 1050.43
+  },
+  {
+    "skuId": "MCB-LEG-DP-40A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 1050.43
+  },
+  {
+    "skuId": "MCB-LEG-DP-40A-C",
+    "supplierId": "SUP-VELAN",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 1050.43
+  },
+  {
+    "skuId": "LED-PHI-5W-CW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 62.5
+  },
+  {
+    "skuId": "LED-PHI-5W-CW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 62.25
+  },
+  {
+    "skuId": "LED-PHI-5W-CW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 62.0
+  },
+  {
+    "skuId": "LED-PHI-5W-WW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 60.49
+  },
+  {
+    "skuId": "LED-PHI-5W-WW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 61.23
+  },
+  {
+    "skuId": "LED-PHI-5W-WW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 62.0
+  },
+  {
+    "skuId": "LED-PHI-9W-CW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 84.0
+  },
+  {
+    "skuId": "LED-PHI-9W-CW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 84.0
+  },
+  {
+    "skuId": "LED-PHI-9W-CW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 84.0
+  },
+  {
+    "skuId": "LED-PHI-9W-WW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 84.0
+  },
+  {
+    "skuId": "LED-PHI-9W-WW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 84.0
+  },
+  {
+    "skuId": "LED-PHI-9W-WW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 84.0
+  },
+  {
+    "skuId": "LED-PHI-12W-CW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 113.46
+  },
+  {
+    "skuId": "LED-PHI-12W-CW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 115.69
+  },
+  {
+    "skuId": "LED-PHI-12W-CW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 118.0
+  },
+  {
+    "skuId": "LED-PHI-12W-WW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 113.46
+  },
+  {
+    "skuId": "LED-PHI-12W-WW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 115.69
+  },
+  {
+    "skuId": "LED-PHI-12W-WW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 118.0
+  },
+  {
+    "skuId": "LED-PHI-18W-CW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 176.0
+  },
+  {
+    "skuId": "LED-PHI-18W-CW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 176.0
+  },
+  {
+    "skuId": "LED-PHI-18W-CW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 176.0
+  },
+  {
+    "skuId": "LED-PHI-18W-WW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 177.42
+  },
+  {
+    "skuId": "LED-PHI-18W-WW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 176.71
+  },
+  {
+    "skuId": "LED-PHI-18W-WW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 176.0
+  },
+  {
+    "skuId": "LED-SYS-5W-CW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 51.25
+  },
+  {
+    "skuId": "LED-SYS-5W-CW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 51.04
+  },
+  {
+    "skuId": "LED-SYS-5W-CW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 50.84
+  },
+  {
+    "skuId": "LED-SYS-5W-WW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 50.84
+  },
+  {
+    "skuId": "LED-SYS-5W-WW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 50.84
+  },
+  {
+    "skuId": "LED-SYS-5W-WW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 50.84
+  },
+  {
+    "skuId": "LED-SYS-9W-CW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 68.88
+  },
+  {
+    "skuId": "LED-SYS-9W-CW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 68.88
+  },
+  {
+    "skuId": "LED-SYS-9W-CW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 68.88
+  },
+  {
+    "skuId": "LED-SYS-9W-WW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 68.06
+  },
+  {
+    "skuId": "LED-SYS-9W-WW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 68.47
+  },
+  {
+    "skuId": "LED-SYS-9W-WW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 68.88
+  },
+  {
+    "skuId": "LED-SYS-12W-CW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 94.4
+  },
+  {
+    "skuId": "LED-SYS-12W-CW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 95.57
+  },
+  {
+    "skuId": "LED-SYS-12W-CW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 96.76
+  },
+  {
+    "skuId": "LED-SYS-12W-WW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 96.76
+  },
+  {
+    "skuId": "LED-SYS-12W-WW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 96.76
+  },
+  {
+    "skuId": "LED-SYS-12W-WW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 96.76
+  },
+  {
+    "skuId": "LED-SYS-18W-CW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 142.61
+  },
+  {
+    "skuId": "LED-SYS-18W-CW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 143.46
+  },
+  {
+    "skuId": "LED-SYS-18W-CW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 144.32
+  },
+  {
+    "skuId": "LED-SYS-18W-WW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 144.32
+  },
+  {
+    "skuId": "LED-SYS-18W-WW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 144.32
+  },
+  {
+    "skuId": "LED-SYS-18W-WW",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 144.32
+  },
+  {
+    "skuId": "LED-HAV-5W-CW",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 55.44
+  },
+  {
+    "skuId": "LED-HAV-5W-CW",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 56.53
+  },
+  {
+    "skuId": "LED-HAV-5W-CW",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 57.66
+  },
+  {
+    "skuId": "LED-HAV-5W-WW",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 56.25
+  },
+  {
+    "skuId": "LED-HAV-5W-WW",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 56.95
+  },
+  {
+    "skuId": "LED-HAV-5W-WW",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 57.66
+  },
+  {
+    "skuId": "LED-HAV-9W-CW",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 77.19
+  },
+  {
+    "skuId": "LED-HAV-9W-CW",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 77.65
+  },
+  {
+    "skuId": "LED-HAV-9W-CW",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 78.12
+  },
+  {
+    "skuId": "LED-HAV-9W-WW",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 78.75
+  },
+  {
+    "skuId": "LED-HAV-9W-WW",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 78.43
+  },
+  {
+    "skuId": "LED-HAV-9W-WW",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 78.12
+  },
+  {
+    "skuId": "LED-HAV-12W-CW",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 105.52
+  },
+  {
+    "skuId": "LED-HAV-12W-CW",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 107.59
+  },
+  {
+    "skuId": "LED-HAV-12W-CW",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 109.74
+  },
+  {
+    "skuId": "LED-HAV-12W-WW",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 109.74
+  },
+  {
+    "skuId": "LED-HAV-12W-WW",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 109.74
+  },
+  {
+    "skuId": "LED-HAV-12W-WW",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 109.74
+  },
+  {
+    "skuId": "LED-HAV-18W-CW",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 163.68
+  },
+  {
+    "skuId": "LED-HAV-18W-CW",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 163.68
+  },
+  {
+    "skuId": "LED-HAV-18W-CW",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 163.68
+  },
+  {
+    "skuId": "LED-HAV-18W-WW",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 163.68
+  },
+  {
+    "skuId": "LED-HAV-18W-WW",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 163.68
+  },
+  {
+    "skuId": "LED-HAV-18W-WW",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 163.68
+  },
+  {
+    "skuId": "FAN-CRO-1200MM-BRN",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 1443.9
+  },
+  {
+    "skuId": "FAN-CRO-1200MM-BRN",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 1461.73
+  },
+  {
+    "skuId": "FAN-CRO-1200MM-BRN",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 1480.0
+  },
+  {
+    "skuId": "FAN-CRO-1200MM-WHT",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 1480.0
+  },
+  {
+    "skuId": "FAN-CRO-1200MM-WHT",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 1480.0
+  },
+  {
+    "skuId": "FAN-CRO-1200MM-WHT",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 1480.0
+  },
+  {
+    "skuId": "FAN-CRO-900MM-BRN",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 1241.76
+  },
+  {
+    "skuId": "FAN-CRO-900MM-BRN",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 1257.09
+  },
+  {
+    "skuId": "FAN-CRO-900MM-BRN",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 1272.8
+  },
+  {
+    "skuId": "FAN-CRO-900MM-WHT",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 1272.8
+  },
+  {
+    "skuId": "FAN-CRO-900MM-WHT",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 1272.8
+  },
+  {
+    "skuId": "FAN-CRO-900MM-WHT",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 1272.8
+  },
+  {
+    "skuId": "FAN-ORI-1200MM-BRN",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 1620.0
+  },
+  {
+    "skuId": "FAN-ORI-1200MM-BRN",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 1620.0
+  },
+  {
+    "skuId": "FAN-ORI-1200MM-BRN",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 1620.0
+  },
+  {
+    "skuId": "FAN-ORI-1200MM-WHT",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 1620.0
+  },
+  {
+    "skuId": "FAN-ORI-1200MM-WHT",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 1620.0
+  },
+  {
+    "skuId": "FAN-ORI-1200MM-WHT",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 1620.0
+  },
+  {
+    "skuId": "FAN-ORI-900MM-BRN",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 1339.62
+  },
+  {
+    "skuId": "FAN-ORI-900MM-BRN",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 1365.88
+  },
+  {
+    "skuId": "FAN-ORI-900MM-BRN",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 1393.2
+  },
+  {
+    "skuId": "FAN-ORI-900MM-WHT",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 1393.2
+  },
+  {
+    "skuId": "FAN-ORI-900MM-WHT",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 1393.2
+  },
+  {
+    "skuId": "FAN-ORI-900MM-WHT",
+    "supplierId": "SUP-KMT",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 1393.2
+  },
+  {
+    "skuId": "FAN-HAV-1200MM-BRN",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 1867.59
+  },
+  {
+    "skuId": "FAN-HAV-1200MM-BRN",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 1878.73
+  },
+  {
+    "skuId": "FAN-HAV-1200MM-BRN",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 1890.0
+  },
+  {
+    "skuId": "FAN-HAV-1200MM-WHT",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 1843.9
+  },
+  {
+    "skuId": "FAN-HAV-1200MM-WHT",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 1866.67
+  },
+  {
+    "skuId": "FAN-HAV-1200MM-WHT",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 1890.0
+  },
+  {
+    "skuId": "FAN-HAV-900MM-BRN",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 1585.76
+  },
+  {
+    "skuId": "FAN-HAV-900MM-BRN",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 1605.33
+  },
+  {
+    "skuId": "FAN-HAV-900MM-BRN",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 1625.4
+  },
+  {
+    "skuId": "FAN-HAV-900MM-WHT",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 1625.4
+  },
+  {
+    "skuId": "FAN-HAV-900MM-WHT",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 1625.4
+  },
+  {
+    "skuId": "FAN-HAV-900MM-WHT",
+    "supplierId": "SUP-BALAJI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 1625.4
+  },
+  {
+    "skuId": "ACC-CONDUIT-20",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 60.49
+  },
+  {
+    "skuId": "ACC-CONDUIT-20",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 61.23
+  },
+  {
+    "skuId": "ACC-CONDUIT-20",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 62.0
+  },
+  {
+    "skuId": "ACC-CONDUIT-25",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 84.0
+  },
+  {
+    "skuId": "ACC-CONDUIT-25",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 84.0
+  },
+  {
+    "skuId": "ACC-CONDUIT-25",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 84.0
+  },
+  {
+    "skuId": "ACC-JB-4X4",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 44.23
+  },
+  {
+    "skuId": "ACC-JB-4X4",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 45.1
+  },
+  {
+    "skuId": "ACC-JB-4X4",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 46.0
+  },
+  {
+    "skuId": "ACC-JB-6X4",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 68.0
+  },
+  {
+    "skuId": "ACC-JB-6X4",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 68.0
+  },
+  {
+    "skuId": "ACC-JB-6X4",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 68.0
+  },
+  {
+    "skuId": "ACC-TAPE-PVC",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 10.87
+  },
+  {
+    "skuId": "ACC-TAPE-PVC",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 10.93
+  },
+  {
+    "skuId": "ACC-TAPE-PVC",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 11.0
+  },
+  {
+    "skuId": "ACC-HOLDER-B22",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 34.27
+  },
+  {
+    "skuId": "ACC-HOLDER-B22",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 34.14
+  },
+  {
+    "skuId": "ACC-HOLDER-B22",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 34.0
+  },
+  {
+    "skuId": "ACC-ROSE-CEIL",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 28.29
+  },
+  {
+    "skuId": "ACC-ROSE-CEIL",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 28.64
+  },
+  {
+    "skuId": "ACC-ROSE-CEIL",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 29.0
+  },
+  {
+    "skuId": "ACC-PLUG-3PIN",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 40.98
+  },
+  {
+    "skuId": "ACC-PLUG-3PIN",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 41.48
+  },
+  {
+    "skuId": "ACC-PLUG-3PIN",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 42.0
+  },
+  {
+    "skuId": "ACC-EXT-4WAY",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 268.0
+  },
+  {
+    "skuId": "ACC-EXT-4WAY",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 268.0
+  },
+  {
+    "skuId": "ACC-EXT-4WAY",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 268.0
+  },
+  {
+    "skuId": "ACC-LUG-CU-10",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 17.56
+  },
+  {
+    "skuId": "ACC-LUG-CU-10",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 17.78
+  },
+  {
+    "skuId": "ACC-LUG-CU-10",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 18.0
+  },
+  {
+    "skuId": "ACC-GLAND-PG13",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 25.69
+  },
+  {
+    "skuId": "ACC-GLAND-PG13",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 25.84
+  },
+  {
+    "skuId": "ACC-GLAND-PG13",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 26.0
+  },
+  {
+    "skuId": "ACC-CLIP-CLAMP",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 36.54
+  },
+  {
+    "skuId": "ACC-CLIP-CLAMP",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 37.25
+  },
+  {
+    "skuId": "ACC-CLIP-CLAMP",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 38.0
+  },
+  {
+    "skuId": "ACC-FUSE-WIRE",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 24.0
+  },
+  {
+    "skuId": "ACC-FUSE-WIRE",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 24.0
+  },
+  {
+    "skuId": "ACC-FUSE-WIRE",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 24.0
+  },
+  {
+    "skuId": "ACC-BELL-DOOR",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 186.0
+  },
+  {
+    "skuId": "ACC-BELL-DOOR",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 186.0
+  },
+  {
+    "skuId": "ACC-BELL-DOOR",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 186.0
+  },
+  {
+    "skuId": "ACC-REG-FAN",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 142.31
+  },
+  {
+    "skuId": "ACC-REG-FAN",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 145.1
+  },
+  {
+    "skuId": "ACC-REG-FAN",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 148.0
+  },
+  {
+    "skuId": "ACC-TESTER-LINE",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-04-20",
+    "unitCost": 30.77
+  },
+  {
+    "skuId": "ACC-TESTER-LINE",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-07-06",
+    "unitCost": 31.37
+  },
+  {
+    "skuId": "ACC-TESTER-LINE",
+    "supplierId": "SUP-ANNAI",
+    "effectiveDate": "2026-09-05",
+    "unitCost": 32.0
+  }
+]

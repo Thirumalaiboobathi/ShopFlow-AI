@@ -1,0 +1,590 @@
+[
+  {
+    "skuId": "W-FIN-1.0-RED-90M",
+    "onHand": 29
+  },
+  {
+    "skuId": "W-FIN-1.0-BLU-90M",
+    "onHand": 20
+  },
+  {
+    "skuId": "W-FIN-1.0-BLK-90M",
+    "onHand": 61
+  },
+  {
+    "skuId": "W-FIN-1.5-RED-90M",
+    "onHand": 1
+  },
+  {
+    "skuId": "W-FIN-1.5-BLU-90M",
+    "onHand": 14
+  },
+  {
+    "skuId": "W-FIN-1.5-BLK-90M",
+    "onHand": 4
+  },
+  {
+    "skuId": "W-FIN-2.5-RED-90M",
+    "onHand": 6
+  },
+  {
+    "skuId": "W-FIN-2.5-BLU-90M",
+    "onHand": 5
+  },
+  {
+    "skuId": "W-FIN-2.5-BLK-90M",
+    "onHand": 22
+  },
+  {
+    "skuId": "W-FIN-4.0-RED-90M",
+    "onHand": 19
+  },
+  {
+    "skuId": "W-FIN-4.0-BLU-90M",
+    "onHand": 3
+  },
+  {
+    "skuId": "W-FIN-4.0-BLK-90M",
+    "onHand": 3
+  },
+  {
+    "skuId": "W-POL-1.0-RED-90M",
+    "onHand": 4
+  },
+  {
+    "skuId": "W-POL-1.0-BLU-90M",
+    "onHand": 7
+  },
+  {
+    "skuId": "W-POL-1.0-BLK-90M",
+    "onHand": 4
+  },
+  {
+    "skuId": "W-POL-1.5-RED-90M",
+    "onHand": 10
+  },
+  {
+    "skuId": "W-POL-1.5-BLU-90M",
+    "onHand": 4
+  },
+  {
+    "skuId": "W-POL-1.5-BLK-90M",
+    "onHand": 50
+  },
+  {
+    "skuId": "W-POL-2.5-RED-90M",
+    "onHand": 3
+  },
+  {
+    "skuId": "W-POL-2.5-BLU-90M",
+    "onHand": 4
+  },
+  {
+    "skuId": "W-POL-2.5-BLK-90M",
+    "onHand": 1
+  },
+  {
+    "skuId": "W-HAV-1.5-RED-90M",
+    "onHand": 34
+  },
+  {
+    "skuId": "W-HAV-1.5-BLK-90M",
+    "onHand": 17
+  },
+  {
+    "skuId": "W-HAV-2.5-RED-90M",
+    "onHand": 11
+  },
+  {
+    "skuId": "W-HAV-2.5-BLK-90M",
+    "onHand": 52
+  },
+  {
+    "skuId": "W-RRK-1.0-RED-90M",
+    "onHand": 2
+  },
+  {
+    "skuId": "W-RRK-1.0-BLU-90M",
+    "onHand": 16
+  },
+  {
+    "skuId": "W-RRK-1.0-BLK-90M",
+    "onHand": 41
+  },
+  {
+    "skuId": "W-RRK-1.5-RED-90M",
+    "onHand": 2
+  },
+  {
+    "skuId": "W-RRK-1.5-BLU-90M",
+    "onHand": 75
+  },
+  {
+    "skuId": "W-RRK-1.5-BLK-90M",
+    "onHand": 66
+  },
+  {
+    "skuId": "W-RRK-2.5-RED-90M",
+    "onHand": 27
+  },
+  {
+    "skuId": "W-RRK-2.5-BLU-90M",
+    "onHand": 54
+  },
+  {
+    "skuId": "W-RRK-2.5-BLK-90M",
+    "onHand": 47
+  },
+  {
+    "skuId": "W-FIN-1.5-RED-180M",
+    "onHand": 18
+  },
+  {
+    "skuId": "SW-ANC-1W10A",
+    "onHand": 14
+  },
+  {
+    "skuId": "SW-ANC-2W10A",
+    "onHand": 20
+  },
+  {
+    "skuId": "SW-ANC-1W16A",
+    "onHand": 13
+  },
+  {
+    "skuId": "SW-ANC-BELL",
+    "onHand": 2
+  },
+  {
+    "skuId": "SW-ANC-SKT6A",
+    "onHand": 26
+  },
+  {
+    "skuId": "SW-ANC-SKT16A",
+    "onHand": 6
+  },
+  {
+    "skuId": "SW-LEG-1W10A",
+    "onHand": 9
+  },
+  {
+    "skuId": "SW-LEG-2W10A",
+    "onHand": 32
+  },
+  {
+    "skuId": "SW-LEG-1W16A",
+    "onHand": 19
+  },
+  {
+    "skuId": "SW-LEG-BELL",
+    "onHand": 25
+  },
+  {
+    "skuId": "SW-LEG-SKT6A",
+    "onHand": 9
+  },
+  {
+    "skuId": "SW-LEG-SKT16A",
+    "onHand": 1
+  },
+  {
+    "skuId": "SW-GM-1W10A",
+    "onHand": 28
+  },
+  {
+    "skuId": "SW-GM-2W10A",
+    "onHand": 26
+  },
+  {
+    "skuId": "SW-GM-1W16A",
+    "onHand": 5
+  },
+  {
+    "skuId": "SW-GM-BELL",
+    "onHand": 7
+  },
+  {
+    "skuId": "SW-GM-SKT6A",
+    "onHand": 9
+  },
+  {
+    "skuId": "SW-GM-SKT16A",
+    "onHand": 11
+  },
+  {
+    "skuId": "SW-HAV-1W10A",
+    "onHand": 18
+  },
+  {
+    "skuId": "SW-HAV-2W10A",
+    "onHand": 9
+  },
+  {
+    "skuId": "SW-HAV-1W16A",
+    "onHand": 54
+  },
+  {
+    "skuId": "SW-HAV-BELL",
+    "onHand": 8
+  },
+  {
+    "skuId": "SW-HAV-SKT6A",
+    "onHand": 4
+  },
+  {
+    "skuId": "SW-HAV-SKT16A",
+    "onHand": 4
+  },
+  {
+    "skuId": "MCB-HAV-SP-6A-C",
+    "onHand": 13
+  },
+  {
+    "skuId": "MCB-HAV-SP-10A-C",
+    "onHand": 7
+  },
+  {
+    "skuId": "MCB-HAV-SP-16A-C",
+    "onHand": 11
+  },
+  {
+    "skuId": "MCB-HAV-SP-20A-C",
+    "onHand": 3
+  },
+  {
+    "skuId": "MCB-HAV-SP-32A-C",
+    "onHand": 5
+  },
+  {
+    "skuId": "MCB-HAV-SP-40A-C",
+    "onHand": 4
+  },
+  {
+    "skuId": "MCB-HAV-DP-6A-C",
+    "onHand": 59
+  },
+  {
+    "skuId": "MCB-HAV-DP-10A-C",
+    "onHand": 19
+  },
+  {
+    "skuId": "MCB-HAV-DP-16A-C",
+    "onHand": 1
+  },
+  {
+    "skuId": "MCB-HAV-DP-20A-C",
+    "onHand": 81
+  },
+  {
+    "skuId": "MCB-HAV-DP-32A-C",
+    "onHand": 12
+  },
+  {
+    "skuId": "MCB-HAV-DP-40A-C",
+    "onHand": 4
+  },
+  {
+    "skuId": "MCB-SCH-SP-6A-C",
+    "onHand": 13
+  },
+  {
+    "skuId": "MCB-SCH-SP-10A-C",
+    "onHand": 17
+  },
+  {
+    "skuId": "MCB-SCH-SP-16A-C",
+    "onHand": 4
+  },
+  {
+    "skuId": "MCB-SCH-SP-20A-C",
+    "onHand": 16
+  },
+  {
+    "skuId": "MCB-SCH-SP-32A-C",
+    "onHand": 6
+  },
+  {
+    "skuId": "MCB-SCH-SP-40A-C",
+    "onHand": 5
+  },
+  {
+    "skuId": "MCB-SCH-DP-6A-C",
+    "onHand": 15
+  },
+  {
+    "skuId": "MCB-SCH-DP-10A-C",
+    "onHand": 13
+  },
+  {
+    "skuId": "MCB-SCH-DP-16A-C",
+    "onHand": 23
+  },
+  {
+    "skuId": "MCB-SCH-DP-20A-C",
+    "onHand": 11
+  },
+  {
+    "skuId": "MCB-SCH-DP-32A-C",
+    "onHand": 15
+  },
+  {
+    "skuId": "MCB-SCH-DP-40A-C",
+    "onHand": 7
+  },
+  {
+    "skuId": "MCB-LEG-SP-6A-C",
+    "onHand": 12
+  },
+  {
+    "skuId": "MCB-LEG-SP-10A-C",
+    "onHand": 8
+  },
+  {
+    "skuId": "MCB-LEG-SP-16A-C",
+    "onHand": 30
+  },
+  {
+    "skuId": "MCB-LEG-SP-20A-C",
+    "onHand": 14
+  },
+  {
+    "skuId": "MCB-LEG-SP-32A-C",
+    "onHand": 23
+  },
+  {
+    "skuId": "MCB-LEG-SP-40A-C",
+    "onHand": 2
+  },
+  {
+    "skuId": "MCB-LEG-DP-6A-C",
+    "onHand": 21
+  },
+  {
+    "skuId": "MCB-LEG-DP-10A-C",
+    "onHand": 15
+  },
+  {
+    "skuId": "MCB-LEG-DP-16A-C",
+    "onHand": 85
+  },
+  {
+    "skuId": "MCB-LEG-DP-20A-C",
+    "onHand": 9
+  },
+  {
+    "skuId": "MCB-LEG-DP-32A-C",
+    "onHand": 10
+  },
+  {
+    "skuId": "MCB-LEG-DP-40A-C",
+    "onHand": 0
+  },
+  {
+    "skuId": "LED-PHI-5W-CW",
+    "onHand": 1
+  },
+  {
+    "skuId": "LED-PHI-5W-WW",
+    "onHand": 1
+  },
+  {
+    "skuId": "LED-PHI-9W-CW",
+    "onHand": 6
+  },
+  {
+    "skuId": "LED-PHI-9W-WW",
+    "onHand": 14
+  },
+  {
+    "skuId": "LED-PHI-12W-CW",
+    "onHand": 13
+  },
+  {
+    "skuId": "LED-PHI-12W-WW",
+    "onHand": 35
+  },
+  {
+    "skuId": "LED-PHI-18W-CW",
+    "onHand": 34
+  },
+  {
+    "skuId": "LED-PHI-18W-WW",
+    "onHand": 8
+  },
+  {
+    "skuId": "LED-SYS-5W-CW",
+    "onHand": 5
+  },
+  {
+    "skuId": "LED-SYS-5W-WW",
+    "onHand": 6
+  },
+  {
+    "skuId": "LED-SYS-9W-CW",
+    "onHand": 23
+  },
+  {
+    "skuId": "LED-SYS-9W-WW",
+    "onHand": 46
+  },
+  {
+    "skuId": "LED-SYS-12W-CW",
+    "onHand": 3
+  },
+  {
+    "skuId": "LED-SYS-12W-WW",
+    "onHand": 45
+  },
+  {
+    "skuId": "LED-SYS-18W-CW",
+    "onHand": 14
+  },
+  {
+    "skuId": "LED-SYS-18W-WW",
+    "onHand": 48
+  },
+  {
+    "skuId": "LED-HAV-5W-CW",
+    "onHand": 5
+  },
+  {
+    "skuId": "LED-HAV-5W-WW",
+    "onHand": 8
+  },
+  {
+    "skuId": "LED-HAV-9W-CW",
+    "onHand": 67
+  },
+  {
+    "skuId": "LED-HAV-9W-WW",
+    "onHand": 19
+  },
+  {
+    "skuId": "LED-HAV-12W-CW",
+    "onHand": 22
+  },
+  {
+    "skuId": "LED-HAV-12W-WW",
+    "onHand": 33
+  },
+  {
+    "skuId": "LED-HAV-18W-CW",
+    "onHand": 4
+  },
+  {
+    "skuId": "LED-HAV-18W-WW",
+    "onHand": 3
+  },
+  {
+    "skuId": "FAN-CRO-1200MM-BRN",
+    "onHand": 4
+  },
+  {
+    "skuId": "FAN-CRO-1200MM-WHT",
+    "onHand": 7
+  },
+  {
+    "skuId": "FAN-CRO-900MM-BRN",
+    "onHand": 10
+  },
+  {
+    "skuId": "FAN-CRO-900MM-WHT",
+    "onHand": 0
+  },
+  {
+    "skuId": "FAN-ORI-1200MM-BRN",
+    "onHand": 11
+  },
+  {
+    "skuId": "FAN-ORI-1200MM-WHT",
+    "onHand": 5
+  },
+  {
+    "skuId": "FAN-ORI-900MM-BRN",
+    "onHand": 9
+  },
+  {
+    "skuId": "FAN-ORI-900MM-WHT",
+    "onHand": 17
+  },
+  {
+    "skuId": "FAN-HAV-1200MM-BRN",
+    "onHand": 8
+  },
+  {
+    "skuId": "FAN-HAV-1200MM-WHT",
+    "onHand": 9
+  },
+  {
+    "skuId": "FAN-HAV-900MM-BRN",
+    "onHand": 21
+  },
+  {
+    "skuId": "FAN-HAV-900MM-WHT",
+    "onHand": 5
+  },
+  {
+    "skuId": "ACC-CONDUIT-20",
+    "onHand": 21
+  },
+  {
+    "skuId": "ACC-CONDUIT-25",
+    "onHand": 40
+  },
+  {
+    "skuId": "ACC-JB-4X4",
+    "onHand": 5
+  },
+  {
+    "skuId": "ACC-JB-6X4",
+    "onHand": 4
+  },
+  {
+    "skuId": "ACC-TAPE-PVC",
+    "onHand": 8
+  },
+  {
+    "skuId": "ACC-HOLDER-B22",
+    "onHand": 11
+  },
+  {
+    "skuId": "ACC-ROSE-CEIL",
+    "onHand": 6
+  },
+  {
+    "skuId": "ACC-PLUG-3PIN",
+    "onHand": 2
+  },
+  {
+    "skuId": "ACC-EXT-4WAY",
+    "onHand": 37
+  },
+  {
+    "skuId": "ACC-LUG-CU-10",
+    "onHand": 6
+  },
+  {
+    "skuId": "ACC-GLAND-PG13",
+    "onHand": 33
+  },
+  {
+    "skuId": "ACC-CLIP-CLAMP",
+    "onHand": 10
+  },
+  {
+    "skuId": "ACC-FUSE-WIRE",
+    "onHand": 33
+  },
+  {
+    "skuId": "ACC-BELL-DOOR",
+    "onHand": 44
+  },
+  {
+    "skuId": "ACC-REG-FAN",
+    "onHand": 2
+  },
+  {
+    "skuId": "ACC-TESTER-LINE",
+    "onHand": 1
+  }
+]
