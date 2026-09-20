@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import base64
 import json
+from decimal import Decimal
 
 import pytest
 
@@ -404,3 +405,28 @@ def test_invalid_decision_value_is_rejected(api_env):
 def test_decision_on_an_unknown_job_is_a_404(api_env):
     response = api.handler(post_decision("b" * 32, "W-FIN-1.5-RED-90M", "CONFIRMED"), None)
     assert response["statusCode"] == 404
+
+
+def test_decision_prices_are_written_as_decimal_not_float(api_env):
+    """DynamoDB rejects Python floats outright, which surfaced in production
+    as a 500 on the very first confirmation."""
+    table, _lam, _s3 = api_env
+    job_id = seed_reviewed_job(table)
+    api.handler(post_decision(job_id, "W-FIN-1.5-RED-90M", "CONFIRMED"), None)
+
+    stored = table.items[(f"DECISION#{job_id}", "SKU#W-FIN-1.5-RED-90M")]
+    for field in ("previousPrice", "currentPrice", "percentageDelta"):
+        assert isinstance(stored[field], Decimal), f"{field} stored as float"
+    # And the exact value survives the conversion.
+    assert stored["currentPrice"] == Decimal("6300.0")
+
+
+def test_stored_decimals_are_returned_to_the_browser_as_numbers(api_env):
+    table, _lam, _s3 = api_env
+    job_id = seed_reviewed_job(table)
+    api.handler(post_decision(job_id, "W-FIN-1.5-RED-90M", "CONFIRMED"), None)
+
+    job = body_of(api.handler(
+        {"routeKey": "GET /api/jobs/{jobId}",
+         "pathParameters": {"jobId": job_id}}, None))
+    assert job["decisions"][0]["currentPrice"] == 6300.0

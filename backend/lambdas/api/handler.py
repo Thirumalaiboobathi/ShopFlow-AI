@@ -86,6 +86,23 @@ def _json_default(value):
     raise TypeError(f"not serialisable: {type(value)}")
 
 
+def _to_dynamo(value):
+    """DynamoDB stores no floats, so prices are written as Decimal.
+
+    Conversion goes through str() rather than Decimal(float) so 6300.0 is
+    stored as 6300.0 and not as its binary expansion.
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, float):
+        return Decimal(str(value))
+    if isinstance(value, dict):
+        return {k: _to_dynamo(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_to_dynamo(v) for v in value]
+    return value
+
+
 def _job_key(job_id: str) -> dict:
     return {"PK": f"JOB#{job_id}", "SK": "META"}
 
@@ -268,13 +285,13 @@ def _create_price_decision(event) -> dict:
 
     record = build_decision_record(data, job_id, sku_id, decision, comparison)
     now = int(time.time())
-    table().put_item(Item={
+    table().put_item(Item=_to_dynamo({
         "PK": f"DECISION#{job_id}",
         "SK": f"SKU#{sku_id}",
         **record,
         "decidedAt": now,
         "expiresAt": now + JOB_TTL_SECONDS,
-    })
+    }))
     return _response(201, record)
 
 

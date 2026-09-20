@@ -1004,7 +1004,68 @@ image size in bytes, and the item/matched/ambiguous/unmatched/material counts,
 plus token usage. **No description, price, supplier name or image content is
 logged.**
 
-Tests: **177 → 244**, all passing.
+### A production failure the tests could not have caught
+
+Deployed, then ran the whole flow against the public URL. Extraction, matching
+and the +6.78% all worked first time. **Confirming the change returned 500.**
+
+CloudWatch gave the cause in one line:
+
+```
+ERROR handling POST /api/price-decisions:
+TypeError: Float types are not supported. Use Decimal types instead.
+```
+
+DynamoDB does not store Python floats, and the decision record carries three of
+them — previous price, current price, percentage. The in-memory `FakeTable` in
+the tests accepts anything a dict accepts, so every unit test passed against a
+store more permissive than the real one.
+
+Fixed by converting floats to `Decimal` on write, via `str()` so 6300.0 is
+stored as `6300.0` rather than its binary expansion. Two tests were added: one
+asserting the stored fields really are `Decimal`, one asserting they come back
+to the browser as ordinary JSON numbers. Neither would have been written
+without the failure, which is the honest argument for testing against the
+deployed system and not only the fakes.
+
+### Live verification, after the fix
+
+```
+GET  /sample-price-list.png        200, 40,016 bytes
+POST /api/supplier-price-lists     202  jobType=PRICE_LIST
+GET  /api/jobs/{id}                DONE
+
+supplier=SRI BALAJI ELECTRICALS  date=15-09-2026  threshold=5.0%
+lines=5 matched=3 ambiguous=1 unmatched=1 material=1
+
+  [MATCHED]   W-FIN-1.5-RED-90M  prev=5900.0 new=6300.0 delta=400.0
+              pct=6.78% INCREASE material=True
+  [MATCHED]   SW-ANC-1W10A       pct=1.71%  material=False
+  [MATCHED]   MCB-HAV-SP-32A-C   pct=0.0%   UNCHANGED
+  [AMBIGUOUS] colour, 3 candidates
+  [UNMATCHED] Kaveri 4-core Armoured Cable
+
+POST /api/price-decisions          201  CONFIRMED  catalogPriceChanged=False
+GET  /api/jobs/{id}                decisions persisted: 1
+
+rejected: invented SKU 400, invalid decision 400, PDF upload 400
+```
+
+Worker log line, contents-free as intended:
+
+```json
+{"event": "price_list_processed", "jobType": "PRICE_LIST", "status": "DONE",
+ "modelId": "apac.amazon.nova-pro-v1:0", "elapsedMs": 3531.4,
+ "imageBytes": 40016, "itemCount": 5, "matchedCount": 3, "ambiguousCount": 1,
+ "unmatchedCount": 1, "materialChangeCount": 1,
+ "inputTokens": 1034, "outputTokens": 465}
+```
+
+No regression: the canonical order still quotes **₹22,306.48**, `/api/health`
+is 200 JSON, an unknown `/api/` route is still a real 404, and the SPA fallback
+still serves for frontend routes.
+
+Tests: **177 → 246**, all passing.
 
 ---
 
