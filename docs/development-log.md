@@ -613,6 +613,109 @@ No new services, no Lambda@Edge, no CloudFront Function. One line removed.
 | Resource types | no new AWS services introduced |
 | Staged files | 26; no `__pycache__`, `cdk.out`, or secrets |
 
+### Deploy attempt 4 — a fourth failure, and an account limit
+
+Committed as `68cdb02`, then deployed. It failed on a new resource:
+
+> Specified ReservedConcurrentExecutions for function decreases account's
+> UnreservedConcurrentExecution below its minimum value of [10].
+
+**Diagnosis before changing anything.** `aws lambda get-account-settings`
+returned:
+
+```
+ConcurrentExecutions: 10
+UnreservedConcurrentExecutions: 10
+```
+
+This account's **total** Lambda concurrency is 10, not the usual 1000 — the
+default for an account that has not been through a limit increase. AWS requires
+at least 10 to remain unreserved, so *any* reservation is rejected outright.
+The setting was never going to work here.
+
+**Correction, and why it is the right outcome rather than a compromise.**
+`reserved_concurrent_executions` was removed. Reserving 5 of 10 would have left
+5 for every other project in the account — SilentSignal, TinaiPoet,
+harvest_convoy and AwsDeployDoctor all draw on the same pool — so the setting
+would have degraded unrelated projects to protect this one. The 10-wide account
+ceiling already bounds concurrent Bedrock calls more tightly than the
+reservation would have. It is a shared ceiling rather than a private one, which
+is a real difference, and it is recorded in the risks rather than papered over.
+
+This is the second time in Stage 3 that the right fix was to delete a control
+rather than to keep repairing it.
+
+### Deployment — succeeded
+
+`ShopFlowStack` → **UPDATE_COMPLETE**, 2026-09-20T08:08:27Z, 1,724s (most of it
+CloudFront propagation).
+
+| Output | Value |
+| --- | --- |
+| SiteUrl | https://d3m3lwn03zb2eu.cloudfront.net |
+| BedrockModelId | `apac.amazon.nova-pro-v1:0` |
+| WorkerFunctionName | `shopflow-order-worker` |
+| TableName | `shopflow-demo` |
+
+### Verification — live, against the public URL
+
+**The routing fix, proven both ways:**
+
+```
+GET /api/definitely-not-a-route  -> 404  application/json   (real API 404)
+GET /some-frontend-route         -> 200  text/html          (SPA fallback intact)
+```
+
+**The canonical order, submitted through the public API:**
+
+```
+POST /api/orders -> 202 {"jobId": "a290aa0a…", "status": "QUEUED"}
+GET  /api/jobs/a290aa0a… -> DONE
+
+agent status=QUOTED  model=apac.amazon.nova-pro-v1:0  turns=2  grounded=true
+   20 x Anchor Modular Switch 1-Way 10A White    Rs  1566.00  onHand=14  short=6
+    3 x Finolex 1.5 sqmm FR Wire Red 90m coil    Rs 19824.00  onHand=1   short=2
+    2 x Havells MCB SP 32A C-Curve               Rs   916.48  onHand=5   short=0
+   QUOTE TOTAL = Rs 22306.48
+```
+
+Total and shortages match the engine's seeded scenario exactly — the figures
+the tests assert, produced live through Bedrock, Lambda and DynamoDB.
+
+**The ambiguous order:**
+
+```
+agent status=NEEDS_CLARIFICATION
+question:  Please specify the colour of the Finolex 1.5 sq mm wire you need.
+attribute: colour
+  Black -> W-FIN-1.5-BLK-90M
+  Blue  -> W-FIN-1.5-BLU-90M
+  Red   -> W-FIN-1.5-RED-90M
+```
+
+It asked rather than guessed, and offered three real SKUs.
+
+**An invented SKU pushed in through the clarification path:** rejected `400`.
+
+| Check | Result |
+| --- | --- |
+| CloudFormation | `UPDATE_COMPLETE` |
+| Public URL | 200, 23,133 bytes, Stage 3 UI present |
+| `/api/health` | 200 `application/json`, DynamoDB `ok` 241 ms |
+| API 404 | 404 `application/json` — **not** HTML |
+| SPA fallback | 200 `text/html` for a frontend route |
+| API routes | health, orders, jobs/{jobId}, demo |
+| Lambdas | `shopflow-api` 512 MB, `shopflow-order-worker` 1024 MB, `shopflow-health` 256 MB |
+| Throttling | 20 rps / 40 burst stage-wide, `RouteSettings` empty |
+| CloudWatch | 4 log groups, 14-day retention; worker emitted structured `order_processed` lines |
+| Budget | `shopflow-monthly` USD 25 active |
+| Tests | 162 passed |
+| Isolation | `AwsDeployDoctorStack` last updated 2026-09-11, `CDKToolkit` 2026-08-20 — untouched |
+
+**Privacy check on the logs.** The worker's log line carries status, turns,
+grounded, latency, model id and `orderChars` — a character count. The
+customer's order text and the model's output are not logged.
+
 ---
 
 ### Open items carried into Day 2

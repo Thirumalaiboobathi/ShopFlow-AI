@@ -147,10 +147,17 @@ class ShopFlowStack(Stack):
             # One retry on an async invoke is enough; more would multiply
             # Bedrock spend on a request that is already failing.
             retry_attempts=0,
-            # The hard ceiling on concurrent Bedrock calls. A public demo can
-            # be pointed at by anyone, and this caps the blast radius of that
-            # far more directly than request throttling does.
-            reserved_concurrent_executions=5,
+            # No reserved concurrency, for two reasons.
+            #
+            # It is not permitted: this account's total Lambda concurrency is
+            # 10, and AWS requires at least 10 to stay unreserved, so any
+            # reservation is rejected outright.
+            #
+            # It would also be the wrong thing to ask for. Reserving 5 of 10
+            # would leave 5 for every other project in the account. The 10-wide
+            # account ceiling already bounds concurrent Bedrock calls more
+            # tightly than a reservation would have - it is simply a shared
+            # ceiling rather than a private one.
         )
         table.grant_read_write_data(worker_fn)
         worker_fn.add_to_role_policy(iam.PolicyStatement(
