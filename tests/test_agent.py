@@ -233,6 +233,46 @@ def test_clarification_labels_are_always_distinguishable(seeded):
     assert all(labels)
 
 
+def test_clarification_reuses_the_search_that_found_the_ambiguity(seeded):
+    """The customer said "32 amp". The options must all be 32A.
+
+    Re-deriving the candidates from the free text alone dropped the stated
+    specification and once offered 6A breakers for a 32A request.
+    """
+    search = run_tool(seeded, "search_catalog", {
+        "requestedText": "2 MCB 32 amp", "category": "MCB",
+        "specification": "32A"})
+    assert search["status"] == "AMBIGUOUS"
+
+    context = {"2 mcb 32 amp": search}
+    payload = run_tool(seeded, "request_clarification", {
+        "requestedText": "2 MCB 32 amp",
+        "clarifyingAttribute": "brand",
+        "question": "Which brand?"}, context)
+
+    options = payload["clarification"]["options"]
+    assert len(options) == 6
+    for option in options:
+        assert "32A" in seeded.product(option["skuId"]).specification
+
+
+def test_clarification_without_context_still_offers_only_real_skus(seeded):
+    payload = run_tool(seeded, "request_clarification", {
+        "requestedText": "2 MCB 32 amp",
+        "clarifyingAttribute": "brand",
+        "question": "Which brand?"})
+    for option in payload["clarification"]["options"]:
+        assert option["skuId"] in seeded.products
+
+
+def test_search_limit_does_not_truncate_a_product_family(seeded):
+    """36 MCBs exist; a cap that bites would bias the candidate list."""
+    from engine.matching import search_catalog
+
+    candidates = search_catalog(seeded, query="MCB", category="MCB")
+    assert len({c.product.brand for c in candidates}) == 3
+
+
 def test_clarification_keeps_short_labels_when_they_are_unique(seeded):
     payload = run_tool(seeded, "request_clarification", {
         "requestedText": "Anchor modular switches",

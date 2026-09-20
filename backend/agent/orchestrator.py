@@ -119,6 +119,10 @@ def run_order_agent(
     ]
     trace: List[dict] = []
     matches: List[dict] = []
+    # Ambiguous searches, keyed by the customer's wording, so a later
+    # clarification offers the candidates that search actually found rather
+    # than re-deriving them from free text and losing the stated attributes.
+    ambiguous_searches: Dict[str, dict] = {}
     tool_errors = 0
     result = AgentResult(status=STATUS_FAILED, modelId=model_id)
 
@@ -152,7 +156,7 @@ def run_order_agent(
             name, args = use["name"], use.get("input") or {}
             entry = {"turn": turn, "tool": name, "input": args}
             try:
-                payload = run_tool(data, name, args)
+                payload = run_tool(data, name, args, ambiguous_searches)
                 entry["ok"] = True
                 tool_results.append({"toolResult": {
                     "toolUseId": use["toolUseId"],
@@ -160,6 +164,10 @@ def run_order_agent(
                 }})
                 if name == "search_catalog":
                     matches.append(payload)
+                    if payload.get("status") == "AMBIGUOUS":
+                        key = (args.get("requestedText") or "").strip().lower()
+                        if key:
+                            ambiguous_searches[key] = payload
                 if name in TERMINAL_TOOLS:
                     terminal_payload, terminal_name = payload, name
             except ToolError as exc:

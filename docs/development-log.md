@@ -786,6 +786,36 @@ for the 180m. Two identical labels are not a choice. Clarification options now
 fall back to full product names whenever the attribute labels would collide or
 be blank, and keep the short label ("1-Way 10A") when it is unique.
 
+### A worse bug, caught by live verification after deployment
+
+Post-deploy testing of a case the instructions did not ask for — `"Anna, 2 MCB
+32 amp."` — came back wrong. The question was about brand, but the options
+were **twelve Havells MCBs from 6A to 40A**. The customer's "32 amp" had been
+dropped, and the list would have offered a 6A breaker for a 32A request.
+
+Two defects behind it:
+
+1. **The clarification fallback re-derived candidates from free text.** When
+   the model omits `skuIdOptions`, the tool rebuilt the list by re-resolving
+   `requestedText` with no attributes — discarding the `category=MCB,
+   specification=32A` the original search had used. The fix is to remember the
+   search that produced the ambiguity, keyed by the customer's wording, and
+   reuse its candidates. The orchestrator now carries that context into the
+   tool.
+
+2. **`search_catalog` capped candidates at 12.** With 36 MCBs in the catalogue,
+   a cap that bites returns an alphabetically-biased subset — every Havells,
+   no Schneider or Legrand. A truncated candidate list turns into a
+   clarification that omits the right answer. Raised to 40, above the largest
+   real product family.
+
+After the fix the same order returns exactly six options, all 32A, across all
+three brands.
+
+This one is worth noting because the first three test cases all passed. The
+defect only appeared on an order nobody had specified, which is the argument
+for testing beyond the scripted demo.
+
 ### Verification
 
 Live against Bedrock before deploying:

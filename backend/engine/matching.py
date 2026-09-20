@@ -134,7 +134,10 @@ def search_catalog(
     specification: Optional[str] = None,
     colour: Optional[str] = None,
     length: Optional[str] = None,
-    limit: int = 12,
+    # High enough to hold every variant of a real product family. A cap that
+    # bites would hand back an alphabetically-biased subset, and a truncated
+    # candidate list becomes a clarification that omits the right answer.
+    limit: int = 40,
 ) -> List[MatchCandidate]:
     """Score catalogue products against the stated attributes and free text.
 

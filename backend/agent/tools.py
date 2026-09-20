@@ -258,7 +258,8 @@ def _tool_calculate_quote(data: Dataset, args: Dict) -> Dict:
     return {"quote": quote.as_dict()}
 
 
-def _tool_request_clarification(data: Dataset, args: Dict) -> Dict:
+def _tool_request_clarification(data: Dataset, args: Dict,
+                                context: Dict | None = None) -> Dict:
     attribute = (args.get("clarifyingAttribute") or "").strip()
     question = (args.get("question") or "").strip()
     if not attribute or not question:
@@ -274,14 +275,23 @@ def _tool_request_clarification(data: Dataset, args: Dict) -> Dict:
         )
 
     requested = args.get("requestedText") or ""
-    if not raw_options and requested:
-        # A question the owner cannot answer with one tap is not much use, and
-        # the model often omits the candidate list. Rebuild it from the
-        # catalogue so the choices are always present and always real.
-        fallback = resolve_product(data, requested_text=requested)
-        if fallback.status == AMBIGUOUS:
-            raw_options = [o["skuId"] for o in fallback.options]
-            attribute = fallback.clarifyingAttribute or attribute
+    if not raw_options:
+        # The model usually omits the candidate list, and a question the owner
+        # cannot answer with one tap is not much use. Rebuild it.
+        #
+        # Prefer the search that actually produced the ambiguity: it carried
+        # the customer's stated attributes (category MCB, specification 32A),
+        # and re-deriving from the free text alone loses them - which once
+        # offered 6A breakers to someone who asked for 32A.
+        remembered = (context or {}).get(requested.strip().lower())
+        if remembered and remembered.get("status") == AMBIGUOUS:
+            raw_options = [o["skuId"] for o in remembered.get("options", [])]
+            attribute = remembered.get("clarifyingAttribute") or attribute
+        elif requested:
+            fallback = resolve_product(data, requested_text=requested)
+            if fallback.status == AMBIGUOUS:
+                raw_options = [o["skuId"] for o in fallback.options]
+                attribute = fallback.clarifyingAttribute or attribute
 
     options = [{
         "skuId": s,
@@ -307,7 +317,7 @@ def _tool_request_clarification(data: Dataset, args: Dict) -> Dict:
     }}
 
 
-HANDLERS: Dict[str, Callable[[Dataset, Dict], Dict]] = {
+HANDLERS: Dict[str, Callable[..., Dict]] = {
     SEARCH_CATALOG: _tool_search_catalog,
     GET_INVENTORY: _tool_get_inventory,
     CALCULATE_QUOTE: _tool_calculate_quote,
@@ -315,8 +325,14 @@ HANDLERS: Dict[str, Callable[[Dataset, Dict], Dict]] = {
 }
 
 
-def run_tool(data: Dataset, name: str, args: Dict) -> Dict:
+def run_tool(data: Dataset, name: str, args: Dict,
+             context: Dict | None = None) -> Dict:
+    """Run one tool. `context` carries ambiguous searches from earlier turns,
+    keyed by the customer's wording, so a clarification can reuse the
+    resolution that produced it."""
     handler = HANDLERS.get(name)
     if handler is None:
         raise ToolError(f"unknown tool: {name}", kind="UNKNOWN_TOOL")
+    if handler is _tool_request_clarification:
+        return handler(data, args or {}, context)
     return handler(data, args or {})
