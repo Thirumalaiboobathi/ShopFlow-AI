@@ -351,12 +351,15 @@ def build_price_history(rnd: random.Random, products: List[Product]) -> Dict[str
         ]
         history[p.skuId] = rows
 
-    # Planted supplier price increase on the wire the demo order needs:
-    # 5900 -> 6300 is the rise the owner is asked to react to.
+    # The shop's own record for this wire ends at 5,900 - that is the last
+    # price it actually paid. The 6,300 the supplier now charges is NOT seeded
+    # here: it arrives when the owner uploads the new dealer price list, and
+    # the +6.78% is calculated from these two figures at that moment. Seeding
+    # the new price would mean the system already knew the answer before the
+    # document was read.
     history[PRICE_INCREASE_SKU] = [
-        SupplierPrice(PRICE_INCREASE_SKU, "SUP-BALAJI", old_date, 5750.0),
+        SupplierPrice(PRICE_INCREASE_SKU, "SUP-BALAJI", old_date, 5600.0),
         SupplierPrice(PRICE_INCREASE_SKU, "SUP-BALAJI", mid_date, 5900.0),
-        SupplierPrice(PRICE_INCREASE_SKU, "SUP-BALAJI", new_date, 6300.0),
     ]
 
     # Planted cheaper alternative: a rival quotes the same MCB below the

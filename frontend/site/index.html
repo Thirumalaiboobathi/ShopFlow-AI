@@ -127,6 +127,27 @@
   .err{margin-top:18px; padding:13px 15px; border-radius:8px;
     background:var(--bad-soft); color:var(--bad); font-size:.9rem}
 
+  label.upload{display:inline-block; font-weight:600; border-radius:8px;
+    padding:10px 18px; border:1px solid var(--line); color:var(--muted); cursor:pointer}
+  label.upload:hover{color:var(--ink)}
+  .preview{margin:18px 0 0; padding:0}
+  .preview img{width:100%; border:1px solid var(--line); border-radius:8px; display:block}
+  .preview figcaption{color:var(--muted); font-size:.83rem; margin-top:7px}
+  .docmeta{display:flex; gap:16px; flex-wrap:wrap; align-items:baseline;
+    margin-top:20px; padding:13px 16px; border:1px solid var(--line);
+    border-radius:8px; background:var(--panel)}
+  .docmeta .sup{font-weight:650}
+  .docmeta .cnt{color:var(--muted); font-size:.87rem}
+  .change{font-weight:650; white-space:nowrap}
+  .up{color:var(--bad)} .down{color:var(--ok)} .flat{color:var(--muted)}
+  .decide{display:flex; gap:8px; flex-wrap:wrap; padding:0 16px 14px}
+  .decide button{padding:7px 14px; font-size:.87rem}
+  .confirm{background:var(--accent); color:var(--bg)}
+  .reject{background:transparent; color:var(--muted); border-color:var(--line)}
+  .decided{padding:0 16px 14px; font-size:.87rem; color:var(--ok); font-weight:600}
+  .decided.no{color:var(--muted)}
+  .note{padding:0 16px 14px; font-size:.87rem; color:var(--muted)}
+
   ol.flow{list-style:none; margin:0; padding:0; display:grid; gap:1px;
     background:var(--line); border:1px solid var(--line); border-radius:10px; overflow:hidden}
   ol.flow li{background:var(--panel); padding:14px 17px; display:flex; gap:13px}
@@ -199,6 +220,38 @@
     <div class="err" id="error" hidden></div>
     <div id="clarify" hidden></div>
     <div id="result" hidden></div>
+  </div>
+</section>
+
+<section>
+  <h2>Supplier prices — read a dealer price list</h2>
+  <div class="app">
+    <p class="hint" style="margin-top:0">
+      Photograph a supplier's price list. ShopFlow reads it, matches each line
+      to a real catalogue SKU, and compares the printed rate against what this
+      shop last paid. A move of more than 5% is flagged — and nothing changes
+      until you say so.
+    </p>
+
+    <div class="row">
+      <button class="primary" id="useSample">Use the sample price list</button>
+      <label class="ghost upload" for="file">Upload an image…</label>
+      <input type="file" id="file" accept="image/png,image/jpeg,image/webp" hidden>
+      <button class="ghost" id="resetPrices" hidden>Start over</button>
+    </div>
+
+    <figure class="preview" id="preview" hidden>
+      <img id="previewImg" alt="The supplier price list being read">
+      <figcaption id="previewCap"></figcaption>
+    </figure>
+
+    <div class="status" id="priceStatus" hidden>
+      <span class="spinner"></span>
+      <span id="priceStatusText">Reading the document…</span>
+    </div>
+
+    <div class="err" id="priceError" hidden></div>
+    <div id="priceResult" hidden></div>
   </div>
 </section>
 
@@ -502,6 +555,234 @@
 
     resultBox.innerHTML = html;
     show(resultBox, true);
+  }
+
+  // ---- supplier price lists -------------------------------------------
+
+  var sampleBtn = el("useSample"), fileInput = el("file"),
+      resetPricesBtn = el("resetPrices"), priceStatus = el("priceStatus"),
+      priceStatusText = el("priceStatusText"), priceResult = el("priceResult"),
+      priceError = el("priceError"), preview = el("preview"),
+      previewImg = el("previewImg"), previewCap = el("previewCap");
+
+  var currentPriceJob = null;
+
+  function priceBusy(on, message) {
+    sampleBtn.disabled = on;
+    show(priceStatus, on);
+    if (message) priceStatusText.textContent = message;
+  }
+
+  function priceFail(message) {
+    priceBusy(false);
+    priceError.textContent = message;
+    show(priceError, true);
+    show(resetPricesBtn, true);
+  }
+
+  function clearPriceOutput() {
+    show(priceError, false);
+    show(priceResult, false);
+    priceResult.innerHTML = "";
+  }
+
+  resetPricesBtn.addEventListener("click", function () {
+    clearPriceOutput();
+    show(preview, false);
+    show(resetPricesBtn, false);
+    currentPriceJob = null;
+  });
+
+  sampleBtn.addEventListener("click", function () {
+    clearPriceOutput();
+    priceBusy(true, "Loading the sample price list…");
+    fetch("/sample-price-list.png")
+      .then(function (r) {
+        if (!r.ok) throw new Error("The sample price list could not be loaded.");
+        return r.blob();
+      })
+      .then(function (blob) { return sendImage(blob, "image/png", "Sample dealer price list"); })
+      .catch(function (e) { priceFail(e.message); });
+  });
+
+  fileInput.addEventListener("change", function () {
+    var f = fileInput.files && fileInput.files[0];
+    if (!f) return;
+    clearPriceOutput();
+    sendImage(f, f.type, f.name);
+    fileInput.value = "";
+  });
+
+  function sendImage(blob, contentType, caption) {
+    priceBusy(true, "Uploading…");
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onerror = function () { reject(new Error("That file could not be read.")); };
+      reader.onload = function () {
+        var dataUrl = String(reader.result);
+        var comma = dataUrl.indexOf(",");
+        previewImg.src = dataUrl;
+        previewCap.textContent = caption || "";
+        show(preview, true);
+        resolve(dataUrl.slice(comma + 1));
+      };
+      reader.readAsDataURL(blob);
+    }).then(function (base64) {
+      return fetch("/api/supplier-price-lists", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ contentType: contentType, imageBase64: base64 })
+      });
+    }).then(function (r) {
+      return r.json().then(function (b) { return { ok: r.ok, body: b }; });
+    }).then(function (res) {
+      if (!res.ok) throw new Error(res.body.error || "The upload was rejected.");
+      priceStatusText.textContent = "Reading the document with Nova Pro…";
+      pollPrices(res.body.jobId, 0);
+    }).catch(function (e) { priceFail(e.message); });
+  }
+
+  function pollPrices(jobId, attempt) {
+    if (attempt > 45) { priceFail("This is taking longer than expected. Please try again."); return; }
+    setTimeout(function () {
+      fetch("/api/jobs/" + encodeURIComponent(jobId))
+        .then(function (r) { return r.json(); })
+        .then(function (job) {
+          if (job.status === "QUEUED" || job.status === "PROCESSING") {
+            if (attempt === 4) priceStatusText.textContent = "Matching lines to the catalogue…";
+            if (attempt === 9) priceStatusText.textContent = "Comparing against what you last paid…";
+            pollPrices(jobId, attempt + 1);
+            return;
+          }
+          if (job.status === "FAILED" || !job.result) {
+            priceFail(job.error || "That document could not be read.");
+            return;
+          }
+          currentPriceJob = jobId;
+          renderPrices(job.result.review, job.decisions || []);
+        })
+        .catch(function () { pollPrices(jobId, attempt + 1); });
+    }, attempt === 0 ? 900 : 1200);
+  }
+
+  function changeMarkup(c) {
+    if (!c || c.percentageDelta === null || c.percentageDelta === undefined) {
+      return '<span class="change flat">New line</span>';
+    }
+    var cls = c.direction === "INCREASE" ? "up" : c.direction === "DECREASE" ? "down" : "flat";
+    var sign = c.percentageDelta > 0 ? "+" : "";
+    return '<span class="change ' + cls + '">' + sign +
+      c.percentageDelta.toFixed(2) + '%</span>';
+  }
+
+  function renderPrices(review, decisions) {
+    priceBusy(false);
+    show(resetPricesBtn, true);
+
+    var decided = {};
+    decisions.forEach(function (d) { decided[d.skuId] = d.decision; });
+
+    var html = '<div class="docmeta">' +
+      '<span class="sup">' + esc(review.supplierName) + '</span>' +
+      (review.documentDate ? '<span class="cnt">Effective ' + esc(review.documentDate) + '</span>' : '') +
+      '<span class="cnt">' + review.lineCount + ' lines read &middot; ' +
+      review.matchedCount + ' matched &middot; ' +
+      review.ambiguousCount + ' need a decision &middot; ' +
+      review.unmatchedCount + ' not stocked</span></div>';
+
+    html += '<div class="lines">';
+    review.lines.forEach(function (l) {
+      var c = l.comparison;
+      html += '<div class="line"><div class="line-main">' +
+        '<div class="line-body"><div class="line-name">' + esc(l.line.description) + '</div>';
+
+      if (l.status === "MATCHED") {
+        html += '<div class="sku mono">' + esc(l.skuId) + '</div>';
+        if (c && c.materialChange) {
+          html += '<span class="badge b-short">Material change</span>';
+        }
+      } else if (l.status === "AMBIGUOUS") {
+        html += '<span class="badge b-note">Matches ' + l.candidates.length +
+          ' products &middot; differs by ' + esc(l.clarifyingAttribute) + '</span>';
+      } else {
+        html += '<span class="badge b-note">Not in your catalogue</span>';
+      }
+
+      html += '</div><div class="line-right">' +
+        '<div class="amount">' + rupees(l.line.price) + '</div>' +
+        (l.status === "MATCHED" ? changeMarkup(c) : '') +
+        '</div></div>';
+
+      if (l.status === "MATCHED" && c && c.previousPrice !== null) {
+        html += '<details class="why"><summary>Why?</summary><div class="evidence"><dl>' +
+          '<dt>You last paid</dt><dd>' + rupees(c.previousPrice) + '</dd>' +
+          '<dt>This list says</dt><dd>' + rupees(c.currentPrice) + '</dd>' +
+          '<dt>Difference</dt><dd>' + esc(c.evidence.absolute) + '</dd>' +
+          '<dt>Percentage</dt><dd>' + esc(c.evidence.calculation) + '</dd>' +
+          '<dt>Threshold</dt><dd>' + esc(c.evidence.threshold) + '</dd>' +
+          '<dt>Source</dt><dd>' + esc(c.evidence.source) + '</dd>' +
+          '</dl></div></details>';
+      }
+
+      if (l.status === "AMBIGUOUS") {
+        html += '<div class="note">ShopFlow will not guess which product this is. ' +
+          'Candidates: ' + l.candidates.map(function (o) {
+            return '<span class="mono">' + esc(o.skuId) + '</span>';
+          }).join(", ") + '</div>';
+      }
+
+      if (l.status === "MATCHED" && c && c.materialChange) {
+        if (decided[l.skuId]) {
+          html += '<div class="decided' + (decided[l.skuId] === "REJECTED" ? " no" : "") +
+            '">' + (decided[l.skuId] === "CONFIRMED"
+              ? "&#10003; You confirmed this change. Your catalogue cost is unchanged until you apply it."
+              : "Ignored — no change recorded.") + '</div>';
+        } else {
+          html += '<div class="decide">' +
+            '<button class="confirm" data-sku="' + esc(l.skuId) + '" data-decision="CONFIRMED">Confirm change</button>' +
+            '<button class="reject" data-sku="' + esc(l.skuId) + '" data-decision="REJECTED">Ignore</button>' +
+            '</div>';
+        }
+      }
+      html += '</div>';
+    });
+    html += '</div>';
+
+    html += '<div class="verified">&#10003; Every price and percentage above was ' +
+      'calculated by the engine from your own records. Confirming records your ' +
+      'decision; it does not rewrite your catalogue.</div>';
+
+    priceResult.innerHTML = html;
+    show(priceResult, true);
+
+    Array.prototype.forEach.call(priceResult.querySelectorAll(".decide button"), function (btn) {
+      btn.addEventListener("click", function () { decide(btn); });
+    });
+  }
+
+  function decide(btn) {
+    var row = btn.parentNode;
+    row.innerHTML = "Saving…";
+    fetch("/api/price-decisions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        jobId: currentPriceJob,
+        skuId: btn.getAttribute("data-sku"),
+        decision: btn.getAttribute("data-decision")
+      })
+    }).then(function (r) {
+      return r.json().then(function (b) { return { ok: r.ok, body: b }; });
+    }).then(function (res) {
+      if (!res.ok) throw new Error(res.body.error || "That decision could not be saved.");
+      row.className = res.body.decision === "REJECTED" ? "decided no" : "decided";
+      row.innerHTML = res.body.decision === "CONFIRMED"
+        ? "&#10003; You confirmed this change. Your catalogue cost is unchanged until you apply it."
+        : "Ignored — no change recorded.";
+    }).catch(function (e) {
+      row.className = "note";
+      row.textContent = e.message;
+    });
   }
 })();
 </script>

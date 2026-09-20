@@ -137,6 +137,7 @@ class ShopFlowStack(Stack):
                 "TABLE_NAME": table.table_name,
                 "BEDROCK_MODEL_ID": bedrock_model_id,
                 "BEDROCK_REGION": self.region,
+                "UPLOADS_BUCKET": uploads.bucket_name,
             },
             log_group=logs.LogGroup(
                 self, "WorkerLogs",
@@ -160,6 +161,8 @@ class ShopFlowStack(Stack):
             # ceiling rather than a private one.
         )
         table.grant_read_write_data(worker_fn)
+        # Read-only on uploads: the worker reads a price list, never writes one.
+        uploads.grant_read(worker_fn)
         worker_fn.add_to_role_policy(iam.PolicyStatement(
             actions=["bedrock:InvokeModel"],
             # Scoped to the one model this agent uses, via the APAC inference
@@ -182,6 +185,7 @@ class ShopFlowStack(Stack):
             environment={
                 "TABLE_NAME": table.table_name,
                 "WORKER_FUNCTION_NAME": worker_fn.function_name,
+                "UPLOADS_BUCKET": uploads.bucket_name,
             },
             log_group=logs.LogGroup(
                 self, "ApiLogs",
@@ -191,6 +195,9 @@ class ShopFlowStack(Stack):
             ),
         )
         table.grant_read_write_data(api_fn)
+        # Write-only on uploads: the API stores a price list and never reads
+        # one back, so a bug here cannot turn into a document-disclosure path.
+        uploads.grant_put(api_fn)
         # The API may start the worker but has no Bedrock permission of its own.
         worker_fn.grant_invoke(api_fn)
 
@@ -214,6 +221,8 @@ class ShopFlowStack(Stack):
             "ApiIntegration", api_fn)
         for path, method in (
             ("/api/orders", apigw.HttpMethod.POST),
+            ("/api/supplier-price-lists", apigw.HttpMethod.POST),
+            ("/api/price-decisions", apigw.HttpMethod.POST),
             ("/api/jobs/{jobId}", apigw.HttpMethod.GET),
             ("/api/demo", apigw.HttpMethod.GET),
         ):

@@ -835,6 +835,179 @@ Tests: **162 → 174**, all passing.
 
 ---
 
+## Day 2, Stage 4 — 2026-09-20 — Supplier price intelligence
+
+**Prompt.** "Supplier price-list image → Nova Pro Vision extraction → structured
+supplier price records → match only against existing catalog SKUs →
+deterministic price comparison → price-change detection → owner review →
+price history. This is NOT an OCR showcase."
+
+### The design decision that shaped the stage
+
+The business outcome is *"tell the owner when a supplier's price has materially
+changed, and show the evidence."* That splits cleanly along the line the whole
+product is built on:
+
+| Layer | Owns |
+| --- | --- |
+| Nova Pro | transcription — what does this document say |
+| `engine/supplier_prices.py` | which SKU, what we last paid, whether it matters |
+
+The model reads descriptions and printed rates. It never computes a
+percentage, never names a catalogue SKU, and never decides materiality.
+
+### A data problem that had to be fixed first
+
+The seed already carried `5,900 → 6,300` as recorded history for the Finolex
+wire. So uploading a price list saying ₹6,300 would have compared 6,300 against
+6,300 and reported **no change** — the system would have "discovered" something
+it had been told in advance.
+
+The 6,300 was removed from the seed. The shop's own record now ends at **5,900**
+— the last price it actually paid — and the 6,300 arrives only when the document
+is read. The +6.78% is therefore calculated at that moment, from two figures the
+shop can point at.
+
+To keep the Stage 1 scenario detector honest, the seeded history was changed to
+`5,600 → 5,900` (+5.36%), which is still a material move on its own. Two tests
+were updated to the new figures. **The canonical quote is unaffected at
+₹22,306.48**, because a quotation is priced from selling price, not supplier
+cost. The budget scenario shifted slightly (₹24,993.16 → ₹24,996.56 of ₹25,000)
+since the wire now costs less to restock; the budget still binds.
+
+### Ingestion flow
+
+```
+browser --base64 image--> POST /api/supplier-price-lists
+                             |  validate type, magic bytes, size
+                             |  PutObject (private, AES256)
+                             |  job record + async worker invoke
+                             +--> 202 {jobId}
+
+worker --GetObject--> Nova Pro Vision --> strict JSON --> engine review
+                                                            |
+browser --poll--> GET /api/jobs/{jobId} <-------------------+
+```
+
+The image travels as base64 in the request body rather than through a presigned
+URL. That keeps the uploads bucket entirely private: the browser never holds a
+credential, a bucket name, or a URL into S3. The cost is a size ceiling — 2.5 MB
+of image, 4 MB of body — which is ample for a phone photo of a price sheet.
+
+The existing async job pattern was reused unchanged; the job record simply
+carries a `jobType`. No new AWS services.
+
+### Extraction schema
+
+Strict, and rejected rather than repaired:
+
+```
+supplier: {name}
+document: {date}
+items[]:  {description, supplierCode, brand, specification,
+           colour, length, unit, price}
+```
+
+Validation refuses: non-JSON output, a top-level array, missing or empty
+`items`, more than 50 rows, a non-object row, a price that is a string
+(`"6,300"`), a non-positive price, and a boolean price. A model that cannot
+produce this shape produces an error, not a best guess.
+
+Images are checked before they reach Bedrock: declared content type must be one
+of PNG/JPEG/WebP **and** the file's leading bytes must agree. A PDF renamed
+`.png` is rejected without a model call.
+
+### Matching rules
+
+Supplier lines go through the **same resolver as customer orders**, so Stage
+3.1's rule applies unchanged: several matching products means a question, never
+a quiet pick.
+
+- `MATCHED` — exactly one catalogue product fits; price compared.
+- `AMBIGUOUS` — several fit; candidates listed, **no comparison performed**,
+  because comparing against a SKU we are not sure of would be worse than saying
+  nothing.
+- `UNMATCHED` — nothing fits; no SKU is invented.
+
+There is no confidence score. A number between 0 and 1 would imply a
+calibration that does not exist here, so the status is the honest answer.
+
+### Price calculation rules
+
+```
+previousPrice  = the shop's last recorded supplier cost
+currentPrice   = the rate printed on the document
+absoluteDelta  = current - previous
+percentageDelta= (current - previous) / previous x 100
+materialChange = |percentageDelta| > 5.0
+```
+
+**5% default, configurable per call.** Materiality is judged on magnitude, so a
+sharp *fall* is surfaced too — a supplier cutting a price is worth knowing
+before the next purchase. A first-ever quote has no previous price and is
+reported as such rather than as a rise. The boundary case is pinned by a test:
+exactly 5.00% is *not* material, because the rule is "more than 5%".
+
+### Human approval
+
+A confirmed change writes a **decision record** and nothing else.
+`build_decision_record` returns `catalogPriceChanged: False`, and a test asserts
+the catalogue cost and `current_cost()` are untouched after confirmation.
+Applying a confirmed price to stock valuation and purchasing is a separate step
+the owner triggers knowingly — it is not a side effect of agreeing that a
+document is accurate.
+
+The comparison figures in a decision are read from the **stored job**, never
+from the request body, so a caller cannot post a percentage the engine never
+calculated. A test covers that.
+
+### Verification against real Bedrock
+
+The canonical price list is generated from the seeded catalogue
+(`data/price_list_image.py`), so its rates trace to the same dataset as
+everything else. It deliberately carries one of each case. First run, no
+retries:
+
+```
+supplier: SRI BALAJI ELECTRICALS      date: 15-09-2026
+usage: 1,034 input / 465 output tokens
+
+[MATCHED]   Finolex 1.5 sqmm FR Wire RED 90m coil   Rs 6300.0
+            -> W-FIN-1.5-RED-90M
+            prev=5900.0 new=6300.0 delta=400.0 pct=6.78% INCREASE material=True
+            calc: (6300.0 - 5900.0) / 5900.0 x 100 = 6.78%
+[MATCHED]   Anchor Modular Switch 1-Way 10A White   Rs 58.99
+            prev=58.0  pct=1.71%  material=False
+[MATCHED]   Havells MCB SP 32A C-Curve              Rs 358.0
+            prev=358.0 pct=0.0%   UNCHANGED
+[AMBIGUOUS] Finolex 1.5 sqmm FR Wire 90m coil       attribute=colour, 3 candidates
+[UNMATCHED] Kaveri 4-core Armoured Cable 25 sqmm
+```
+
+### Security
+
+- Upload capped at 2.5 MB image / 4 MB body; both rejected before S3 or Bedrock.
+- MIME allowlist plus magic-byte check.
+- Uploads bucket stays private: **API has PutObject only, worker has GetObject
+  only**. The API cannot read back a document it stored, so a bug there cannot
+  become a disclosure path.
+- Bedrock permission remains on the worker alone.
+- Stage throttling, budget alarm and 14-day log retention unchanged.
+- No per-route throttling added.
+- Uploaded objects expire after 30 days via the existing lifecycle rule; job and
+  decision records carry a TTL.
+
+### Observability
+
+The worker logs one structured line per price list: job id, type, model, latency,
+image size in bytes, and the item/matched/ambiguous/unmatched/material counts,
+plus token usage. **No description, price, supplier name or image content is
+logged.**
+
+Tests: **177 → 244**, all passing.
+
+---
+
 ### Open items carried into Day 2
 
 - Anthropic use-case form — **human action**, blocks nothing.

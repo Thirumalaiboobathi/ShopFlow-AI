@@ -57,19 +57,13 @@
     "skuId": "W-FIN-1.5-RED-90M",
     "supplierId": "SUP-BALAJI",
     "effectiveDate": "2026-04-20",
-    "unitCost": 5750.0
+    "unitCost": 5600.0
   },
   {
     "skuId": "W-FIN-1.5-RED-90M",
     "supplierId": "SUP-BALAJI",
     "effectiveDate": "2026-07-06",
     "unitCost": 5900.0
-  },
-  {
-    "skuId": "W-FIN-1.5-RED-90M",
-    "supplierId": "SUP-BALAJI",
-    "effectiveDate": "2026-09-05",
-    "unitCost": 6300.0
   },
   {
     "skuId": "W-FIN-1.5-BLU-90M",

@@ -44,9 +44,9 @@ def test_order_produces_a_mix_of_short_and_covered_lines(scenario):
 
 def test_supplier_price_rise_on_the_wire_is_surfaced(scenario):
     rise = {d["skuId"]: d for d in scenario["priceChanges"]}["W-FIN-1.5-RED-90M"]
-    assert rise["previousCost"] == 5900.0
-    assert rise["currentCost"] == 6300.0
-    assert rise["percentChange"] == pytest.approx(6.78, abs=0.01)
+    assert rise["previousCost"] == 5600.0
+    assert rise["currentCost"] == 5900.0
+    assert rise["percentChange"] == pytest.approx(5.36, abs=0.01)
     assert rise["isAlert"] is True
 
 

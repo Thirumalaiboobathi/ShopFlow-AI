@@ -17,10 +17,16 @@ from agent.orchestrator import (
     OrderTooLongError,
     run_order_agent,
 )
+from agent.vision import ExtractionError, extract_price_list
 from engine.loader import cached_dataset
+from engine.supplier_prices import InvalidSupplierLineError, review_price_list
 
 TABLE_NAME = os.environ["TABLE_NAME"]
 MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", DEFAULT_MODEL_ID)
+UPLOADS_BUCKET = os.environ.get("UPLOADS_BUCKET", "")
+
+JOB_ORDER = "ORDER"
+JOB_PRICE_LIST = "PRICE_LIST"
 
 _table = boto3.resource("dynamodb").Table(TABLE_NAME)
 
@@ -41,6 +47,67 @@ def _update(job_id: str, **fields) -> None:
     )
 
 
+def _process_price_list(job_id: str, item: dict) -> dict:
+    """Read one supplier price list and review it against the catalogue."""
+    _update(job_id, status="PROCESSING", startedAt=int(time.time()))
+    started = time.perf_counter()
+
+    try:
+        obj = boto3.client("s3").get_object(
+            Bucket=UPLOADS_BUCKET, Key=item["imageKey"])
+        image_bytes = obj["Body"].read()
+
+        supplier, doc_date, items, usage = extract_price_list(
+            image_bytes, item.get("imageContentType") or "image/png",
+            model_id=MODEL_ID,
+        )
+        review = review_price_list(cached_dataset(), supplier, doc_date, items)
+    except (ExtractionError, InvalidSupplierLineError) as exc:
+        # A document we could not read is a real answer, not a crash.
+        print(f"price list {job_id} rejected: {type(exc).__name__}: {exc}")
+        _update(job_id, status="FAILED", error=str(exc)[:300])
+        return {"ok": False}
+    except Exception as exc:  # noqa: BLE001
+        print(f"ERROR price list {job_id}: {type(exc).__name__}: {exc}")
+        _update(job_id, status="FAILED", error="price list processing failed")
+        return {"ok": False}
+
+    elapsed = (time.perf_counter() - started) * 1000
+    payload = review.as_dict()
+
+    # Metadata only. The document's contents are never logged.
+    print(json.dumps({
+        "event": "price_list_processed",
+        "jobId": job_id,
+        "jobType": JOB_PRICE_LIST,
+        "status": "DONE",
+        "modelId": MODEL_ID,
+        "elapsedMs": round(elapsed, 1),
+        "imageBytes": int(item.get("imageBytes", 0)),
+        "itemCount": payload["lineCount"],
+        "matchedCount": payload["matchedCount"],
+        "ambiguousCount": payload["ambiguousCount"],
+        "unmatchedCount": payload["unmatchedCount"],
+        "materialChangeCount": payload["materialChangeCount"],
+        "inputTokens": usage.get("inputTokens"),
+        "outputTokens": usage.get("outputTokens"),
+    }))
+
+    _update(
+        job_id,
+        status="DONE",
+        result=json.dumps({
+            "status": "REVIEWED",
+            "jobType": JOB_PRICE_LIST,
+            "modelId": MODEL_ID,
+            "elapsedMs": round(elapsed, 1),
+            "review": payload,
+        }),
+        finishedAt=int(time.time()),
+    )
+    return {"ok": True, "status": "REVIEWED"}
+
+
 def handler(event, context):
     job_id = event.get("jobId")
     if not job_id:
@@ -51,6 +118,9 @@ def handler(event, context):
     if not item:
         print(f"ERROR: job {job_id} not found")
         return {"ok": False}
+
+    if item.get("jobType") == JOB_PRICE_LIST:
+        return _process_price_list(job_id, item)
 
     order_text = item.get("orderText") or ""
     clarifications = item.get("clarifications") or []

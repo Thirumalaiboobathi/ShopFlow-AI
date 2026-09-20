@@ -121,6 +121,13 @@ def test_margin_per_rupee_is_zero_when_cost_is_zero():
 
 
 def test_seeded_wire_price_increase_is_the_planted_one(seeded):
+    """The shop's own history ends at 5,900 - the last price it actually paid.
+
+    The 6,300 the supplier now charges is deliberately not seeded: it arrives
+    when the price list is uploaded, so the +6.78% is calculated from a
+    document rather than known in advance.
+    """
     d = price_delta(seeded, "W-FIN-1.5-RED-90M")
-    assert (d.previousCost, d.currentCost) == (5900.0, 6300.0)
-    assert d.percentChange == pytest.approx(6.78, abs=0.01)
+    assert (d.previousCost, d.currentCost) == (5600.0, 5900.0)
+    assert d.percentChange == pytest.approx(5.36, abs=0.01)
+    assert d.increased is True

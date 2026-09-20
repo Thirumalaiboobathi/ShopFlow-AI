@@ -77,12 +77,12 @@
     {
       "skuId": "W-FIN-1.5-RED-90M",
       "supplierId": "SUP-BALAJI",
-      "previousCost": 5900.0,
-      "currentCost": 6300.0,
-      "previousDate": "2026-07-06",
-      "currentDate": "2026-09-05",
-      "absoluteChange": 400.0,
-      "percentChange": 6.78,
+      "previousCost": 5600.0,
+      "currentCost": 5900.0,
+      "previousDate": "2026-04-20",
+      "currentDate": "2026-07-06",
+      "absoluteChange": 300.0,
+      "percentChange": 5.36,
       "isAlert": true
     }
   ],
@@ -100,10 +100,10 @@
   ],
   "budgetPlan": {
     "budget": 25000.0,
-    "tier1Spend": 12948.0,
-    "tier2Spend": 12045.16,
-    "totalSpend": 24993.16,
-    "remaining": 6.84,
+    "tier1Spend": 12148.0,
+    "tier2Spend": 12848.56,
+    "totalSpend": 24996.56,
+    "remaining": 3.44,
     "allCommitmentsFunded": true,
     "purchased": [
       {
@@ -135,8 +135,8 @@
         "decision": "BUY",
         "requestedQty": 2,
         "fundedQty": 2,
-        "unitCost": 6300.0,
-        "lineCost": 12600.0,
+        "unitCost": 5900.0,
+        "lineCost": 11800.0,
         "reason": "Committed order needs 3 units, 1 in stock. Buying the 2 unit shortfall.",
         "risk": null,
         "evidence": {
@@ -145,8 +145,8 @@
           "onHand": 1,
           "shortageQty": 2,
           "earliestPromisedDate": "2026-09-21",
-          "unitCost": 6300.0,
-          "fullLineCost": 12600.0,
+          "unitCost": 5900.0,
+          "fullLineCost": 11800.0,
           "budgetRemainingBefore": 24652.0,
           "fulfilmentPolicy": "PARTIAL_ALLOWED",
           "policy": "Tier 1 - committed customer orders are funded first, earliest promised date first."
@@ -176,7 +176,7 @@
           "priority": 0.422438,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 480.0,
-          "budgetRemainingBefore": 12052.0,
+          "budgetRemainingBefore": 12852.0,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -204,7 +204,7 @@
           "priority": 0.386842,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 992.0,
-          "budgetRemainingBefore": 11572.0,
+          "budgetRemainingBefore": 12372.0,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -232,7 +232,7 @@
           "priority": 0.355247,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 2999.56,
-          "budgetRemainingBefore": 10580.0,
+          "budgetRemainingBefore": 11380.0,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -260,7 +260,7 @@
           "priority": 0.35,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 620.0,
-          "budgetRemainingBefore": 7580.44,
+          "budgetRemainingBefore": 8380.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -288,7 +288,7 @@
           "priority": 0.35,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 3944.0,
-          "budgetRemainingBefore": 6960.44,
+          "budgetRemainingBefore": 7760.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -316,7 +316,7 @@
           "priority": 0.326625,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 546.0,
-          "budgetRemainingBefore": 3016.44,
+          "budgetRemainingBefore": 3816.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -344,7 +344,7 @@
           "priority": 0.289474,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 1862.0,
-          "budgetRemainingBefore": 2470.44,
+          "budgetRemainingBefore": 3270.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -353,10 +353,10 @@
         "tier": "RESTOCK",
         "decision": "PARTIAL",
         "requestedQty": 11,
-        "fundedQty": 2,
+        "fundedQty": 5,
         "unitCost": 273.8,
-        "lineCost": 547.6,
-        "reason": "Partial restock: budget covers 2 of 11 units.",
+        "lineCost": 1369.0,
+        "reason": "Partial restock: budget covers 5 of 11 units.",
         "risk": "Stock covers about 0.7 weeks at 1.5 units/week; supplier lead time is 10 days. Stock will run out before a replacement order could arrive.",
         "evidence": {
           "skuId": "SW-LEG-SKT16A",
@@ -372,7 +372,7 @@
           "priority": 0.281944,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 3011.8,
-          "budgetRemainingBefore": 608.44,
+          "budgetRemainingBefore": 1408.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -381,10 +381,10 @@
         "tier": "RESTOCK",
         "decision": "PARTIAL",
         "requestedQty": 26,
-        "fundedQty": 3,
+        "fundedQty": 2,
         "unitCost": 18.0,
-        "lineCost": 54.0,
-        "reason": "Partial restock: budget covers 3 of 26 units.",
+        "lineCost": 36.0,
+        "reason": "Partial restock: budget covers 2 of 26 units.",
         "risk": "Stock covers about 1.3 weeks at 4.8 units/week; supplier lead time is 5 days.",
         "evidence": {
           "skuId": "ACC-LUG-CU-10",
@@ -400,7 +400,7 @@
           "priority": 0.267313,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 468.0,
-          "budgetRemainingBefore": 60.84,
+          "budgetRemainingBefore": 39.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       }
@@ -411,10 +411,10 @@
         "tier": "RESTOCK",
         "decision": "PARTIAL",
         "requestedQty": 11,
-        "fundedQty": 2,
+        "fundedQty": 5,
         "unitCost": 273.8,
-        "lineCost": 547.6,
-        "reason": "Partial restock: budget covers 2 of 11 units.",
+        "lineCost": 1369.0,
+        "reason": "Partial restock: budget covers 5 of 11 units.",
         "risk": "Stock covers about 0.7 weeks at 1.5 units/week; supplier lead time is 10 days. Stock will run out before a replacement order could arrive.",
         "evidence": {
           "skuId": "SW-LEG-SKT16A",
@@ -430,7 +430,7 @@
           "priority": 0.281944,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 3011.8,
-          "budgetRemainingBefore": 608.44,
+          "budgetRemainingBefore": 1408.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -458,7 +458,7 @@
           "priority": 0.275617,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 1702.0,
-          "budgetRemainingBefore": 60.84,
+          "budgetRemainingBefore": 39.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -467,10 +467,10 @@
         "tier": "RESTOCK",
         "decision": "PARTIAL",
         "requestedQty": 26,
-        "fundedQty": 3,
+        "fundedQty": 2,
         "unitCost": 18.0,
-        "lineCost": 54.0,
-        "reason": "Partial restock: budget covers 3 of 26 units.",
+        "lineCost": 36.0,
+        "reason": "Partial restock: budget covers 2 of 26 units.",
         "risk": "Stock covers about 1.3 weeks at 4.8 units/week; supplier lead time is 5 days.",
         "evidence": {
           "skuId": "ACC-LUG-CU-10",
@@ -486,7 +486,7 @@
           "priority": 0.267313,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 468.0,
-          "budgetRemainingBefore": 60.84,
+          "budgetRemainingBefore": 39.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -514,7 +514,7 @@
           "priority": 0.241304,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 5808.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -542,7 +542,7 @@
           "priority": 0.232057,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 638.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -570,7 +570,7 @@
           "priority": 0.227901,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 6734.4,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -598,7 +598,7 @@
           "priority": 0.226822,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 67525.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -626,7 +626,7 @@
           "priority": 0.201724,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 1680.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -654,7 +654,7 @@
           "priority": 0.200017,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 813.44,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -682,7 +682,7 @@
           "priority": 0.19275,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 16165.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -710,7 +710,7 @@
           "priority": 0.184584,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 7056.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -738,7 +738,7 @@
           "priority": 0.172643,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 1825.12,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -766,7 +766,7 @@
           "priority": 0.171115,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 20886.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -794,7 +794,7 @@
           "priority": 0.164708,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 3720.6,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -822,7 +822,7 @@
           "priority": 0.164706,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 6086.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -850,7 +850,7 @@
           "priority": 0.143692,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 1774.08,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -878,7 +878,7 @@
           "priority": 0.140019,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 2575.2,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -906,7 +906,7 @@
           "priority": 0.14,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 3907.2,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -934,7 +934,7 @@
           "priority": 0.134818,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 4878.12,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -962,7 +962,35 @@
           "priority": 0.128064,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 28063.5,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
+          "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
+        }
+      },
+      {
+        "skuId": "W-FIN-1.5-RED-90M",
+        "tier": "RESTOCK",
+        "decision": "DEFER",
+        "requestedQty": 28,
+        "fundedQty": 0,
+        "unitCost": 5900.0,
+        "lineCost": 0.0,
+        "reason": "Deferred: remaining budget cannot fund this restock.",
+        "risk": "Stock covers about 0.0 weeks at 4.2 units/week; supplier lead time is 3 days. Stock will run out before a replacement order could arrive.",
+        "evidence": {
+          "skuId": "W-FIN-1.5-RED-90M",
+          "reorderQty": 28,
+          "unitCost": 5900.0,
+          "weeklyVelocity": 4.25,
+          "availableAfterCommitments": 0,
+          "coverageWeeks": 0.0,
+          "leadTimeDays": 3,
+          "riskHorizonWeeks": 2.43,
+          "stockoutRisk": 1.0,
+          "marginPerRupee": 0.12,
+          "priority": 0.12,
+          "formula": "priority = stockoutRisk * marginPerRupee",
+          "fullLineCost": 165200.0,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -990,7 +1018,7 @@
           "priority": 0.111034,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 31081.83,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -1018,7 +1046,7 @@
           "priority": 0.1,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 141128.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -1046,7 +1074,7 @@
           "priority": 0.097064,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 37771.16,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -1074,7 +1102,7 @@
           "priority": 0.095722,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 20101.64,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -1102,7 +1130,7 @@
           "priority": 0.089673,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 11210.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -1130,7 +1158,7 @@
           "priority": 0.087847,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 188859.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -1158,7 +1186,7 @@
           "priority": 0.085494,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 123287.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -1186,7 +1214,7 @@
           "priority": 0.084632,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 214176.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -1214,7 +1242,7 @@
           "priority": 0.084345,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 748.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -1242,7 +1270,7 @@
           "priority": 0.08277,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 111356.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -1270,7 +1298,7 @@
           "priority": 0.077778,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 9871.6,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -1298,7 +1326,7 @@
           "priority": 0.076593,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 46980.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -1326,7 +1354,7 @@
           "priority": 0.071487,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 24714.96,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -1354,7 +1382,7 @@
           "priority": 0.068994,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 123900.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -1382,7 +1410,7 @@
           "priority": 0.053465,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 395005.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -1410,7 +1438,7 @@
           "priority": 0.050452,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 15439.6,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -1438,7 +1466,7 @@
           "priority": 0.050242,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 167200.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -1466,7 +1494,7 @@
           "priority": 0.04941,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 4224.4,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -1494,35 +1522,7 @@
           "priority": 0.049263,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 121056.0,
-          "budgetRemainingBefore": 6.84,
-          "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
-        }
-      },
-      {
-        "skuId": "W-FIN-1.5-RED-90M",
-        "tier": "RESTOCK",
-        "decision": "DEFER",
-        "requestedQty": 28,
-        "fundedQty": 0,
-        "unitCost": 6300.0,
-        "lineCost": 0.0,
-        "reason": "Deferred: remaining budget cannot fund this restock.",
-        "risk": "Stock covers about 0.0 weeks at 4.2 units/week; supplier lead time is 3 days. Stock will run out before a replacement order could arrive.",
-        "evidence": {
-          "skuId": "W-FIN-1.5-RED-90M",
-          "reorderQty": 28,
-          "unitCost": 6300.0,
-          "weeklyVelocity": 4.25,
-          "availableAfterCommitments": 0,
-          "coverageWeeks": 0.0,
-          "leadTimeDays": 3,
-          "riskHorizonWeeks": 2.43,
-          "stockoutRisk": 1.0,
-          "marginPerRupee": 0.0489,
-          "priority": 0.048889,
-          "formula": "priority = stockoutRisk * marginPerRupee",
-          "fullLineCost": 176400.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -1550,7 +1550,7 @@
           "priority": 0.03855,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 9357.4,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -1578,7 +1578,7 @@
           "priority": 0.036842,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 1344.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -1606,7 +1606,7 @@
           "priority": 0.031579,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 137352.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -1634,7 +1634,7 @@
           "priority": 0.031579,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 27936.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -1662,7 +1662,7 @@
           "priority": 0.025388,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 2341.92,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -1690,7 +1690,7 @@
           "priority": 0.014634,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 397440.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -1718,7 +1718,7 @@
           "priority": 0.012727,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 10535.64,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -1746,7 +1746,7 @@
           "priority": 0.012193,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 91200.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -1774,7 +1774,7 @@
           "priority": 0.009358,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 3960.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -1802,7 +1802,7 @@
           "priority": 0.008772,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 476.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -1830,7 +1830,7 @@
           "priority": 0.0,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 14827.68,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       }
@@ -1865,8 +1865,8 @@
         "decision": "BUY",
         "requestedQty": 2,
         "fundedQty": 2,
-        "unitCost": 6300.0,
-        "lineCost": 12600.0,
+        "unitCost": 5900.0,
+        "lineCost": 11800.0,
         "reason": "Committed order needs 3 units, 1 in stock. Buying the 2 unit shortfall.",
         "risk": null,
         "evidence": {
@@ -1875,8 +1875,8 @@
           "onHand": 1,
           "shortageQty": 2,
           "earliestPromisedDate": "2026-09-21",
-          "unitCost": 6300.0,
-          "fullLineCost": 12600.0,
+          "unitCost": 5900.0,
+          "fullLineCost": 11800.0,
           "budgetRemainingBefore": 24652.0,
           "fulfilmentPolicy": "PARTIAL_ALLOWED",
           "policy": "Tier 1 - committed customer orders are funded first, earliest promised date first."
@@ -1906,7 +1906,7 @@
           "priority": 0.422438,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 480.0,
-          "budgetRemainingBefore": 12052.0,
+          "budgetRemainingBefore": 12852.0,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -1934,7 +1934,7 @@
           "priority": 0.386842,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 992.0,
-          "budgetRemainingBefore": 11572.0,
+          "budgetRemainingBefore": 12372.0,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -1962,7 +1962,7 @@
           "priority": 0.355247,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 2999.56,
-          "budgetRemainingBefore": 10580.0,
+          "budgetRemainingBefore": 11380.0,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -1990,7 +1990,7 @@
           "priority": 0.35,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 620.0,
-          "budgetRemainingBefore": 7580.44,
+          "budgetRemainingBefore": 8380.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -2018,7 +2018,7 @@
           "priority": 0.35,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 3944.0,
-          "budgetRemainingBefore": 6960.44,
+          "budgetRemainingBefore": 7760.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -2046,7 +2046,7 @@
           "priority": 0.326625,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 546.0,
-          "budgetRemainingBefore": 3016.44,
+          "budgetRemainingBefore": 3816.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -2074,7 +2074,7 @@
           "priority": 0.289474,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 1862.0,
-          "budgetRemainingBefore": 2470.44,
+          "budgetRemainingBefore": 3270.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -2083,10 +2083,10 @@
         "tier": "RESTOCK",
         "decision": "PARTIAL",
         "requestedQty": 11,
-        "fundedQty": 2,
+        "fundedQty": 5,
         "unitCost": 273.8,
-        "lineCost": 547.6,
-        "reason": "Partial restock: budget covers 2 of 11 units.",
+        "lineCost": 1369.0,
+        "reason": "Partial restock: budget covers 5 of 11 units.",
         "risk": "Stock covers about 0.7 weeks at 1.5 units/week; supplier lead time is 10 days. Stock will run out before a replacement order could arrive.",
         "evidence": {
           "skuId": "SW-LEG-SKT16A",
@@ -2102,7 +2102,7 @@
           "priority": 0.281944,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 3011.8,
-          "budgetRemainingBefore": 608.44,
+          "budgetRemainingBefore": 1408.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -2130,7 +2130,7 @@
           "priority": 0.275617,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 1702.0,
-          "budgetRemainingBefore": 60.84,
+          "budgetRemainingBefore": 39.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -2139,10 +2139,10 @@
         "tier": "RESTOCK",
         "decision": "PARTIAL",
         "requestedQty": 26,
-        "fundedQty": 3,
+        "fundedQty": 2,
         "unitCost": 18.0,
-        "lineCost": 54.0,
-        "reason": "Partial restock: budget covers 3 of 26 units.",
+        "lineCost": 36.0,
+        "reason": "Partial restock: budget covers 2 of 26 units.",
         "risk": "Stock covers about 1.3 weeks at 4.8 units/week; supplier lead time is 5 days.",
         "evidence": {
           "skuId": "ACC-LUG-CU-10",
@@ -2158,7 +2158,7 @@
           "priority": 0.267313,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 468.0,
-          "budgetRemainingBefore": 60.84,
+          "budgetRemainingBefore": 39.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -2186,7 +2186,7 @@
           "priority": 0.241304,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 5808.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -2214,7 +2214,7 @@
           "priority": 0.232057,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 638.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -2242,7 +2242,7 @@
           "priority": 0.227901,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 6734.4,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -2270,7 +2270,7 @@
           "priority": 0.226822,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 67525.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -2298,7 +2298,7 @@
           "priority": 0.201724,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 1680.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -2326,7 +2326,7 @@
           "priority": 0.200017,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 813.44,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -2354,7 +2354,7 @@
           "priority": 0.19275,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 16165.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -2382,7 +2382,7 @@
           "priority": 0.184584,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 7056.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -2410,7 +2410,7 @@
           "priority": 0.172643,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 1825.12,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -2438,7 +2438,7 @@
           "priority": 0.171115,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 20886.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -2466,7 +2466,7 @@
           "priority": 0.164708,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 3720.6,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -2494,7 +2494,7 @@
           "priority": 0.164706,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 6086.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -2522,7 +2522,7 @@
           "priority": 0.143692,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 1774.08,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -2550,7 +2550,7 @@
           "priority": 0.140019,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 2575.2,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -2578,7 +2578,7 @@
           "priority": 0.14,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 3907.2,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -2606,7 +2606,7 @@
           "priority": 0.134818,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 4878.12,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -2634,7 +2634,35 @@
           "priority": 0.128064,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 28063.5,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
+          "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
+        }
+      },
+      {
+        "skuId": "W-FIN-1.5-RED-90M",
+        "tier": "RESTOCK",
+        "decision": "DEFER",
+        "requestedQty": 28,
+        "fundedQty": 0,
+        "unitCost": 5900.0,
+        "lineCost": 0.0,
+        "reason": "Deferred: remaining budget cannot fund this restock.",
+        "risk": "Stock covers about 0.0 weeks at 4.2 units/week; supplier lead time is 3 days. Stock will run out before a replacement order could arrive.",
+        "evidence": {
+          "skuId": "W-FIN-1.5-RED-90M",
+          "reorderQty": 28,
+          "unitCost": 5900.0,
+          "weeklyVelocity": 4.25,
+          "availableAfterCommitments": 0,
+          "coverageWeeks": 0.0,
+          "leadTimeDays": 3,
+          "riskHorizonWeeks": 2.43,
+          "stockoutRisk": 1.0,
+          "marginPerRupee": 0.12,
+          "priority": 0.12,
+          "formula": "priority = stockoutRisk * marginPerRupee",
+          "fullLineCost": 165200.0,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -2662,7 +2690,7 @@
           "priority": 0.111034,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 31081.83,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -2690,7 +2718,7 @@
           "priority": 0.1,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 141128.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -2718,7 +2746,7 @@
           "priority": 0.097064,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 37771.16,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -2746,7 +2774,7 @@
           "priority": 0.095722,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 20101.64,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -2774,7 +2802,7 @@
           "priority": 0.089673,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 11210.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -2802,7 +2830,7 @@
           "priority": 0.087847,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 188859.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -2830,7 +2858,7 @@
           "priority": 0.085494,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 123287.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -2858,7 +2886,7 @@
           "priority": 0.084632,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 214176.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -2886,7 +2914,7 @@
           "priority": 0.084345,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 748.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -2914,7 +2942,7 @@
           "priority": 0.08277,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 111356.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -2942,7 +2970,7 @@
           "priority": 0.077778,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 9871.6,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -2970,7 +2998,7 @@
           "priority": 0.076593,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 46980.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -2998,7 +3026,7 @@
           "priority": 0.071487,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 24714.96,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -3026,7 +3054,7 @@
           "priority": 0.068994,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 123900.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -3054,7 +3082,7 @@
           "priority": 0.053465,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 395005.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -3082,7 +3110,7 @@
           "priority": 0.050452,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 15439.6,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -3110,7 +3138,7 @@
           "priority": 0.050242,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 167200.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -3138,7 +3166,7 @@
           "priority": 0.04941,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 4224.4,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -3166,35 +3194,7 @@
           "priority": 0.049263,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 121056.0,
-          "budgetRemainingBefore": 6.84,
-          "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
-        }
-      },
-      {
-        "skuId": "W-FIN-1.5-RED-90M",
-        "tier": "RESTOCK",
-        "decision": "DEFER",
-        "requestedQty": 28,
-        "fundedQty": 0,
-        "unitCost": 6300.0,
-        "lineCost": 0.0,
-        "reason": "Deferred: remaining budget cannot fund this restock.",
-        "risk": "Stock covers about 0.0 weeks at 4.2 units/week; supplier lead time is 3 days. Stock will run out before a replacement order could arrive.",
-        "evidence": {
-          "skuId": "W-FIN-1.5-RED-90M",
-          "reorderQty": 28,
-          "unitCost": 6300.0,
-          "weeklyVelocity": 4.25,
-          "availableAfterCommitments": 0,
-          "coverageWeeks": 0.0,
-          "leadTimeDays": 3,
-          "riskHorizonWeeks": 2.43,
-          "stockoutRisk": 1.0,
-          "marginPerRupee": 0.0489,
-          "priority": 0.048889,
-          "formula": "priority = stockoutRisk * marginPerRupee",
-          "fullLineCost": 176400.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -3222,7 +3222,7 @@
           "priority": 0.03855,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 9357.4,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -3250,7 +3250,7 @@
           "priority": 0.036842,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 1344.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -3278,7 +3278,7 @@
           "priority": 0.031579,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 137352.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -3306,7 +3306,7 @@
           "priority": 0.031579,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 27936.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -3334,7 +3334,7 @@
           "priority": 0.025388,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 2341.92,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -3362,7 +3362,7 @@
           "priority": 0.014634,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 397440.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -3390,7 +3390,7 @@
           "priority": 0.012727,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 10535.64,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -3418,7 +3418,7 @@
           "priority": 0.012193,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 91200.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -3446,7 +3446,7 @@
           "priority": 0.009358,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 3960.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -3474,7 +3474,7 @@
           "priority": 0.008772,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 476.0,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       },
@@ -3502,7 +3502,7 @@
           "priority": 0.0,
           "formula": "priority = stockoutRisk * marginPerRupee",
           "fullLineCost": 14827.68,
-          "budgetRemainingBefore": 6.84,
+          "budgetRemainingBefore": 3.44,
           "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
         }
       }
@@ -3561,7 +3561,7 @@
               "priority": 0.35,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 3944.0,
-              "budgetRemainingBefore": 6960.44,
+              "budgetRemainingBefore": 7760.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -3571,7 +3571,7 @@
         "skuId": "W-FIN-1.5-RED-90M",
         "totalFundedQty": 2,
         "totalRequestedQty": 30,
-        "totalCost": 12600.0,
+        "totalCost": 11800.0,
         "tiers": [
           {
             "skuId": "W-FIN-1.5-RED-90M",
@@ -3579,8 +3579,8 @@
             "decision": "BUY",
             "requestedQty": 2,
             "fundedQty": 2,
-            "unitCost": 6300.0,
-            "lineCost": 12600.0,
+            "unitCost": 5900.0,
+            "lineCost": 11800.0,
             "reason": "Committed order needs 3 units, 1 in stock. Buying the 2 unit shortfall.",
             "risk": null,
             "evidence": {
@@ -3589,8 +3589,8 @@
               "onHand": 1,
               "shortageQty": 2,
               "earliestPromisedDate": "2026-09-21",
-              "unitCost": 6300.0,
-              "fullLineCost": 12600.0,
+              "unitCost": 5900.0,
+              "fullLineCost": 11800.0,
               "budgetRemainingBefore": 24652.0,
               "fulfilmentPolicy": "PARTIAL_ALLOWED",
               "policy": "Tier 1 - committed customer orders are funded first, earliest promised date first."
@@ -3602,25 +3602,25 @@
             "decision": "DEFER",
             "requestedQty": 28,
             "fundedQty": 0,
-            "unitCost": 6300.0,
+            "unitCost": 5900.0,
             "lineCost": 0.0,
             "reason": "Deferred: remaining budget cannot fund this restock.",
             "risk": "Stock covers about 0.0 weeks at 4.2 units/week; supplier lead time is 3 days. Stock will run out before a replacement order could arrive.",
             "evidence": {
               "skuId": "W-FIN-1.5-RED-90M",
               "reorderQty": 28,
-              "unitCost": 6300.0,
+              "unitCost": 5900.0,
               "weeklyVelocity": 4.25,
               "availableAfterCommitments": 0,
               "coverageWeeks": 0.0,
               "leadTimeDays": 3,
               "riskHorizonWeeks": 2.43,
               "stockoutRisk": 1.0,
-              "marginPerRupee": 0.0489,
-              "priority": 0.048889,
+              "marginPerRupee": 0.12,
+              "priority": 0.12,
               "formula": "priority = stockoutRisk * marginPerRupee",
-              "fullLineCost": 176400.0,
-              "budgetRemainingBefore": 6.84,
+              "fullLineCost": 165200.0,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -3656,7 +3656,7 @@
               "priority": 0.422438,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 480.0,
-              "budgetRemainingBefore": 12052.0,
+              "budgetRemainingBefore": 12852.0,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -3692,7 +3692,7 @@
               "priority": 0.386842,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 992.0,
-              "budgetRemainingBefore": 11572.0,
+              "budgetRemainingBefore": 12372.0,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -3728,7 +3728,7 @@
               "priority": 0.355247,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 2999.56,
-              "budgetRemainingBefore": 10580.0,
+              "budgetRemainingBefore": 11380.0,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -3764,7 +3764,7 @@
               "priority": 0.35,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 620.0,
-              "budgetRemainingBefore": 7580.44,
+              "budgetRemainingBefore": 8380.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -3800,7 +3800,7 @@
               "priority": 0.326625,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 546.0,
-              "budgetRemainingBefore": 3016.44,
+              "budgetRemainingBefore": 3816.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -3836,7 +3836,7 @@
               "priority": 0.289474,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 1862.0,
-              "budgetRemainingBefore": 2470.44,
+              "budgetRemainingBefore": 3270.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -3844,19 +3844,19 @@
       },
       {
         "skuId": "SW-LEG-SKT16A",
-        "totalFundedQty": 2,
+        "totalFundedQty": 5,
         "totalRequestedQty": 11,
-        "totalCost": 547.6,
+        "totalCost": 1369.0,
         "tiers": [
           {
             "skuId": "SW-LEG-SKT16A",
             "tier": "RESTOCK",
             "decision": "PARTIAL",
             "requestedQty": 11,
-            "fundedQty": 2,
+            "fundedQty": 5,
             "unitCost": 273.8,
-            "lineCost": 547.6,
-            "reason": "Partial restock: budget covers 2 of 11 units.",
+            "lineCost": 1369.0,
+            "reason": "Partial restock: budget covers 5 of 11 units.",
             "risk": "Stock covers about 0.7 weeks at 1.5 units/week; supplier lead time is 10 days. Stock will run out before a replacement order could arrive.",
             "evidence": {
               "skuId": "SW-LEG-SKT16A",
@@ -3872,7 +3872,7 @@
               "priority": 0.281944,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 3011.8,
-              "budgetRemainingBefore": 608.44,
+              "budgetRemainingBefore": 1408.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -3908,7 +3908,7 @@
               "priority": 0.275617,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 1702.0,
-              "budgetRemainingBefore": 60.84,
+              "budgetRemainingBefore": 39.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -3916,19 +3916,19 @@
       },
       {
         "skuId": "ACC-LUG-CU-10",
-        "totalFundedQty": 3,
+        "totalFundedQty": 2,
         "totalRequestedQty": 26,
-        "totalCost": 54.0,
+        "totalCost": 36.0,
         "tiers": [
           {
             "skuId": "ACC-LUG-CU-10",
             "tier": "RESTOCK",
             "decision": "PARTIAL",
             "requestedQty": 26,
-            "fundedQty": 3,
+            "fundedQty": 2,
             "unitCost": 18.0,
-            "lineCost": 54.0,
-            "reason": "Partial restock: budget covers 3 of 26 units.",
+            "lineCost": 36.0,
+            "reason": "Partial restock: budget covers 2 of 26 units.",
             "risk": "Stock covers about 1.3 weeks at 4.8 units/week; supplier lead time is 5 days.",
             "evidence": {
               "skuId": "ACC-LUG-CU-10",
@@ -3944,7 +3944,7 @@
               "priority": 0.267313,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 468.0,
-              "budgetRemainingBefore": 60.84,
+              "budgetRemainingBefore": 39.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -3980,7 +3980,7 @@
               "priority": 0.241304,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 5808.0,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -4016,7 +4016,7 @@
               "priority": 0.232057,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 638.0,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -4052,7 +4052,7 @@
               "priority": 0.227901,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 6734.4,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -4088,7 +4088,7 @@
               "priority": 0.226822,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 67525.0,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -4124,7 +4124,7 @@
               "priority": 0.201724,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 1680.0,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -4160,7 +4160,7 @@
               "priority": 0.200017,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 813.44,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -4196,7 +4196,7 @@
               "priority": 0.19275,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 16165.0,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -4232,7 +4232,7 @@
               "priority": 0.184584,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 7056.0,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -4268,7 +4268,7 @@
               "priority": 0.172643,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 1825.12,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -4304,7 +4304,7 @@
               "priority": 0.171115,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 20886.0,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -4340,7 +4340,7 @@
               "priority": 0.164708,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 3720.6,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -4376,7 +4376,7 @@
               "priority": 0.164706,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 6086.0,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -4412,7 +4412,7 @@
               "priority": 0.143692,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 1774.08,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -4448,7 +4448,7 @@
               "priority": 0.140019,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 2575.2,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -4484,7 +4484,7 @@
               "priority": 0.14,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 3907.2,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -4520,7 +4520,7 @@
               "priority": 0.134818,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 4878.12,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -4556,7 +4556,7 @@
               "priority": 0.128064,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 28063.5,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -4592,7 +4592,7 @@
               "priority": 0.111034,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 31081.83,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -4628,7 +4628,7 @@
               "priority": 0.1,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 141128.0,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -4664,7 +4664,7 @@
               "priority": 0.097064,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 37771.16,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -4700,7 +4700,7 @@
               "priority": 0.095722,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 20101.64,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -4736,7 +4736,7 @@
               "priority": 0.089673,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 11210.0,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -4772,7 +4772,7 @@
               "priority": 0.087847,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 188859.0,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -4808,7 +4808,7 @@
               "priority": 0.085494,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 123287.0,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -4844,7 +4844,7 @@
               "priority": 0.084632,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 214176.0,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -4880,7 +4880,7 @@
               "priority": 0.084345,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 748.0,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -4916,7 +4916,7 @@
               "priority": 0.08277,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 111356.0,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -4952,7 +4952,7 @@
               "priority": 0.077778,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 9871.6,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -4988,7 +4988,7 @@
               "priority": 0.076593,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 46980.0,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -5024,7 +5024,7 @@
               "priority": 0.071487,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 24714.96,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -5060,7 +5060,7 @@
               "priority": 0.068994,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 123900.0,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -5096,7 +5096,7 @@
               "priority": 0.053465,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 395005.0,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -5132,7 +5132,7 @@
               "priority": 0.050452,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 15439.6,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -5168,7 +5168,7 @@
               "priority": 0.050242,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 167200.0,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -5204,7 +5204,7 @@
               "priority": 0.04941,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 4224.4,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -5240,7 +5240,7 @@
               "priority": 0.049263,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 121056.0,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -5276,7 +5276,7 @@
               "priority": 0.03855,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 9357.4,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -5312,7 +5312,7 @@
               "priority": 0.036842,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 1344.0,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -5348,7 +5348,7 @@
               "priority": 0.031579,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 137352.0,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -5384,7 +5384,7 @@
               "priority": 0.031579,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 27936.0,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -5420,7 +5420,7 @@
               "priority": 0.025388,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 2341.92,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -5456,7 +5456,7 @@
               "priority": 0.014634,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 397440.0,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -5492,7 +5492,7 @@
               "priority": 0.012727,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 10535.64,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -5528,7 +5528,7 @@
               "priority": 0.012193,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 91200.0,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -5564,7 +5564,7 @@
               "priority": 0.009358,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 3960.0,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -5600,7 +5600,7 @@
               "priority": 0.008772,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 476.0,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
@@ -5636,7 +5636,7 @@
               "priority": 0.0,
               "formula": "priority = stockoutRisk * marginPerRupee",
               "fullLineCost": 14827.68,
-              "budgetRemainingBefore": 6.84,
+              "budgetRemainingBefore": 3.44,
               "policy": "Tier 2 - remaining budget allocated by priority = stockoutRisk * marginPerRupee, highest first."
             }
           }
