@@ -22,6 +22,7 @@ from aws_cdk import (
     aws_cloudfront as cloudfront,
     aws_cloudfront_origins as origins,
     aws_dynamodb as dynamodb,
+    aws_iam as iam,
     aws_lambda as lambda_,
     aws_logs as logs,
     aws_s3 as s3,
@@ -31,10 +32,14 @@ from constructs import Construct
 
 PREFIX = "shopflow"
 
+# Local-only files that must not travel into the Lambda bundle.
+BACKEND_EXCLUDES = ["**/__pycache__", "**/*.pyc", "**/.pytest_cache"]
+
 
 class ShopFlowStack(Stack):
     def __init__(self, scope: Construct, construct_id: str,
                  *, alert_email: str | None = None, monthly_budget_usd: int = 25,
+                 bedrock_model_id: str = "apac.amazon.nova-pro-v1:0",
                  **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
@@ -51,6 +56,8 @@ class ShopFlowStack(Stack):
             sort_key=dynamodb.Attribute(
                 name="SK", type=dynamodb.AttributeType.STRING),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            # Demo jobs are transient; DynamoDB removes them on its own.
+            time_to_live_attribute="expiresAt",
             encryption=dynamodb.TableEncryption.AWS_MANAGED,
             point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
                 point_in_time_recovery_enabled=True),
@@ -100,8 +107,10 @@ class ShopFlowStack(Stack):
             self, "HealthFunction",
             function_name=f"{PREFIX}-health",
             runtime=lambda_.Runtime.PYTHON_3_13,
-            handler="handler.handler",
-            code=lambda_.Code.from_asset("../backend/lambdas/health"),
+            # The whole backend ships as one asset so the engine, the agent and
+            # the generated seed travel together; handlers differ per function.
+            code=lambda_.Code.from_asset("../backend", exclude=BACKEND_EXCLUDES),
+            handler="lambdas/health/handler.handler",
             memory_size=256,
             timeout=Duration.seconds(10),
             environment={
@@ -113,6 +122,70 @@ class ShopFlowStack(Stack):
         )
         # Least privilege: read-only, and only this table.
         table.grant_read_data(health_fn)
+
+        # ---- order worker: the only function allowed to reach Bedrock ----
+        worker_fn = lambda_.Function(
+            self, "WorkerFunction",
+            function_name=f"{PREFIX}-order-worker",
+            runtime=lambda_.Runtime.PYTHON_3_13,
+            handler="lambdas/worker/handler.handler",
+            code=lambda_.Code.from_asset("../backend", exclude=BACKEND_EXCLUDES),
+            memory_size=1024,
+            # Comfortably above the observed ~4s agent loop, still bounded.
+            timeout=Duration.seconds(60),
+            environment={
+                "TABLE_NAME": table.table_name,
+                "BEDROCK_MODEL_ID": bedrock_model_id,
+                "BEDROCK_REGION": self.region,
+            },
+            log_group=logs.LogGroup(
+                self, "WorkerLogs",
+                log_group_name=f"/aws/lambda/{PREFIX}-order-worker",
+                retention=logs.RetentionDays.TWO_WEEKS,
+                removal_policy=RemovalPolicy.DESTROY,
+            ),
+            # One retry on an async invoke is enough; more would multiply
+            # Bedrock spend on a request that is already failing.
+            retry_attempts=0,
+            # The hard ceiling on concurrent Bedrock calls. A public demo can
+            # be pointed at by anyone, and this caps the blast radius of that
+            # far more directly than request throttling does.
+            reserved_concurrent_executions=5,
+        )
+        table.grant_read_write_data(worker_fn)
+        worker_fn.add_to_role_policy(iam.PolicyStatement(
+            actions=["bedrock:InvokeModel"],
+            # Scoped to the one model this agent uses, via the APAC inference
+            # profile and the foundation models it can route to.
+            resources=[
+                f"arn:aws:bedrock:{self.region}:{account}:inference-profile/{bedrock_model_id}",
+                f"arn:aws:bedrock:*::foundation-model/{bedrock_model_id.split('.', 1)[1]}",
+            ],
+        ))
+
+        # ---- public API ----
+        api_fn = lambda_.Function(
+            self, "ApiFunction",
+            function_name=f"{PREFIX}-api",
+            runtime=lambda_.Runtime.PYTHON_3_13,
+            handler="lambdas/api/handler.handler",
+            code=lambda_.Code.from_asset("../backend", exclude=BACKEND_EXCLUDES),
+            memory_size=512,
+            timeout=Duration.seconds(15),
+            environment={
+                "TABLE_NAME": table.table_name,
+                "WORKER_FUNCTION_NAME": worker_fn.function_name,
+            },
+            log_group=logs.LogGroup(
+                self, "ApiLogs",
+                log_group_name=f"/aws/lambda/{PREFIX}-api-fn",
+                retention=logs.RetentionDays.TWO_WEEKS,
+                removal_policy=RemovalPolicy.DESTROY,
+            ),
+        )
+        table.grant_read_write_data(api_fn)
+        # The API may start the worker but has no Bedrock permission of its own.
+        worker_fn.grant_invoke(api_fn)
 
         http_api = apigw.HttpApi(
             self, "HttpApi",
@@ -130,8 +203,29 @@ class ShopFlowStack(Stack):
                 "HealthIntegration", health_fn),
         )
 
-        # Throttle the default stage. A public endpoint with no ceiling is an
-        # open invitation, and the ship gate depends on this staying up.
+        api_integration = integrations.HttpLambdaIntegration(
+            "ApiIntegration", api_fn)
+        for path, method in (
+            ("/api/orders", apigw.HttpMethod.POST),
+            ("/api/jobs/{jobId}", apigw.HttpMethod.GET),
+            ("/api/demo", apigw.HttpMethod.GET),
+        ):
+            http_api.add_routes(
+                path=path, methods=[method], integration=api_integration)
+
+        # One throttle for the whole stage, deliberately.
+        #
+        # Per-route settings were tried first, to hold POST /api/orders far
+        # below the cheap read routes. They are a trap: API Gateway rejects
+        # settings for a route that does not exist yet, and on rollback
+        # CloudFormation deletes routes before it updates the stage - so a
+        # failed deploy cannot roll itself back and the stack wedges in
+        # UPDATE_ROLLBACK_FAILED. That happened here and needed manual
+        # recovery. A public demo has to be redeployable under pressure, so
+        # the marginal protection is not worth the ship-gate risk.
+        #
+        # The real cost ceiling is the worker's reserved concurrency, which
+        # caps concurrent Bedrock calls however the request arrived.
         default_stage = http_api.default_stage.node.default_child
         default_stage.default_route_settings = (
             apigw.CfnStage.RouteSettingsProperty(
@@ -216,12 +310,19 @@ class ShopFlowStack(Stack):
                         .ALL_VIEWER_EXCEPT_HOST_HEADER,
                 ),
             },
+            # CloudFront custom error responses are distribution-wide - they
+            # cannot be scoped to one behaviour - so mapping 404 here would
+            # turn a genuine API 404 into a 200 serving index.html, hiding
+            # broken endpoints behind an apparently successful page.
+            #
+            # Only 403 is mapped, which separates the two cleanly: S3 behind
+            # OAC answers 403 for a missing object (the bucket policy grants
+            # GetObject but not ListBucket), while API Gateway answers 404 for
+            # an unknown route. So the SPA fallback still works and API 404s
+            # reach the caller intact.
             error_responses=[
                 cloudfront.ErrorResponse(
                     http_status=403, response_http_status=200,
-                    response_page_path="/index.html", ttl=Duration.minutes(5)),
-                cloudfront.ErrorResponse(
-                    http_status=404, response_http_status=200,
                     response_page_path="/index.html", ttl=Duration.minutes(5)),
             ],
         )
@@ -281,3 +382,5 @@ class ShopFlowStack(Stack):
         CfnOutput(self, "UploadsBucket", value=uploads.bucket_name)
         CfnOutput(self, "SiteBucket", value=site.bucket_name)
         CfnOutput(self, "DistributionId", value=distribution.distribution_id)
+        CfnOutput(self, "BedrockModelId", value=bedrock_model_id)
+        CfnOutput(self, "WorkerFunctionName", value=worker_fn.function_name)

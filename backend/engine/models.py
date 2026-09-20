@@ -40,6 +40,12 @@ class Product:
     supplierId: str
     name: str
     fulfilmentPolicy: str = PARTIAL_ALLOWED
+    # The variant a shop reaches for when the customer does not specify, e.g.
+    # the 90m coil rather than the 180m one. Used only to break a tie between
+    # otherwise-identical candidates, and always reported in the evidence so
+    # the owner can see the choice was made and override it. It never crosses
+    # a brand the customer actually named.
+    isDefaultVariant: bool = False
 
     @property
     def marginPerUnit(self) -> float:

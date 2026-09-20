@@ -105,7 +105,9 @@ def assert_budget_binds(scenario: dict) -> None:
         raise AssertionError("budget does not bind - nothing was deferred")
 
 
-SCENARIO_PATH = Path(__file__).resolve().parent / "seed" / "demo_scenario.json"
+SCENARIO_PATH = (
+    Path(__file__).resolve().parents[1] / "backend" / "seed_data" / "demo_scenario.json"
+)
 
 
 def main() -> None:

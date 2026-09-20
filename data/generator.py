@@ -96,7 +96,8 @@ def _sku(*parts) -> str:
 def build_catalog() -> List[Product]:
     products: List[Product] = []
 
-    def add(skuId, brand, category, spec, colour, length, unit, cost, name):
+    def add(skuId, brand, category, spec, colour, length, unit, cost, name,
+            is_default=False):
         selling = round(cost * CATEGORY_MARGIN[category], 2)
         products.append(
             Product(
@@ -104,6 +105,7 @@ def build_catalog() -> List[Product]:
                 colour=colour, length=length, unit=unit,
                 sellingPrice=selling, costPrice=round(cost, 2),
                 supplierId=BRAND_SUPPLIER[brand], name=name,
+                isDefaultVariant=is_default,
             )
         )
 
@@ -125,6 +127,8 @@ def build_catalog() -> List[Product]:
                     _sku("W", BRAND_CODE[brand], spec, COLOUR_CODE[colour], "90M"),
                     brand, "Wire", f"{spec} sqmm", colour, "90m", "coil", cost,
                     f"{brand} {spec} sqmm FR Wire {colour} 90m coil",
+                    # 90m is the standard coil; 180m is the special order.
+                    is_default=True,
                 )
     # A 180m variant so "Finolex 1.5 red wire" is also ambiguous on length.
     add(_sku("W", "FIN", "1.5", "RED", "180M"), "Finolex", "Wire", "1.5 sqmm",
@@ -143,7 +147,9 @@ def build_catalog() -> List[Product]:
         for spec, code, cost in switch_specs:
             add(_sku("SW", BRAND_CODE[brand], code), brand, "Switch", spec,
                 "White", None, "piece", cost * factor,
-                f"{brand} Modular Switch {spec} White")
+                f"{brand} Modular Switch {spec} White",
+                # The plain one-way 10A is what "a modular switch" means.
+                is_default=(spec == "1-Way 10A"))
 
     # ---- MCB (36) ----
     mcb_amp_cost = {6: 295.0, 10: 305.0, 16: 318.0, 20: 336.0, 32: 358.0, 40: 402.0}
@@ -155,7 +161,9 @@ def build_catalog() -> List[Product]:
                 cost = mcb_amp_cost[amp] * pole_factor[pole] * bf
                 add(_sku("MCB", BRAND_CODE[brand], pole, f"{amp}A", "C"), brand,
                     "MCB", f"{pole} {amp}A C-Curve", None, None, "piece", cost,
-                    f"{brand} MCB {pole} {amp}A C-Curve")
+                    f"{brand} MCB {pole} {amp}A C-Curve",
+                    # Single-pole Havells is this shop's house MCB.
+                    is_default=(brand == "Havells" and pole == "SP"))
 
     # ---- LED lamps (24) ----
     led_cost = {5: 62.0, 9: 84.0, 12: 118.0, 18: 176.0}
@@ -165,7 +173,8 @@ def build_catalog() -> List[Product]:
             for colour in ("Cool White", "Warm White"):
                 add(_sku("LED", BRAND_CODE[brand], f"{w}W", COLOUR_CODE[colour]),
                     brand, "LED Lamp", f"{w}W B22", colour, None, "piece",
-                    cost * bf, f"{brand} LED Bulb {w}W B22 {colour}")
+                    cost * bf, f"{brand} LED Bulb {w}W B22 {colour}",
+                    is_default=(colour == "Cool White"))
 
     # ---- Ceiling fans (12) ----
     fan_brand_cost = {"Crompton": 1480.0, "Orient": 1620.0, "Havells": 1890.0}
@@ -176,7 +185,8 @@ def build_catalog() -> List[Product]:
                 add(_sku("FAN", BRAND_CODE[brand], size, COLOUR_CODE[colour]),
                     brand, "Ceiling Fan", size.replace("MM", "mm Sweep"), colour,
                     None, "piece", cost * factor,
-                    f"{brand} Ceiling Fan {size.replace('MM', 'mm')} {colour}")
+                    f"{brand} Ceiling Fan {size.replace('MM', 'mm')} {colour}",
+                    is_default=(size == "1200MM" and colour == "Brown"))
 
     # ---- Accessories (16) ----
     accessories = [
@@ -199,7 +209,7 @@ def build_catalog() -> List[Product]:
     ]
     for code, name, spec, unit, cost in accessories:
         add(_sku("ACC", code), "Generic", "Accessory", spec, None, None, unit,
-            cost, name)
+            cost, name, is_default=True)
 
     return products
 
@@ -401,7 +411,10 @@ def build_dataset() -> Dataset:
     )
 
 
-SEED_DIR = Path(__file__).resolve().parent / "seed"
+# The generated fixtures live under backend/ so they ship inside the Lambda
+# bundle. /data holds the code that generates them; this is the one artifact
+# every runtime reads, so there is no second source of truth.
+SEED_DIR = Path(__file__).resolve().parents[1] / "backend" / "seed_data"
 
 
 def write_seed(data: Dataset, out_dir: Path = SEED_DIR) -> Dict[str, int]:

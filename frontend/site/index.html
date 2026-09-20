@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ShopFlow AI — From messy orders to smarter purchasing decisions</title>
-<meta name="description" content="ShopFlow AI helps independent electrical retailers understand customer orders, verify inventory, detect supplier price changes and make purchasing decisions when cash is limited.">
+<meta name="description" content="ShopFlow AI helps independent electrical retailers understand customer orders, verify inventory, detect supplier price changes and make purchasing decisions when cash is limited. Category: Commercial Potential. Lane: Startup.">
 <meta name="robots" content="index,follow">
 <meta property="og:title" content="ShopFlow AI">
 <meta property="og:description" content="An AI operations assistant for independent electrical retailers. From messy orders to smarter purchasing decisions.">
@@ -12,78 +12,146 @@
 <style>
   :root{
     --bg:#fbfaf8; --panel:#ffffff; --ink:#15181d; --muted:#5d6472;
-    --line:#e4e2dd; --accent:#0a5c4a; --accent-soft:#e8f1ee; --warn:#8a5a00;
+    --line:#e4e2dd; --accent:#0a5c4a; --accent-soft:#e8f1ee;
+    --warn:#8a5a00; --warn-soft:#fdf4e3; --bad:#9b2c2c; --bad-soft:#fbeaea;
+    --ok:#0a5c4a; --ok-soft:#e8f1ee; --code:#f4f3f0;
   }
   @media (prefers-color-scheme: dark){
     :root:not([data-theme="light"]){
       --bg:#0f1114; --panel:#161a1f; --ink:#e9eaec; --muted:#9aa3b2;
-      --line:#272c33; --accent:#4fd1ac; --accent-soft:#12251f; --warn:#e0b567;
+      --line:#272c33; --accent:#4fd1ac; --accent-soft:#12251f;
+      --warn:#e0b567; --warn-soft:#241d10; --bad:#f08a8a; --bad-soft:#2a1618;
+      --ok:#4fd1ac; --ok-soft:#12251f; --code:#1c2127;
     }
   }
   :root[data-theme="dark"]{
     --bg:#0f1114; --panel:#161a1f; --ink:#e9eaec; --muted:#9aa3b2;
-    --line:#272c33; --accent:#4fd1ac; --accent-soft:#12251f; --warn:#e0b567;
+    --line:#272c33; --accent:#4fd1ac; --accent-soft:#12251f;
+    --warn:#e0b567; --warn-soft:#241d10; --bad:#f08a8a; --bad-soft:#2a1618;
+    --ok:#4fd1ac; --ok-soft:#12251f; --code:#1c2127;
   }
   *{box-sizing:border-box}
-  body{
-    margin:0; background:var(--bg); color:var(--ink);
-    font:16px/1.65 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-    -webkit-font-smoothing:antialiased;
-  }
-  .wrap{max-width:820px; margin:0 auto; padding:0 20px}
-  header{padding-block:64px 40px; border-bottom:1px solid var(--line)}
-  .mark{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap}
-  .mark h1{font-size:clamp(1.9rem,5vw,2.6rem); letter-spacing:-.02em; margin:0; font-weight:650}
-  .mark .ai{color:var(--accent)}
-  .tag{margin:14px 0 0; font-size:clamp(1.05rem,2.6vw,1.3rem); color:var(--ink); font-weight:500}
-  .lede{margin:18px 0 0; color:var(--muted); max-width:62ch}
-  .chips{display:flex; gap:8px; flex-wrap:wrap; margin-top:26px}
-  .chip{
-    font-size:.78rem; letter-spacing:.04em; text-transform:uppercase;
+  body{margin:0; background:var(--bg); color:var(--ink);
+    font:16px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:860px; margin:0 auto; padding:0 20px}
+  code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+
+  header{padding-block:52px 32px}
+  h1{font-size:clamp(1.8rem,5vw,2.5rem); letter-spacing:-.02em; margin:0; font-weight:650}
+  h1 .ai{color:var(--accent)}
+  .tag{margin:12px 0 0; font-size:clamp(1.02rem,2.5vw,1.25rem); font-weight:500}
+  .lede{margin:14px 0 0; color:var(--muted); max-width:62ch}
+  .chips{display:flex; gap:8px; flex-wrap:wrap; margin-top:20px}
+  .chip{font-size:.75rem; letter-spacing:.04em; text-transform:uppercase;
     padding:5px 11px; border:1px solid var(--line); border-radius:999px;
-    color:var(--muted); background:var(--panel);
-  }
+    color:var(--muted); background:var(--panel)}
   .chip strong{color:var(--ink); font-weight:600}
-  section{padding-block:44px; border-bottom:1px solid var(--line)}
-  h2{font-size:.82rem; letter-spacing:.09em; text-transform:uppercase;
-     color:var(--muted); margin:0 0 20px; font-weight:600}
+
+  section{padding-block:36px; border-top:1px solid var(--line)}
+  h2{font-size:.8rem; letter-spacing:.09em; text-transform:uppercase;
+    color:var(--muted); margin:0 0 18px; font-weight:600}
+  h3{margin:0 0 6px; font-size:.95rem}
+
+  .app{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:22px}
+  label{display:block; font-weight:600; font-size:.92rem; margin-bottom:8px}
+  textarea{width:100%; min-height:88px; resize:vertical; padding:12px 14px;
+    border:1px solid var(--line); border-radius:8px; background:var(--bg);
+    color:var(--ink); font:inherit; line-height:1.5}
+  textarea:focus{outline:2px solid var(--accent); outline-offset:-1px}
+  .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:14px}
+  button{font:inherit; font-weight:600; border-radius:8px; padding:10px 18px;
+    border:1px solid transparent; cursor:pointer}
+  .primary{background:var(--accent); color:var(--bg)}
+  .primary:disabled{opacity:.55; cursor:default}
+  .ghost{background:transparent; color:var(--muted); border-color:var(--line)}
+  .ghost:hover{color:var(--ink)}
+  .hint{color:var(--muted); font-size:.87rem; margin:10px 0 0}
+
+  .status{display:flex; gap:11px; align-items:center; margin-top:18px;
+    padding:13px 15px; border:1px solid var(--line); border-radius:8px; background:var(--bg)}
+  .spinner{width:15px; height:15px; border:2px solid var(--line);
+    border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; flex:none}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion:reduce){.spinner{animation:none}}
+
+  .steps{display:flex; gap:6px; flex-wrap:wrap; margin-top:18px}
+  .step{font-size:.76rem; padding:4px 10px; border-radius:999px;
+    border:1px solid var(--line); color:var(--muted)}
+  .step.done{background:var(--ok-soft); color:var(--ok); border-color:transparent}
+  .step.active{background:var(--accent-soft); color:var(--accent); border-color:transparent}
+
+  .lines{margin-top:20px; border:1px solid var(--line); border-radius:10px; overflow:hidden}
+  .line{border-bottom:1px solid var(--line); background:var(--panel)}
+  .line:last-child{border-bottom:none}
+  .line-main{display:flex; gap:14px; padding:14px 16px; align-items:flex-start; flex-wrap:wrap}
+  .qty{flex:none; min-width:46px; font-weight:700; font-size:1.05rem}
+  .line-body{flex:1 1 220px; min-width:0}
+  .line-name{font-weight:600}
+  .sku{font-size:.8rem; color:var(--muted); margin-top:2px}
+  .line-right{margin-left:auto; text-align:right; flex:none}
+  .amount{font-weight:650; white-space:nowrap}
+  .badge{display:inline-block; font-size:.74rem; padding:3px 9px; border-radius:999px;
+    margin-top:5px; white-space:nowrap}
+  .b-ok{background:var(--ok-soft); color:var(--ok)}
+  .b-short{background:var(--bad-soft); color:var(--bad)}
+  .b-note{background:var(--warn-soft); color:var(--warn)}
+  details.why{border-top:1px dashed var(--line); background:var(--bg)}
+  details.why>summary{cursor:pointer; padding:9px 16px; font-size:.85rem;
+    color:var(--accent); font-weight:600; list-style:none}
+  details.why>summary::-webkit-details-marker{display:none}
+  details.why>summary::before{content:"▸ "; }
+  details.why[open]>summary::before{content:"▾ "; }
+  .evidence{padding:0 16px 14px; font-size:.86rem}
+  .evidence dl{display:grid; grid-template-columns:auto 1fr; gap:5px 14px; margin:0}
+  .evidence dt{color:var(--muted)}
+  .evidence dd{margin:0; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+
+  .total{display:flex; justify-content:space-between; align-items:baseline;
+    padding:16px; background:var(--accent-soft); font-weight:700; font-size:1.15rem}
+  .total .label{font-size:.8rem; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--accent); font-weight:600}
+  .verified{margin-top:14px; font-size:.85rem; color:var(--ok);
+    display:flex; gap:7px; align-items:center}
+
+  .clarify{margin-top:20px; border:1px solid var(--warn); background:var(--warn-soft);
+    border-radius:10px; padding:18px}
+  .clarify h3{color:var(--warn)}
+  .options{display:flex; gap:9px; flex-wrap:wrap; margin-top:13px}
+  .option{background:var(--panel); border:1px solid var(--line); color:var(--ink);
+    text-align:left; padding:10px 14px}
+  .option:hover{border-color:var(--accent)}
+  .option .v{font-weight:650; display:block}
+  .option .s{font-size:.78rem; color:var(--muted)}
+
+  .err{margin-top:18px; padding:13px 15px; border-radius:8px;
+    background:var(--bad-soft); color:var(--bad); font-size:.9rem}
+
   ol.flow{list-style:none; margin:0; padding:0; display:grid; gap:1px;
-          background:var(--line); border:1px solid var(--line); border-radius:10px; overflow:hidden}
-  ol.flow li{background:var(--panel); padding:16px 18px; display:flex; gap:14px; align-items:flex-start}
-  ol.flow .n{
-    flex:none; width:26px; height:26px; border-radius:7px; background:var(--accent-soft);
-    color:var(--accent); font-size:.8rem; font-weight:700;
-    display:grid; place-items:center; margin-top:1px;
-  }
+    background:var(--line); border:1px solid var(--line); border-radius:10px; overflow:hidden}
+  ol.flow li{background:var(--panel); padding:14px 17px; display:flex; gap:13px}
+  ol.flow .n{flex:none; width:25px; height:25px; border-radius:7px; background:var(--accent-soft);
+    color:var(--accent); font-size:.78rem; font-weight:700; display:grid; place-items:center}
   ol.flow .t{font-weight:600}
-  ol.flow .d{color:var(--muted); font-size:.93rem; margin-top:2px}
-  .principle{
-    background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--accent);
-    border-radius:8px; padding:20px 22px;
-  }
+  ol.flow .d{color:var(--muted); font-size:.91rem; margin-top:2px}
+  .principle{background:var(--panel); border:1px solid var(--line);
+    border-left:3px solid var(--accent); border-radius:8px; padding:19px 21px}
   .principle p{margin:0 0 10px}
-  .principle p:last-child{margin-bottom:0; color:var(--muted); font-size:.94rem}
-  .split{display:grid; gap:18px; grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
-  .card{background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:16px 18px}
-  .card h3{margin:0 0 6px; font-size:.95rem}
-  .card p{margin:0; color:var(--muted); font-size:.91rem}
-  .status{
-    display:flex; gap:14px; align-items:flex-start; background:var(--panel);
-    border:1px solid var(--line); border-radius:8px; padding:18px 20px;
-  }
-  .dot{flex:none; width:9px; height:9px; border-radius:50%; background:var(--warn); margin-top:8px}
-  .status strong{display:block}
-  .status span{color:var(--muted); font-size:.93rem}
-  footer{padding-block:32px 56px; color:var(--muted); font-size:.87rem}
+  .principle p:last-child{margin:0; color:var(--muted); font-size:.93rem}
+  .split{display:grid; gap:16px; grid-template-columns:repeat(auto-fit,minmax(225px,1fr))}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:15px 17px}
+  .card p{margin:0; color:var(--muted); font-size:.9rem}
+  footer{padding-block:28px 52px; color:var(--muted); font-size:.86rem;
+    border-top:1px solid var(--line)}
   footer a{color:var(--accent)}
-  code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.9em}
+  [hidden]{display:none !important}
 </style>
 </head>
 <body>
 <div class="wrap">
 
 <header>
-  <div class="mark"><h1>ShopFlow<span class="ai"> AI</span></h1></div>
+  <h1>ShopFlow<span class="ai"> AI</span></h1>
   <p class="tag">From messy orders to smarter purchasing decisions.</p>
   <p class="lede">
     ShopFlow helps independent electrical retailers understand customer orders,
@@ -94,8 +162,45 @@
     <span class="chip">Category&nbsp;<strong>Commercial Potential</strong></span>
     <span class="chip">Lane&nbsp;<strong>Startup</strong></span>
     <span class="chip">Built for&nbsp;<strong>Electrical retail, India</strong></span>
+    <span class="chip">No login&nbsp;<strong>Try it below</strong></span>
   </div>
 </header>
+
+<section>
+  <h2>Try it — a live customer order</h2>
+  <div class="app">
+    <label for="order">Customer order, in the words they actually used</label>
+    <textarea id="order" spellcheck="false"
+      placeholder="Loading the seeded shop…"></textarea>
+
+    <div class="row">
+      <button class="primary" id="go">Process order</button>
+      <button class="ghost" id="useAmbiguous">Try an ambiguous order</button>
+      <button class="ghost" id="reset" hidden>Start over</button>
+    </div>
+    <p class="hint" id="hint">
+      Reading a seeded Madurai shop — <span id="catalogSize">147</span> real SKUs,
+      six months of sales history. Every figure below is calculated by the
+      deterministic engine, never written by the model.
+    </p>
+
+    <div class="steps" id="steps" hidden>
+      <span class="step" data-step="understand">Understand</span>
+      <span class="step" data-step="match">Match SKUs</span>
+      <span class="step" data-step="inventory">Check stock</span>
+      <span class="step" data-step="quote">Quote</span>
+    </div>
+
+    <div class="status" id="status" hidden>
+      <span class="spinner" id="spin"></span>
+      <span id="statusText">Working…</span>
+    </div>
+
+    <div class="err" id="error" hidden></div>
+    <div id="clarify" hidden></div>
+    <div id="result" hidden></div>
+  </div>
+</section>
 
 <section>
   <h2>The workflow</h2>
@@ -115,6 +220,7 @@
     <li><span class="n">7</span><span><span class="t">Why</span>
       <span class="d">Every recommendation opens up into the full calculation behind it — stock, velocity, lead time, margin, budget remaining.</span></span></li>
   </ol>
+  <p class="hint">Steps 1–3 and 7 are live above. Steps 4–6 are built and tested in the deterministic engine, and reach the interface next.</p>
 </section>
 
 <section>
@@ -122,11 +228,13 @@
   <div class="principle">
     <p><strong>The AI never invents business numbers.</strong></p>
     <p>
-      The language model understands speech, selects tools, asks for
-      clarification and explains results. Every quantity, price, shortage and
-      recommendation is produced by a separate deterministic engine that has no
-      access to a model at all. That separation is enforced by the architecture
-      and covered by tests, not asserted in a prompt.
+      The language model understands the order, chooses which tool to call and
+      asks for clarification. Every quantity, price, shortage and total is
+      produced by a separate deterministic engine that cannot reach a model.
+      SKU ids are rejected unless they exist in the catalogue, and any figure
+      the model writes is checked against the engine's output before it is
+      shown. That separation is enforced by the architecture and covered by
+      tests, not asserted in a prompt.
     </p>
   </div>
 </section>
@@ -134,45 +242,280 @@
 <section>
   <h2>Built on</h2>
   <div class="split">
-    <div class="card">
-      <h3>Amazon Bedrock</h3>
-      <p>Understands spoken and written orders, and reads photographed supplier price lists.</p>
-    </div>
-    <div class="card">
-      <h3>Deterministic business engine</h3>
-      <p>Pure, testable logic that owns every number: inventory, velocity, price changes and budget allocation.</p>
-    </div>
-    <div class="card">
-      <h3>AWS</h3>
-      <p>Served from CloudFront over private S3, with Lambda, API Gateway and DynamoDB behind it in the Mumbai region.</p>
-    </div>
-  </div>
-</section>
-
-<section>
-  <h2>Status</h2>
-  <div class="status">
-    <span class="dot" aria-hidden="true"></span>
-    <span>
-      <strong>Demo coming online</strong>
-      <span>
-        The production foundation is deployed and publicly reachable. The
-        interactive demo — order intake, quotation, supplier price reading and
-        the budget decision — is being shipped onto it now. No login will be
-        required to try it.
-      </span>
-    </span>
+    <div class="card"><h3>Amazon Bedrock</h3>
+      <p>Amazon Nova Pro, called through the Converse API with four strict tools and a bounded loop.</p></div>
+    <div class="card"><h3>Deterministic engine</h3>
+      <p>Pure Python owning matching, inventory, pricing, quotation and budget allocation.</p></div>
+    <div class="card"><h3>AWS</h3>
+      <p>CloudFront over private S3, API Gateway, Lambda and DynamoDB in the Mumbai region, deployed with CDK.</p></div>
   </div>
 </section>
 
 <footer>
   <p>
     ShopFlow AI — an operations assistant for independent electrical retailers.
-    Built for the AWS “Zero to Shipped” challenge.
+    Built for the AWS “Zero to Shipped” challenge · #commercial-potential · #startup.
     Service health: <a href="/api/health"><code>/api/health</code></a>
   </p>
 </footer>
 
 </div>
+
+<script>
+(function () {
+  "use strict";
+
+  var el = function (id) { return document.getElementById(id); };
+  var orderBox = el("order"), goBtn = el("go"), ambigBtn = el("useAmbiguous"),
+      resetBtn = el("reset"), statusBox = el("status"), statusText = el("statusText"),
+      stepsBox = el("steps"), resultBox = el("result"), clarifyBox = el("clarify"),
+      errorBox = el("error"), spin = el("spin");
+
+  var demo = { exampleOrder: "", ambiguousExample: "" };
+  var pendingClarifications = [];
+  var polling = null;
+
+  function rupees(n) {
+    return "₹" + Number(n).toLocaleString("en-IN",
+      { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function esc(s) {
+    return String(s === null || s === undefined ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+  function show(node, on) { node.hidden = !on; }
+
+  function setSteps(active) {
+    var order = ["understand", "match", "inventory", "quote"];
+    var idx = order.indexOf(active);
+    show(stepsBox, true);
+    Array.prototype.forEach.call(stepsBox.children, function (chip, i) {
+      chip.className = "step" + (i < idx ? " done" : i === idx ? " active" : "");
+    });
+  }
+
+  function busy(on, message) {
+    goBtn.disabled = on;
+    show(statusBox, on);
+    show(spin, on);
+    if (message) statusText.textContent = message;
+  }
+
+  function clearOutput() {
+    show(errorBox, false); show(resultBox, false); show(clarifyBox, false);
+    resultBox.innerHTML = ""; clarifyBox.innerHTML = "";
+  }
+
+  function fail(message) {
+    busy(false);
+    show(stepsBox, false);
+    errorBox.textContent = message;
+    show(errorBox, true);
+    show(resetBtn, true);
+  }
+
+  fetch("/api/demo").then(function (r) { return r.json(); }).then(function (d) {
+    demo = d;
+    orderBox.value = d.exampleOrder;
+    orderBox.placeholder = d.exampleOrder;
+    if (d.catalogSize) el("catalogSize").textContent = d.catalogSize;
+  }).catch(function () {
+    orderBox.placeholder = "Type a customer order…";
+  });
+
+  ambigBtn.addEventListener("click", function () {
+    orderBox.value = demo.ambiguousExample ||
+      "Anna, 3 coils Finolex 1.5 sq mm wire.";
+    pendingClarifications = [];
+    clearOutput();
+    orderBox.focus();
+  });
+
+  resetBtn.addEventListener("click", function () {
+    pendingClarifications = [];
+    orderBox.value = demo.exampleOrder || "";
+    clearOutput();
+    show(stepsBox, false);
+    show(resetBtn, false);
+  });
+
+  goBtn.addEventListener("click", function () { submit(orderBox.value); });
+
+  function submit(text) {
+    if (polling) { clearTimeout(polling); polling = null; }
+    if (!text || !text.trim()) { fail("Please enter a customer order."); return; }
+    clearOutput();
+    setSteps("understand");
+    busy(true, "Reading the order…");
+
+    fetch("/api/orders", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        orderText: text.trim(),
+        clarifications: pendingClarifications
+      })
+    }).then(function (r) {
+      return r.json().then(function (body) { return { ok: r.ok, body: body }; });
+    }).then(function (res) {
+      if (!res.ok) throw new Error(res.body.error || "The order was rejected.");
+      setSteps("match");
+      statusText.textContent = "Matching products to the catalogue…";
+      poll(res.body.jobId, 0);
+    }).catch(function (e) { fail(e.message); });
+  }
+
+  function poll(jobId, attempt) {
+    if (attempt > 45) { fail("This is taking longer than expected. Please try again."); return; }
+    polling = setTimeout(function () {
+      fetch("/api/jobs/" + encodeURIComponent(jobId))
+        .then(function (r) { return r.json(); })
+        .then(function (job) {
+          if (job.status === "QUEUED" || job.status === "PROCESSING") {
+            if (attempt === 3) { setSteps("inventory"); statusText.textContent = "Checking stock…"; }
+            if (attempt === 7) { setSteps("quote"); statusText.textContent = "Preparing the quotation…"; }
+            poll(jobId, attempt + 1);
+            return;
+          }
+          if (job.status === "FAILED" || !job.result) {
+            fail(job.error || "The order could not be processed.");
+            return;
+          }
+          render(job.result);
+        })
+        .catch(function () { poll(jobId, attempt + 1); });
+    }, attempt === 0 ? 700 : 1000);
+  }
+
+  function matchIndex(result) {
+    var byId = {};
+    (result.matches || []).forEach(function (m) {
+      if (m && m.skuId) byId[m.skuId] = m;
+    });
+    return byId;
+  }
+
+  function render(result) {
+    busy(false);
+    show(resetBtn, true);
+
+    if (result.status === "NEEDS_CLARIFICATION" && result.clarification) {
+      show(stepsBox, false);
+      renderClarification(result.clarification);
+      return;
+    }
+    if (result.status !== "QUOTED" || !result.quote) {
+      fail(result.message || "ShopFlow could not complete this order.");
+      return;
+    }
+    setSteps("quote");
+    Array.prototype.forEach.call(stepsBox.children, function (c) { c.className = "step done"; });
+    renderQuote(result);
+  }
+
+  function renderClarification(c) {
+    var html = '<div class="clarify"><h3>ShopFlow needs one detail</h3>' +
+      '<p>' + esc(c.question) + '</p>';
+    if (c.requestedText) {
+      html += '<p class="hint">Asked for: “' + esc(c.requestedText) + '”. ' +
+        'Several catalogue products match and they differ only by ' +
+        esc(c.clarifyingAttribute) + ', so ShopFlow is not guessing.</p>';
+    }
+    if (c.options && c.options.length) {
+      html += '<div class="options">';
+      c.options.forEach(function (o) {
+        html += '<button class="option" data-sku="' + esc(o.skuId) + '">' +
+          '<span class="v">' + esc(o.value || o.name) + '</span>' +
+          '<span class="s">' + esc(o.skuId) + ' · ' + rupees(o.sellingPrice) +
+          ' per ' + esc(o.unit) + '</span></button>';
+      });
+      html += '</div>';
+    }
+    html += '</div>';
+    clarifyBox.innerHTML = html;
+    show(clarifyBox, true);
+
+    Array.prototype.forEach.call(clarifyBox.querySelectorAll(".option"), function (btn) {
+      btn.addEventListener("click", function () {
+        pendingClarifications = [{
+          requestedText: c.requestedText || "",
+          skuId: btn.getAttribute("data-sku")
+        }];
+        submit(orderBox.value);
+      });
+    });
+  }
+
+  function renderQuote(result) {
+    var quote = result.quote;
+    var matches = matchIndex(result);
+    var html = '<div class="lines">';
+
+    quote.lines.forEach(function (l, i) {
+      var match = matches[l.skuId];
+      var stock = l.shortageQty > 0
+        ? '<span class="badge b-short">Short ' + l.shortageQty + ' ' + esc(l.unit) + '</span>'
+        : '<span class="badge b-ok">In stock</span>';
+
+      html += '<div class="line"><div class="line-main">' +
+        '<div class="qty">' + l.quantity + '&times;</div>' +
+        '<div class="line-body"><div class="line-name">' + esc(l.name) + '</div>' +
+        '<div class="sku mono">' + esc(l.skuId) + '</div>';
+
+      if (match && match.resolvedBy === "shop-default" &&
+          match.alternatives && match.alternatives.length) {
+        html += '<span class="badge b-note">Shop default · ' +
+          match.alternatives.length + ' other variant' +
+          (match.alternatives.length > 1 ? 's' : '') + '</span>';
+      }
+
+      html += '</div><div class="line-right"><div class="amount">' +
+        rupees(l.lineTotal) + '</div>' + stock + '</div></div>';
+
+      html += '<details class="why"><summary>Why?</summary><div class="evidence"><dl>' +
+        '<dt>Line total</dt><dd>' + esc(l.evidence.lineTotal) + '</dd>' +
+        '<dt>Stock</dt><dd>' + esc(l.evidence.shortage) + '</dd>';
+      if (l.evidence.coverage) {
+        html += '<dt>Cover</dt><dd>' + esc(l.evidence.coverage) + '</dd>';
+      }
+      html += '<dt>Unit price</dt><dd>' + rupees(l.sellingPrice) + ' per ' + esc(l.unit) + '</dd>';
+      if (match) {
+        html += '<dt>Matched by</dt><dd>' + esc(match.resolvedBy || "catalogue lookup") + '</dd>';
+        if (match.alternatives && match.alternatives.length) {
+          html += '<dt>Alternatives</dt><dd>' +
+            match.alternatives.map(function (a) { return esc(a.skuId); }).join("<br>") +
+            '</dd>';
+        }
+      }
+      html += '</dl></div></details></div>';
+    });
+
+    html += '</div>';
+    html += '<div class="lines" style="margin-top:0;border-top:none">' +
+      '<div class="total"><span class="label">Quotation total</span>' +
+      '<span>' + rupees(quote.total) + '</span></div></div>';
+
+    html += '<div class="verified">&#10003; ' +
+      (result.grounded === false
+        ? 'Unverified figures were removed from the summary.'
+        : 'Every number above was calculated by the engine and verified.') +
+      '</div>';
+
+    if (quote.shortageCount > 0) {
+      html += '<p class="hint">' + quote.shortageCount +
+        ' of ' + quote.lineCount + ' lines cannot be fulfilled from stock. ' +
+        'Deciding what to buy with limited cash is step 5–6 of the workflow, ' +
+        'shipping next.</p>';
+    }
+    html += '<p class="hint mono" style="opacity:.7">model: ' +
+      esc(result.modelId) + ' · ' + result.turns + ' turns · ' +
+      Math.round(result.elapsedMs) + ' ms</p>';
+
+    resultBox.innerHTML = html;
+    show(resultBox, true);
+  }
+})();
+</script>
 </body>
 </html>
