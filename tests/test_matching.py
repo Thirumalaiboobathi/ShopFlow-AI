@@ -26,40 +26,98 @@ def test_exact_attributes_resolve_to_one_sku(seeded):
 
 
 def test_missing_colour_is_ambiguous_and_never_guessed(seeded):
+    """Colour and coil length both vary here, so there is no single clean
+    question - the owner is offered the actual products instead."""
     r = resolve_product(seeded, requested_text="Finolex 1.5 sq mm wire",
                         brand="Finolex", category="Wire",
                         specification="1.5 sqmm")
     assert r.status == AMBIGUOUS
     assert r.skuId is None
+    assert {o["skuId"] for o in r.options} == {
+        "W-FIN-1.5-RED-90M", "W-FIN-1.5-BLU-90M",
+        "W-FIN-1.5-BLK-90M", "W-FIN-1.5-RED-180M",
+    }
+
+
+def test_missing_colour_asks_by_colour_when_length_is_pinned(seeded):
+    """With the coil length given, colour is the only thing left to ask."""
+    r = resolve_product(seeded, requested_text="Finolex 1.5 sq mm wire 90m",
+                        brand="Finolex", category="Wire",
+                        specification="1.5 sqmm", length="90m")
+    assert r.status == AMBIGUOUS
     assert r.clarifyingAttribute == "colour"
     assert {o["value"] for o in r.options} == {"Red", "Blue", "Black"}
 
 
-def test_shop_default_breaks_a_length_tie_and_reports_it(seeded):
-    """Red 1.5 exists in 90m and 180m; the standard coil wins, visibly."""
+def test_a_shop_default_never_silently_wins_a_tie(seeded):
+    """Red 1.5 exists in 90m and 180m. The 90m coil is the shop's default and
+    must still not be chosen on the customer's behalf - a coil of the wrong
+    length is the wrong price and the wrong delivery."""
+    default = seeded.product("W-FIN-1.5-RED-90M")
+    assert default.isDefaultVariant is True
+
     r = resolve_product(seeded, requested_text="Finolex 1.5 sq mm red wire",
                         brand="Finolex", category="Wire",
                         specification="1.5 sqmm", colour="Red")
-    assert r.status == RESOLVED
-    assert r.skuId == "W-FIN-1.5-RED-90M"
-    assert r.resolvedBy == "shop-default"
-    assert [a["skuId"] for a in r.alternatives] == ["W-FIN-1.5-RED-180M"]
+    assert r.status == AMBIGUOUS
+    assert r.skuId is None
+    assert r.clarifyingAttribute == "length"
+    assert {o["value"] for o in r.options} == {"90m", "180m"}
 
 
-def test_canonical_switch_request_resolves_to_the_default_variant(seeded):
+def test_generic_switch_request_asks_which_variant(seeded):
     r = resolve_product(seeded, requested_text="20 Anchor modular switches",
                         brand="Anchor", category="Switch")
+    assert r.status == AMBIGUOUS
+    assert r.skuId is None
+    assert r.clarifyingAttribute == "specification"
+    assert "1-Way 10A" in {o["value"] for o in r.options}
+
+
+def test_explicit_switch_variant_resolves_exactly(seeded):
+    r = resolve_product(seeded,
+                        requested_text="20 Anchor modular switches 1-Way 10A",
+                        brand="Anchor", category="Switch",
+                        specification="1-Way 10A")
     assert r.status == RESOLVED
     assert r.skuId == "SW-ANC-1W10A"
-    assert r.resolvedBy == "shop-default"
-    assert len(r.alternatives) == 5
+    assert r.resolvedBy == "exact"
 
 
-def test_canonical_mcb_request_resolves(seeded):
+def test_generic_mcb_request_asks_rather_than_picking_a_brand(seeded):
+    """Six 32A MCBs exist across three brands - picking one would be a
+    silent brand substitution, even though the customer named no brand."""
     r = resolve_product(seeded, requested_text="2 MCB 32 amp",
                         category="MCB", specification="32A")
+    assert r.status == AMBIGUOUS
+    assert r.skuId is None
+    assert len(r.options) == 6
+
+
+def test_explicit_mcb_resolves_exactly(seeded):
+    r = resolve_product(seeded, requested_text="2 Havells MCB SP 32A",
+                        category="MCB", brand="Havells",
+                        specification="SP 32A")
     assert r.status == RESOLVED
     assert r.skuId == "MCB-HAV-SP-32A-C"
+    assert r.resolvedBy == "exact"
+
+
+def test_explicit_wire_with_length_resolves_exactly(seeded):
+    r = resolve_product(seeded,
+                        requested_text="Finolex 1.5 sq mm red wire 90m",
+                        brand="Finolex", category="Wire",
+                        specification="1.5 sqmm", colour="Red", length="90m")
+    assert r.status == RESOLVED
+    assert r.skuId == "W-FIN-1.5-RED-90M"
+    assert r.resolvedBy == "exact"
+
+
+def test_default_variant_metadata_is_retained_on_the_catalog(seeded):
+    """The flag stays for owner-facing features later; it just has no vote
+    in customer order processing."""
+    defaults = [p for p in seeded.products.values() if p.isDefaultVariant]
+    assert len(defaults) > 0
 
 
 def test_named_brand_is_never_replaced_by_another(seeded):
@@ -85,6 +143,21 @@ def test_every_resolved_sku_exists_in_the_catalog(seeded):
         r = resolve_product(seeded, requested_text=text, **attrs)
         if r.status == RESOLVED:
             assert sku_exists(seeded, r.skuId)
+
+
+def test_an_ambiguous_result_never_carries_a_sku(seeded):
+    """Nothing downstream can accidentally treat a question as an answer."""
+    for text, attrs in [
+        ("Anchor modular switches", {"brand": "Anchor", "category": "Switch"}),
+        ("MCB 32 amp", {"category": "MCB", "specification": "32A"}),
+        ("Finolex 1.5 sq mm wire", {"brand": "Finolex", "category": "Wire",
+                                    "specification": "1.5 sqmm"}),
+    ]:
+        r = resolve_product(seeded, requested_text=text, **attrs)
+        assert r.status == AMBIGUOUS
+        assert r.skuId is None
+        assert r.resolvedBy is None
+        assert len(r.options) > 1
 
 
 def test_ambiguity_options_are_all_real_skus(seeded):

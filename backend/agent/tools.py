@@ -291,6 +291,14 @@ def _tool_request_clarification(data: Dataset, args: Dict) -> Dict:
         "unit": data.product(s).unit,
     } for s in raw_options]
 
+    # Two candidates can share the attribute being asked about - Red wire comes
+    # in a 90m and a 180m coil - and offering "Red" twice is not a choice.
+    # Fall back to full product names when the labels would collide.
+    labels = [o["value"] for o in options]
+    if len(set(labels)) != len(labels) or any(v is None for v in labels):
+        for option in options:
+            option["value"] = option["name"]
+
     return {"clarification": {
         "requestedText": args.get("requestedText") or "",
         "clarifyingAttribute": attribute,

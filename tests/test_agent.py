@@ -150,6 +150,40 @@ def test_search_tool_only_ever_returns_catalog_skus(seeded):
 
 # ---- 3. ambiguity produces a clarification ----
 
+def test_generic_switch_order_is_ambiguous_to_the_model(seeded):
+    """"20 Anchor modular switches" must reach the model as a question, not
+    as a resolved SKU with a default quietly applied."""
+    payload = run_tool(seeded, "search_catalog", {
+        "requestedText": "20 Anchor modular switches",
+        "brand": "Anchor", "category": "Switch"})
+    assert payload["status"] == "AMBIGUOUS"
+    assert payload["skuId"] is None
+    assert "Do not choose" in payload["instruction"]
+
+
+def test_explicit_switch_variant_resolves_for_the_model(seeded):
+    payload = run_tool(seeded, "search_catalog", {
+        "requestedText": "20 Anchor modular switches 1-Way 10A",
+        "brand": "Anchor", "category": "Switch", "specification": "1-Way 10A"})
+    assert payload["status"] == "RESOLVED"
+    assert payload["skuId"] == "SW-ANC-1W10A"
+    assert payload["resolvedBy"] == "exact"
+
+
+def test_no_search_result_can_ever_resolve_by_shop_default(seeded):
+    """A regression guard: resolution is either exact or a question."""
+    for args in (
+        {"requestedText": "Anchor modular switches", "brand": "Anchor",
+         "category": "Switch"},
+        {"requestedText": "MCB 32 amp", "category": "MCB",
+         "specification": "32A"},
+        {"requestedText": "Finolex 1.5 sq mm red wire", "brand": "Finolex",
+         "category": "Wire", "specification": "1.5 sqmm", "colour": "Red"},
+    ):
+        payload = run_tool(seeded, "search_catalog", args)
+        assert payload["resolvedBy"] in (None, "exact")
+
+
 def test_ambiguous_product_is_reported_as_ambiguous_to_the_model(seeded):
     payload = run_tool(seeded, "search_catalog", {
         "requestedText": "Finolex 1.5 sq mm wire", "brand": "Finolex",
@@ -184,8 +218,28 @@ def test_clarification_options_are_rebuilt_when_the_model_omits_them(seeded):
         "clarifyingAttribute": "colour",
         "question": "Which colour?"})
     options = payload["clarification"]["options"]
-    assert {o["value"] for o in options} == {"Red", "Blue", "Black"}
+    assert len(options) > 1
     assert all(o["skuId"] in seeded.products for o in options)
+
+
+def test_clarification_labels_are_always_distinguishable(seeded):
+    """Red wire exists in two coil lengths, so "Red" twice is not a choice."""
+    payload = run_tool(seeded, "request_clarification", {
+        "requestedText": "Finolex 1.5 sq mm wire",
+        "clarifyingAttribute": "colour",
+        "question": "Which colour?"})
+    labels = [o["value"] for o in payload["clarification"]["options"]]
+    assert len(set(labels)) == len(labels)
+    assert all(labels)
+
+
+def test_clarification_keeps_short_labels_when_they_are_unique(seeded):
+    payload = run_tool(seeded, "request_clarification", {
+        "requestedText": "Anchor modular switches",
+        "clarifyingAttribute": "specification",
+        "question": "Which type?"})
+    labels = {o["value"] for o in payload["clarification"]["options"]}
+    assert "1-Way 10A" in labels
 
 
 # ---- 8. no invented numeric values ----

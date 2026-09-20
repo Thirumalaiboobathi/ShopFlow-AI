@@ -162,9 +162,15 @@ def _get_demo(event) -> dict:
     return _response(200, {
         "shopName": "Demo Electricals, Madurai",
         "catalogSize": len(data.products),
+        # Every line names its variant, because the catalogue really does
+        # stock several of each: six Anchor modular switches, Red 1.5 wire in
+        # 90m and 180m, and six 32A MCBs across three brands. A vaguer order
+        # is answered with a question, which is the point of the second
+        # example below.
         "exampleOrder": (
-            "Anna, 20 Anchor modular switches, 3 coils Finolex 1.5 sq mm red wire, "
-            "2 MCB 32 amp."
+            "Anna, 20 Anchor modular switches 1-Way 10A, "
+            "3 coils Finolex 1.5 sq mm red wire 90m, "
+            "2 Havells MCB SP 32A."
         ),
         "ambiguousExample": "Anna, 3 coils Finolex 1.5 sq mm wire.",
         "derivedFromSeededOrder": example,

@@ -115,3 +115,35 @@ def test_cheaper_supplier_option_is_advisory_only(scenario):
 
 def test_scenario_is_reproducible():
     assert build_scenario() == build_scenario()
+
+
+def test_canonical_example_order_text_identifies_every_variant(scenario):
+    """The demo order must survive strict ambiguity handling.
+
+    Each line is resolved through the same matcher the agent uses, so the
+    example text cannot drift into wording the system would have to ask
+    about.
+    """
+    from engine.loader import load_dataset
+    from engine.matching import RESOLVED, resolve_product
+
+    data = load_dataset()
+    lines = [
+        ("Anchor modular switches 1-Way 10A",
+         {"brand": "Anchor", "category": "Switch",
+          "specification": "1-Way 10A"}, "SW-ANC-1W10A"),
+        ("Finolex 1.5 sq mm red wire 90m",
+         {"brand": "Finolex", "category": "Wire", "specification": "1.5 sqmm",
+          "colour": "Red", "length": "90m"}, "W-FIN-1.5-RED-90M"),
+        ("Havells MCB SP 32A",
+         {"brand": "Havells", "category": "MCB",
+          "specification": "SP 32A"}, "MCB-HAV-SP-32A-C"),
+    ]
+    for text, attrs, expected in lines:
+        r = resolve_product(data, requested_text=text, **attrs)
+        assert r.status == RESOLVED, f"{text} is ambiguous"
+        assert r.skuId == expected
+
+    # And those are exactly the SKUs the seeded scenario prices.
+    assert {l["skuId"] for l in scenario["order"]["lines"]} == {
+        e for _, _, e in lines}

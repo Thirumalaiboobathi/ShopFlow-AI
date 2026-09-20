@@ -11,11 +11,14 @@ Three outcomes, and only three:
              give - the caller must ask, never guess
   NOT_FOUND  nothing fits
 
-A tie between otherwise-identical variants may be broken by the shop's default
-variant (the 90m coil rather than the 180m). That is reported in the result as
-`resolvedBy = "shop-default"` together with the alternatives, so the owner sees
-the choice was made and can change it. A brand the customer actually named is
-never overridden.
+A tie is never broken automatically. If two real products both fit the words
+the customer used, ShopFlow asks - it does not pick the shop's usual variant
+and show a badge about it. On a quotation the wrong variant means the wrong
+price and the wrong delivery, and a default that is merely disclosed is still a
+choice the customer never made.
+
+`Product.isDefaultVariant` remains in the catalogue as metadata for owner-facing
+features later. It takes no part in resolving a customer order.
 """
 
 from __future__ import annotations
@@ -94,7 +97,6 @@ class MatchResult:
     clarifyingAttribute: Optional[str] = None
     options: List[dict] = field(default_factory=list)
     candidates: List[dict] = field(default_factory=list)
-    alternatives: List[dict] = field(default_factory=list)
 
     def as_dict(self) -> dict:
         return {
@@ -105,7 +107,6 @@ class MatchResult:
             "clarifyingAttribute": self.clarifyingAttribute,
             "options": self.options,
             "candidates": self.candidates,
-            "alternatives": self.alternatives,
         }
 
 
@@ -172,20 +173,6 @@ def search_catalog(
     return scored[:limit]
 
 
-def _differing_attribute(products: List[Product]) -> Optional[str]:
-    """The single attribute these products disagree on, if there is just one."""
-    differing = [
-        attr for attr in CLARIFIABLE_ATTRS
-        if len({getattr(p, attr) for p in products}) > 1
-    ]
-    if len(differing) == 1:
-        return differing[0]
-    if differing:
-        # Several differ; ask about the first the customer is likely to know.
-        return differing[0]
-    return None
-
-
 def resolve_product(
     data: Dataset,
     *,
@@ -214,42 +201,43 @@ def resolve_product(
             candidates=[c.as_dict() for c in candidates],
         )
 
+    # More than one real product fits, so the customer's wording does not
+    # identify what they want. Ask.
+    #
+    # The shop's default variant is deliberately NOT used to break this tie.
+    # On a quotation the wrong variant is a wrong price and a wrong delivery,
+    # and a default that is merely displayed is still a choice the customer
+    # never made. `isDefaultVariant` stays on the catalogue as metadata for
+    # owner-facing features later; it has no vote here.
     products = [c.product for c in candidates]
-    defaults = [p for p in products if p.isDefaultVariant]
+    differing = [
+        attr for attr in CLARIFIABLE_ATTRS
+        if len({getattr(p, attr) for p in products}) > 1
+    ]
+    attr = differing[0] if differing else None
 
-    if len(defaults) == 1:
-        chosen = defaults[0]
-        return MatchResult(
-            status=RESOLVED,
-            requestedText=requested_text,
-            skuId=chosen.skuId,
-            resolvedBy="shop-default",
-            candidates=[c.as_dict() for c in candidates],
-            alternatives=[
-                c.as_dict() for c in candidates if c.product.skuId != chosen.skuId
-            ],
-        )
-
-    # Narrow to the default variants before asking, so the question is about
-    # what the customer actually left out rather than about coil lengths.
-    narrowed = [c for c in candidates if c.product.isDefaultVariant] or candidates
-    attr = _differing_attribute([c.product for c in narrowed])
-
-    options = []
-    seen = set()
-    for c in narrowed:
-        value = getattr(c.product, attr) if attr else None
-        if value in seen:
-            continue
-        seen.add(value)
-        options.append({"value": value, **c.as_dict()})
+    if len(differing) == 1 and attr:
+        # One attribute separates them, so the question can be about that
+        # attribute alone: "which colour?"
+        options = []
+        seen = set()
+        for c in candidates:
+            value = getattr(c.product, attr)
+            if value in seen:
+                continue
+            seen.add(value)
+            options.append({"value": value, **c.as_dict()})
+    else:
+        # Several attributes differ - colour and coil length, say - so there is
+        # no single clean question. Offer the actual products instead.
+        options = [{"value": c.product.name, **c.as_dict()} for c in candidates]
 
     return MatchResult(
         status=AMBIGUOUS,
         requestedText=requested_text,
         clarifyingAttribute=attr,
         options=options,
-        candidates=[c.as_dict() for c in narrowed],
+        candidates=[c.as_dict() for c in candidates],
     )
 
 

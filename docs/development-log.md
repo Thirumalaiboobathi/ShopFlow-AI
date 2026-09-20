@@ -718,6 +718,93 @@ customer's order text and the model's output are not logged.
 
 ---
 
+## Day 2, Stage 3.1 — 2026-09-20 — Variant ambiguity hardened
+
+### The issue
+
+Stage 3 shipped `Product.isDefaultVariant` as a tie-breaker. When several real
+products matched the customer's wording, the shop's usual variant was selected
+and the alternatives were shown in the UI as "Shop default · 5 other variants".
+
+That was the wrong call, and the reasoning behind it was wrong in a specific
+way: **disclosure is not consent.** A badge explains a decision that has
+already been made. On a quotation the consequences are concrete — the wrong
+variant is a different price, a different stock position and a different
+delivery. `SW-ANC-1W10A` at ₹78.30 and `SW-ANC-SKT16A` at ₹199.80 are both
+"Anchor modular switches" to a contractor who did not say which.
+
+### New rule
+
+If more than one catalogue product fits the customer's wording, ShopFlow asks.
+There is no automatic selection. `resolve_product` now returns exactly
+`RESOLVED` (one product fits), `AMBIGUOUS` (several fit), or `NOT_FOUND`.
+
+`isDefaultVariant` is retained on the catalogue as metadata for owner-facing
+features later — a "reorder my usual" flow is a legitimate future use, because
+there the owner is the one choosing. It takes no part in customer order
+processing, and a test asserts that no search result can ever come back
+`resolvedBy = "shop-default"`.
+
+Where exactly one attribute separates the candidates, the question is about
+that attribute ("which colour?"). Where several do — Finolex 1.5 Red exists in
+both a 90m and a 180m coil, so colour *and* length vary at once — there is no
+single clean question, so the actual products are offered instead.
+
+### The canonical demo order had to change more than requested
+
+The instruction was to make the switch line explicit:
+
+> "Anna, 20 Anchor modular switches 1-Way 10A, 3 coils Finolex 1.5 sq mm red
+> wire, 2 MCB 32 amp."
+
+Checked against the real catalogue, **two of those three lines were still
+ambiguous** under the new rule:
+
+| Line | Matching products | Why |
+| --- | --- | --- |
+| `Anchor modular switches 1-Way 10A` | 1 | fine |
+| `Finolex 1.5 sq mm red wire` | 2 | Red exists in 90m and 180m coils |
+| `MCB 32 amp` | 6 | Havells/Schneider/Legrand × SP/DP |
+
+Leaving the text as given would have made the headline demo end in a
+clarification rather than a quotation. The order text was therefore extended so
+every line names its variant:
+
+> "Anna, 20 Anchor modular switches 1-Way 10A, 3 coils Finolex 1.5 sq mm red
+> wire 90m, 2 Havells MCB SP 32A."
+
+The SKUs are unchanged, so the deterministic result is unchanged:
+**₹22,306.48**, shortages **6 / 2 / 0**. No catalogue products were deleted to
+make this work — the 180m coil and the rival MCB brands are realistic stock and
+are what make the ambiguity demo meaningful.
+
+### A UI flaw the change exposed
+
+With defaults no longer narrowing the candidate list, the no-colour wire
+question came back offering **"Red" twice** — once for the 90m coil and once
+for the 180m. Two identical labels are not a choice. Clarification options now
+fall back to full product names whenever the attribute labels would collide or
+be blank, and keep the short label ("1-Way 10A") when it is unique.
+
+### Verification
+
+Live against Bedrock before deploying:
+
+```
+CANONICAL   -> QUOTED, 2 turns, grounded
+                20 x Anchor Modular Switch 1-Way 10A   Rs  1566.00  short 6
+                 3 x Finolex 1.5 sqmm Wire Red 90m     Rs 19824.00  short 2
+                 2 x Havells MCB SP 32A C-Curve        Rs   916.48  short 0
+                TOTAL Rs 22306.48
+
+"3 coils Finolex 1.5 sq mm wire"  -> NEEDS_CLARIFICATION (colour), 4 real SKUs
+"20 Anchor modular switches"      -> NEEDS_CLARIFICATION (specification), 6 real SKUs
+```
+
+Tests: **162 → 174**, all passing.
+
+---
+
 ### Open items carried into Day 2
 
 - Anthropic use-case form — **human action**, blocks nothing.
