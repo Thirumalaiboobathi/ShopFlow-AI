@@ -223,6 +223,7 @@ class ShopFlowStack(Stack):
             ("/api/orders", apigw.HttpMethod.POST),
             ("/api/supplier-price-lists", apigw.HttpMethod.POST),
             ("/api/price-decisions", apigw.HttpMethod.POST),
+            ("/api/purchase-plans", apigw.HttpMethod.POST),
             ("/api/jobs/{jobId}", apigw.HttpMethod.GET),
             ("/api/demo", apigw.HttpMethod.GET),
         ):

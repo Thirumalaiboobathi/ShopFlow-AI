@@ -430,3 +430,118 @@ def test_stored_decimals_are_returned_to_the_browser_as_numbers(api_env):
         {"routeKey": "GET /api/jobs/{jobId}",
          "pathParameters": {"jobId": job_id}}, None))
     assert job["decisions"][0]["currentPrice"] == 6300.0
+
+
+# ---- purchase plans (Stage 5) ----
+
+def post_plan(body: dict):
+    return {"routeKey": "POST /api/purchase-plans", "body": json.dumps(body)}
+
+
+def test_purchase_plan_is_answered_synchronously(api_env):
+    """No job, no polling. The planner calls no model, so there is nothing
+    to wait for - see the handler module docstring."""
+    _table, lam, _s3 = api_env
+    response = api.handler(post_plan({"budget": 25000}), None)
+
+    assert response["statusCode"] == 200
+    assert lam.invocations == []  # no worker was queued
+
+    plan = body_of(response)
+    assert plan["budget"] == 25000.0
+    assert plan["totalSpend"] <= 25000.0
+    assert plan["remaining"] >= 0
+
+
+def test_purchase_plan_never_exceeds_the_budget(api_env):
+    for budget in (0, 1000, 20000, 25000, 30000):
+        plan = body_of(api.handler(post_plan({"budget": budget}), None))
+        assert plan["totalSpend"] <= budget
+        assert plan["remaining"] >= 0
+
+
+def test_purchase_plan_rejects_a_negative_budget(api_env):
+    response = api.handler(post_plan({"budget": -100}), None)
+    assert response["statusCode"] == 400
+    assert "negative" in body_of(response)["error"]
+
+
+@pytest.mark.parametrize("bad", [{"budget": "lots"}, {"budget": None}, {}])
+def test_purchase_plan_rejects_a_non_numeric_budget(api_env, bad):
+    assert api.handler(post_plan(bad), None)["statusCode"] == 400
+
+
+def test_purchase_plan_rejects_an_absurd_budget(api_env):
+    response = api.handler(post_plan({"budget": 10 ** 12}), None)
+    assert response["statusCode"] == 400
+
+
+def test_purchase_plan_carries_the_two_what_if_budgets(api_env):
+    plan = body_of(api.handler(post_plan({"budget": 25000}), None))
+    assert [s["budget"] for s in plan["whatIf"]] == [20000.0, 30000.0]
+    for scenario in plan["whatIf"]:
+        assert scenario["totalSpend"] <= scenario["budget"]
+
+
+def test_purchase_plan_uses_a_confirmed_price_from_the_stored_decision(api_env):
+    """The confirmed cost is read from DynamoDB, never from the request."""
+    table, _lam, _s3 = api_env
+    job_id = "a" * 32
+    table.put_item(Item={
+        "PK": f"DECISION#{job_id}",
+        "SK": "SKU#W-FIN-1.5-RED-90M",
+        "skuId": "W-FIN-1.5-RED-90M",
+        "decision": "CONFIRMED",
+        # Stored as Decimal, exactly as the decision route writes it.
+        "previousPrice": Decimal("5900.0"),
+        "currentPrice": Decimal("6300.0"),
+    })
+
+    baseline = body_of(api.handler(post_plan({"budget": 25000}), None))
+    repriced = body_of(api.handler(
+        post_plan({"budget": 25000, "priceListJobId": job_id}), None))
+
+    wire = next(l for l in repriced["commitments"]
+                if l["skuId"] == "W-FIN-1.5-RED-90M")
+    assert wire["unitCost"] == 6300.0
+    # Two coils short, so the confirmed rise costs exactly 800 more.
+    assert repriced["commitmentCost"] - baseline["commitmentCost"] == 800.0
+    assert repriced["totalSpend"] <= 25000.0
+    assert repriced["remaining"] >= 0
+
+
+def test_purchase_plan_ignores_a_rejected_price_decision(api_env):
+    table, _lam, _s3 = api_env
+    job_id = "b" * 32
+    table.put_item(Item={
+        "PK": f"DECISION#{job_id}",
+        "SK": "SKU#W-FIN-1.5-RED-90M",
+        "skuId": "W-FIN-1.5-RED-90M",
+        "decision": "REJECTED",
+        "previousPrice": Decimal("5900.0"),
+        "currentPrice": Decimal("6300.0"),
+    })
+    plan = body_of(api.handler(
+        post_plan({"budget": 25000, "priceListJobId": job_id}), None))
+
+    wire = next(l for l in plan["commitments"] if l["skuId"] == "W-FIN-1.5-RED-90M")
+    assert wire["unitCost"] == 5900.0
+    assert plan["confirmedCosts"] == []
+
+
+def test_purchase_plan_rejects_a_malformed_price_list_job_id(api_env):
+    response = api.handler(
+        post_plan({"budget": 25000, "priceListJobId": "not-a-job"}), None)
+    assert response["statusCode"] == 400
+
+
+def test_purchase_plan_is_json_serialisable_end_to_end(api_env):
+    """Every figure must survive json.dumps - no Decimal, no inf.
+
+    Coverage is math.inf for a dead-stock SKU inside the engine, and inf is
+    not valid JSON. It must never reach the response body.
+    """
+    response = api.handler(post_plan({"budget": 25000}), None)
+    assert "Infinity" not in response["body"]
+    assert "NaN" not in response["body"]
+    json.loads(response["body"])

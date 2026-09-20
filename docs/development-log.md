@@ -288,6 +288,10 @@ npx aws-cdk@2 deploy --require-approval never \
   -c alertEmail=<email> -c monthlyBudgetUsd=25
 ```
 
+> **`alertEmail` is not optional in practice.** The cost budget is gated on
+> `if alert_email:`, so deploying without that context silently *destroys*
+> the existing budget alarm. See the Stage 5 failure notes.
+
 **Stack** `ShopFlowStack` → `CREATE_COMPLETE` in **213.9s**.
 ARN `arn:aws:cloudformation:ap-south-1:675613597178:stack/ShopFlowStack/de4d66a0-…`
 
@@ -1069,10 +1073,293 @@ Tests: **177 → 246**, all passing.
 
 ---
 
-### Open items carried into Day 2
+## Stage 5 — Cash-constrained purchasing planner
+
+The stage that makes ShopFlow a decision tool rather than a reporting tool. The
+owner states the cash they actually have; the engine decides how to spend it,
+and shows what it turned down.
+
+### Design: what Stage 5 did and did not build
+
+Almost nothing new was built in the decision path. `engine/budget.py`
+—the two-tier allocator written in Stage 1— is unchanged. Stage 5 added
+`engine/purchasing.py`, which supplies the two things the allocator
+deliberately left out:
+
+1. **Confirmed supplier costs.** Stage 4's `build_decision_record` records an
+   owner's ruling and explicitly does not rewrite the catalogue, noting that
+   applying it to purchasing is "a separate, later step that they trigger
+   knowingly". Asking for a purchase plan *is* that step.
+2. **Presentation.** The allocator emits SKU ids and raw figures. An owner
+   needs product names, the stock position and the arithmetic written out.
+
+No figure in `purchasing.py` is computed twice. Every number in the response is
+lifted from the allocator's own evidence dict.
+
+### Why the deterministic engine owns the decision
+
+The allocation is the commercial core of the product. It is also the part a
+language model is least suited to: it is a constrained arithmetic problem where
+a plausible-looking wrong answer is worse than no answer, because the owner
+would spend real money on it.
+
+The engine owns quantities, inventory, shortage, committed demand, supplier
+cost, velocity, coverage, stockout risk, margin, allocation, remaining budget,
+deferrals and the numerical explanations. It runs in **3.77 ms** over the full
+147-SKU shop and calls no model.
+
+The LLM's role in Stage 5 is *nothing*. It does not appear in the purchase
+planning path at all. It collects the order upstream (Stage 3) and reads the
+supplier document (Stage 4); it does not touch the budget. This is stricter
+than the brief allowed — the LLM *may* explain the result — and it was the
+right call: the engine's `reason` and `risk` fields are already plain English
+sentences derived from the figures, so a narration layer would have added
+latency, cost and a grounding surface for no gain in clarity.
+
+### Selling price vs supplier purchase cost
+
+These are two different numbers and the planner never lets them merge:
+
+    sellingPrice  what the customer pays. Lives on the Product. A confirmed
+                  supplier price change NEVER touches it - repricing the shelf
+                  is a commercial decision, not an arithmetic consequence.
+    unitCost      what the shop pays the supplier. From the supplier price
+                  history, and the only number the budget is spent in.
+
+A plan is denominated entirely in `unitCost`. `sellingPrice` appears only
+inside `marginPerRupee`, where the gap between the two is the whole point, and
+alongside it in the UI so the owner can see they are distinct.
+
+`apply_confirmed_costs` implements this by **appending** the confirmed price to
+a copy of the SKU's supplier price history rather than overwriting anything.
+Three consequences fall out for free: `current_cost` already reads the latest
+entry, so margin, priority and line cost all pick the change up with no extra
+plumbing; the prior price survives, so the evidence can still show what
+changed; and the seeded dataset is never mutated by having been planned
+against. Tests 15b and 15d pin all three.
+
+### The canonical scenario, recomputed
+
+The brief quoted Tier 1 ₹12,948.00 / Tier 2 ₹12,045.16 / remaining ₹6.84 and
+warned that the Stage 4 seed change may have moved them. Running the current
+engine against the current seed showed both figures are correct — they are two
+different points in the demo story:
+
+| ₹25,000 budget      | Before confirming | After confirming +6.78% |
+|---------------------|------------------:|------------------------:|
+| Tier 1 commitments  |       ₹12,148.00  |             ₹12,948.00  |
+| Tier 2 restocking   |       ₹12,848.56  |             ₹12,045.16  |
+| Total spend         |       ₹24,996.56  |             ₹24,993.16  |
+| Remaining           |            ₹3.44  |                  ₹6.84  |
+| Restocks funded     |                 9 |                       9 |
+| Restocks deferred   |                49 |                      49 |
+
+Confirming the supplier increase costs the shop **₹803.40 of restocking** — the
+₹800 extra on two wire coils, plus ₹3.40 of reshuffling as the greedy allocator
+refits what remains. That is the sharpest demonstration of the whole product:
+a price rise the owner would otherwise not have noticed, detected from a
+photograph, and its exact consequence for what they can afford to stock.
+
+Nothing is hard-coded. The UI reads every figure from `POST /api/purchase-plans`.
+
+### What-if budgets
+
+| Budget   | Commitments | Restocking | Total      | Unspent | Funded | Deferred |
+|----------|------------:|-----------:|-----------:|--------:|-------:|---------:|
+| ₹20,000  |  ₹12,148.00 |  ₹7,835.56 | ₹19,983.56 |  ₹16.44 |      6 |       52 |
+| ₹25,000  |  ₹12,148.00 | ₹12,848.56 | ₹24,996.56 |   ₹3.44 |      9 |       49 |
+| ₹30,000  |  ₹12,148.00 | ₹17,850.36 | ₹29,998.36 |   ₹1.64 |     13 |       45 |
+
+Commitments are constant across all three, which is the policy working: the
+customer promise is funded first and is not a function of how much cash is
+left. All three bind — every commitment funded, and restocking still refused.
+
+Deliberately two fixed alternatives rather than a general scenario engine. The
+question an owner actually asks is "what if I had a bit more, or a bit less",
+and two concrete answers settle it.
+
+### Budget binding
+
+`budget_is_binding` requires both halves: every commitment funded, **and** at
+least one restock refused for lack of cash. Either alone is misleading — an
+unfunded commitment means the shop is failing customers, and a plan that buys
+everything is not a decision. Asserted in `test_19_canonical_budget_binds`,
+which additionally requires the remaining cash to be under 1% of the budget, so
+the demo cannot quietly drift into a budget that is not really a constraint.
+
+No vanity metrics. There is no "items saved" or "₹ protected" figure anywhere:
+every number displayed is one the allocator actually computed.
+
+### API: why this route is synchronous
+
+`POST /api/purchase-plans` returns **200 with the plan**, not 202 with a job id.
+
+The brief suggested the async job pattern "if required by the existing
+architecture". It is not. Orders and price lists are queued because a Bedrock
+tool loop takes seconds and holding an HTTP connection open that long on a
+public demo is a reliability risk. The planner calls no model: it is 3.77 ms of
+arithmetic over an already-cached dataset. Wrapping that in a job record, an
+asynchronous Lambda invoke and a browser polling loop would add three round
+trips and roughly a second of latency to hide four milliseconds of work, and
+would spend some of the account's 10-wide concurrency ceiling doing it.
+Measured end-to-end through CloudFront: **1,583 ms** including TLS and cold
+path, sub-second warm.
+
+Confirmed prices are read from the stored `DECISION#` rows by `priceListJobId`,
+never from the request body — the same rule Stage 4 applied to comparison
+figures. A caller cannot price a plan at a number the engine never produced.
+
+### Real DynamoDB smoke test
+
+Stage 4 shipped a 500 that the unit suite could not have caught: the in-memory
+`FakeTable` accepts anything a dict accepts, the real table rejects float. The
+Stage 5 planner reads confirmed prices back out of that same table, so the same
+class of bug would land the same way.
+
+`scripts/smoke_test_planner.py` closes the gap by exercising the real store:
+
+    write a decision record (Decimal) -> read it back -> run the engine
+                                      -> assert the expected allocation
+
+It is explicitly **not** part of the pytest suite. Unit tests stay fast and
+need no AWS account; this is run before a deploy. It writes only `SMOKE#`-
+prefixed keys and deletes them in a `finally` block.
+
+Result — 12/12 checks passed, including that the price returns as `Decimal` and
+not float, that the selling price was not rewritten, and that confirming the
+rise costs exactly ₹800.00 more in Tier 1.
+
+### Tests
+
+**246 → 303**, all passing in 1.6 s. 45 in `test_purchasing.py`, 12 added to
+`test_api.py`.
+
+Coverage: zero budget, negative rejection, non-numeric rejection, sufficient
+and insufficient budget, commitments prioritised over restocking, spend never
+exceeding budget and remaining never negative across nine budgets on the real
+seed, restock ranking, stockout risk, margin-per-rupee measured at supplier
+cost rather than catalog cost, deferred-item explanation, PARTIAL_ALLOWED,
+ALL_OR_NOTHING, confirmed supplier cost, rejected decision ignored, selling
+price untouched, source dataset unmutated, the three canonical budgets,
+monotonicity, and the binding assertion.
+
+### Failures and corrections
+
+**Two wrong test expectations of mine, both about greedy allocation.** I
+asserted that deferred items always rank below every selected item, and that
+the displayed order is globally descending by priority. Both failed on the real
+seed, and both were my error, not the engine's. A greedy allocator legitimately
+skips an expensive high-priority line that does not fit and funds a cheaper
+lower-priority one that does — that is the point of it. The real invariant is
+that nothing was deferred while the shop could still afford it, which is what
+`test_11b` now asserts, against each line's own `budgetRemainingBefore`.
+
+**The budget alarm nearly got deleted.** `cdk diff` before deploying showed:
+
+    [-] AWS::Budgets::Budget MonthlyBudget destroy
+
+I had not touched it. The budget is gated on `if alert_email:`, and
+`alertEmail` is optional CDK context — so synthesising without it silently
+drops the resource, and deploying would have destroyed the cost guard the brief
+requires be kept. Recovered by reading the deployed template for the address
+actually in use and redeploying with
+`-c alertEmail=<address> -c monthlyBudgetUsd=25`, after which the diff showed
+only the intended Stage 5 changes. This is a standing trap: **every future
+deploy must pass `alertEmail`.** Caught only because the diff was read rather
+than skipped.
+
+**A bash heredoc lost a large JS patch silently.** A compound Bash command
+mixing a Python heredoc with a following `node --check <(...)` failed to parse
+as a whole; the Python never ran and the file was unchanged, while the failure
+looked like a syntax error in the check step. Confirmed by grepping for the
+inserted symbol, which returned 0. Rewritten as a standalone script file in the
+scratchpad. Same lesson as the earlier PowerShell here-string problem: for any
+substantial patch, write the script to a file rather than inlining it.
+
+### Deployment evidence
+
+Deployed 2026-09-20, 37.5 s, `UPDATE_COMPLETE`.
+
+Change set, read before applying — one route, one permission, three Lambda code
+updates, one site redeploy:
+
+```
+[+] AWS::ApiGatewayV2::Route      POST /api/purchase-plans
+[+] AWS::Lambda::Permission       apigateway -> ApiFunction (that route only)
+[~] AWS::Lambda::Function         ApiFunction, WorkerFunction, HealthFunction
+[~] Custom::CDKBucketDeployment   SiteDeployment
+```
+
+Stage throttle verified in the synthesised template as 20 rps / 40 burst with
+`RouteSettings` absent — the Stage 3 per-route trap stays avoided.
+
+Live, through CloudFront:
+
+```
+POST /api/purchase-plans  {"budget":25000}   200 application/json  1583 ms
+  commitments  Rs 12,148.00  (2 lines, all funded)
+  restocking   Rs 12,848.56  (9 selected)
+  TOTAL        Rs 24,996.56   remaining Rs 3.44
+  deferred     49 items       binding=True
+
+spend <= budget and remaining >= 0 held at
+  Rs 0, 1, 250, 5,000, 12,148, 20,000, 25,000, 30,000, 100,000
+
+rejected: negative 400, string 400, missing 400, absurd 400, bad job id 400
+```
+
+Full demo arc, end to end on the deployed system:
+
+```
+5.  price list read        SRI BALAJI ELECTRICALS, 15-09-2026, 5 lines
+6.  increase detected      W-FIN-1.5-RED-90M  5900 -> 6300  +6.78%
+                           (6300.0 - 5900.0) / 5900.0 x 100 = 6.78%
+7.  owner confirms         CONFIRMED, catalogPriceChanged=False
+8.  "I only have Rs 25,000"
+9.  allocation             commitments 12,948.00  restock 12,045.16
+                           total 24,993.16  remaining 6.84
+                           the confirmed rise cost Rs 803.40 of restocking
+10. repriced line          supplier cost Rs 6,300.00 (was 5,900.00)
+                           selling price Rs 6,608.00  <- UNCHANGED
+12. why?                   SW-ANC-BELL: stock 2, uncommitted 2, 3.88/wk,
+                           covers 0.52 wks, risk 0.7875,
+                           priority = 0.7875 x 0.35 = 0.275617
+```
+
+No regression: the canonical order still quotes **₹22,306.48** with
+`grounded=true` in 2 turns; `/api/health` 200 JSON; unknown `/api/` route a
+real 404 JSON; SPA fallback 200 HTML.
+
+Security posture unchanged: stage-wide throttling only, Bedrock permission on
+the worker alone (the planner needs none — it calls no model), uploads bucket
+private, three Lambda log groups at 14-day retention, budget alarm intact. The
+planner logs nothing about the request; a filter for `purchase` across the API
+log group returns no events.
+
+Other projects untouched: `AwsDeployDoctorStack` 2026-09-11, `CDKToolkit`
+2026-08-20.
+
+### Data provenance
+
+Every figure above comes from **synthetic seeded demo data** — 147 SKUs
+generated by `data/generator.py` at seed 20260919, modelled on a Madurai
+electrical retailer but not drawn from a real shop's records. The allocation
+logic is exact and tested; its *business* accuracy is unvalidated, and no claim
+is made about it. Evaluation against real anonymised shop orders remains open.
+
+---
+
+### Open items after Stage 5
 
 - Anthropic use-case form — **human action**, blocks nothing.
 - Real Tamil-English recording — **human action**, needed before any voice
   accuracy claim.
 - Console screenshots for the submission evidence pack.
 - Seed the `shopflow-demo` table from the generator and expose read APIs.
+- Ambiguous supplier price-list lines are surfaced but not resolvable in
+  the UI — the owner can see them, not fix them.
+- A confirmed price reaches a purchase plan only via `priceListJobId`.
+  There is no shop-wide "current confirmed cost" record, so a plan
+  requested without that id is priced at the older cost. Deliberate for the
+  demo; a real shop needs a durable confirmed-cost table.
+- Business accuracy of the allocation is unvalidated against real shop data.

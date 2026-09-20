@@ -148,6 +148,50 @@
   .decided.no{color:var(--muted)}
   .note{padding:0 16px 14px; font-size:.87rem; color:var(--muted)}
 
+  .cash{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:16px}
+  .cash label{color:var(--muted); font-size:.88rem}
+  .cashbox{display:flex; align-items:center; gap:2px; background:var(--panel);
+    border:1px solid var(--line); border-radius:8px; padding:8px 12px}
+  .cashbox .rs{color:var(--muted); font-weight:600}
+  .cashbox input{background:transparent; border:none; color:var(--ink); width:6.5em;
+    font:inherit; font-weight:650; font-size:1.05rem; padding:2px 4px}
+  .cashbox input:focus{outline:none}
+  .cashbox:focus-within{border-color:var(--accent)}
+  .presets{display:flex; gap:6px}
+  .presets button{padding:7px 12px; font-size:.83rem}
+  .presets button.on{background:var(--accent-soft); color:var(--accent); border-color:transparent}
+
+  .bar{margin-top:20px}
+  .bar-track{display:flex; height:28px; border-radius:8px; overflow:hidden;
+    border:1px solid var(--line); background:var(--panel)}
+  .bar-track span{display:block; transition:width .35s ease}
+  .seg-commit{background:var(--accent)}
+  .seg-restock{background:var(--ok)}
+  .seg-left{background:repeating-linear-gradient(45deg,var(--line),var(--line) 4px,transparent 4px,transparent 8px)}
+  .bar-key{display:flex; gap:18px; flex-wrap:wrap; margin-top:10px; font-size:.84rem}
+  .bar-key i{display:inline-block; width:10px; height:10px; border-radius:3px;
+    margin-right:6px; vertical-align:-1px; font-style:normal}
+  .bar-key .k-commit i{background:var(--accent)}
+  .bar-key .k-restock i{background:var(--ok)}
+  .bar-key .k-left i{background:var(--line)}
+  .bar-key b{font-weight:650}
+  .binds{margin-top:14px; padding:12px 15px; border-radius:8px; font-size:.88rem;
+    background:var(--warn-soft); color:var(--warn); border-left:3px solid var(--warn)}
+
+  .grp{margin-top:22px}
+  .grp h3{margin:0 0 9px; font-size:.79rem; letter-spacing:.07em;
+    text-transform:uppercase; color:var(--muted)}
+  .grp .lines{margin-top:0}
+  .more{margin-top:10px; font-size:.85rem; color:var(--muted)}
+  .whatif{margin-top:22px; display:grid; gap:10px;
+    grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+  .wcard{background:var(--panel); border:1px solid var(--line); border-radius:8px;
+    padding:13px 15px; font-size:.88rem}
+  .wcard.now{border-color:var(--accent)}
+  .wcard .wb{font-weight:700; font-size:1.05rem}
+  .wcard .wl{color:var(--muted); margin-top:5px; line-height:1.55}
+  .costbasis{padding:0 16px 12px; font-size:.85rem; color:var(--warn)}
+
   ol.flow{list-style:none; margin:0; padding:0; display:grid; gap:1px;
     background:var(--line); border:1px solid var(--line); border-radius:10px; overflow:hidden}
   ol.flow li{background:var(--panel); padding:14px 17px; display:flex; gap:13px}
@@ -256,6 +300,44 @@
 </section>
 
 <section>
+  <h2>Purchase planner — spend the cash you actually have</h2>
+  <div class="app">
+    <p class="hint" style="margin-top:0">
+      Tell ShopFlow how much cash is available. It funds every customer
+      commitment first, then spends whatever is left on the restocking that
+      most needs it — and shows you exactly what it turned down, and why.
+    </p>
+
+    <div class="cash">
+      <label for="budget">Cash available</label>
+      <span class="cashbox">
+        <span class="rs">₹</span>
+        <input id="budget" type="number" min="0" step="500" value="25000"
+               inputmode="numeric" aria-label="Cash available in rupees">
+      </span>
+      <span class="presets">
+        <button class="ghost" data-budget="20000">20,000</button>
+        <button class="ghost on" data-budget="25000">25,000</button>
+        <button class="ghost" data-budget="30000">30,000</button>
+      </span>
+    </div>
+
+    <div class="row">
+      <button class="primary" id="plan">Plan my purchases</button>
+      <button class="ghost" id="resetPlan" hidden>Start over</button>
+    </div>
+
+    <div class="status" id="planStatus" hidden>
+      <span class="spinner"></span>
+      <span id="planStatusText">Allocating…</span>
+    </div>
+
+    <div class="err" id="planError" hidden></div>
+    <div id="planResult" hidden></div>
+  </div>
+</section>
+
+<section>
   <h2>The workflow</h2>
   <ol class="flow">
     <li><span class="n">1</span><span><span class="t">Order</span>
@@ -273,7 +355,7 @@
     <li><span class="n">7</span><span><span class="t">Why</span>
       <span class="d">Every recommendation opens up into the full calculation behind it — stock, velocity, lead time, margin, budget remaining.</span></span></li>
   </ol>
-  <p class="hint">Steps 1–3 and 7 are live above. Steps 4–6 are built and tested in the deterministic engine, and reach the interface next.</p>
+  <p class="hint">All seven steps are live above. Every figure comes from the deterministic engine — the language model never writes a number.</p>
 </section>
 
 <section>
@@ -784,6 +866,238 @@
       row.textContent = e.message;
     });
   }
+
+  // ---- purchase planner ------------------------------------------------
+
+  var budgetBox = el("budget"), planBtn = el("plan"), resetPlanBtn = el("resetPlan"),
+      planStatus = el("planStatus"), planStatusText = el("planStatusText"),
+      planResult = el("planResult"), planError = el("planError");
+
+  var presetBtns = document.querySelectorAll(".presets button");
+
+  Array.prototype.forEach.call(presetBtns, function (b) {
+    b.addEventListener("click", function () {
+      budgetBox.value = b.getAttribute("data-budget");
+      markPreset();
+      runPlan();
+    });
+  });
+  budgetBox.addEventListener("input", markPreset);
+
+  function markPreset() {
+    Array.prototype.forEach.call(presetBtns, function (b) {
+      b.className = b.getAttribute("data-budget") === String(budgetBox.value)
+        ? "ghost on" : "ghost";
+    });
+  }
+
+  planBtn.addEventListener("click", runPlan);
+  resetPlanBtn.addEventListener("click", function () {
+    budgetBox.value = "25000";
+    markPreset();
+    clearPlan();
+    show(resetPlanBtn, false);
+  });
+
+  function clearPlan() {
+    planResult.innerHTML = "";
+    show(planResult, false);
+    show(planError, false);
+  }
+
+  function planFail(message) {
+    show(planStatus, false);
+    planBtn.disabled = false;
+    planError.textContent = message;
+    show(planError, true);
+  }
+
+  function runPlan() {
+    clearPlan();
+    var budget = Number(budgetBox.value);
+    if (!isFinite(budget) || budget < 0) {
+      planFail("Enter the cash available as a number, zero or more.");
+      return;
+    }
+
+    planBtn.disabled = true;
+    show(planStatus, true);
+    planStatusText.textContent = "Allocating\u2026";
+
+    var payload = { budget: budget };
+    // If a supplier price change was confirmed in the section above, the plan
+    // is priced at the rate the owner agreed rather than the older one.
+    if (currentPriceJob) payload.priceListJobId = currentPriceJob;
+
+    fetch("/api/purchase-plans", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload)
+    }).then(function (r) {
+      return r.json().then(function (b) { return { ok: r.ok, body: b }; });
+    }).then(function (res) {
+      if (!res.ok) throw new Error(res.body.error || "That plan could not be built.");
+      renderPlan(res.body);
+    }).catch(function (e) { planFail(e.message); });
+  }
+
+  function pct(part, whole) {
+    if (!whole) return 0;
+    return Math.max(0, Math.min(100, (part / whole) * 100));
+  }
+
+  function planLine(l) {
+    var badge = l.selected
+      ? '<span class="badge b-ok">' + (l.decision === "PARTIAL" ? "Part funded" : "Buy") + '</span>'
+      : '<span class="badge b-note">Deferred</span>';
+
+    var qty = l.selected ? l.fundedQty : l.requestedQty;
+    var cost = l.selected ? l.lineCost : l.fullLineCost;
+
+    var html = '<div class="line"><div class="line-main">' +
+      '<div class="qty">' + esc(qty) + '</div>' +
+      '<div class="line-body">' +
+        '<div class="line-name">' + esc(l.productName) + '</div>' +
+        '<div class="sku">' + esc(l.skuId) + ' \u00b7 ' + badge + '</div>' +
+      '</div>' +
+      '<div class="line-right"><div class="amount">' + rupees(cost) + '</div>' +
+        '<div class="sku">' + rupees(l.unitCost) + ' each</div></div>' +
+      '</div>';
+
+    if (l.costBasis) {
+      html += '<div class="costbasis">Priced at the ' + rupees(l.costBasis.confirmedCost) +
+        ' you confirmed, up from ' + rupees(l.costBasis.previousCost) + '.</div>';
+    }
+
+    html += '<details class="why"><summary>Why?</summary><div class="evidence">' +
+      '<p style="margin:0 0 10px">' + esc(l.reason) + '</p>';
+    if (l.risk) {
+      html += '<p style="margin:0 0 10px; color:var(--warn)">' + esc(l.risk) + '</p>';
+    }
+    html += '<dl>' + evidenceRows(l) + '</dl></div></details></div>';
+    return html;
+  }
+
+  function row(term, value) {
+    return "<dt>" + esc(term) + "</dt><dd>" + esc(value) + "</dd>";
+  }
+
+  function evidenceRows(l) {
+    var out = "";
+    if (l.tier === "COMMITTED_ORDER") {
+      out += row("Customer needs", l.committedQty + " units");
+      out += row("In stock", l.currentStock + " units");
+      out += row("Short by", l.shortageQty + " units");
+      out += row("Promised", l.earliestPromisedDate);
+      out += row("Fulfilment", l.fulfilmentPolicy);
+    } else {
+      out += row("In stock", l.currentStock + " units");
+      out += row("Uncommitted", l.availableAfterCommitments + " units");
+      out += row("Sells at", l.weeklyVelocity + " / week");
+      out += row("Stock covers",
+        (l.coverageWeeks === null ? "no recent sales" : l.coverageWeeks + " weeks"));
+      out += row("Stockout risk", l.stockoutRisk);
+      out += row("Margin per \u20b9", l.marginPerRupee);
+      out += row("Priority", l.priorityCalculation);
+    }
+    out += row("Supplier cost", rupees(l.unitCost) + " per unit");
+    out += row("Selling price", rupees(l.sellingPrice) + " per unit");
+    out += row("Full line cost", rupees(l.fullLineCost));
+    out += row("Budget left then", rupees(l.evidence.budgetRemainingBefore));
+    return out;
+  }
+
+  var DEFER_SHOWN = 6;
+
+  function renderPlan(plan) {
+    show(planStatus, false);
+    planBtn.disabled = false;
+    show(resetPlanBtn, true);
+
+    var html = "";
+
+    // The constraint, drawn to scale.
+    html += '<div class="bar"><div class="bar-track">' +
+      '<span class="seg-commit" style="width:' + pct(plan.commitmentCost, plan.budget) + '%"></span>' +
+      '<span class="seg-restock" style="width:' + pct(plan.restockCost, plan.budget) + '%"></span>' +
+      '<span class="seg-left" style="width:' + pct(plan.remaining, plan.budget) + '%"></span>' +
+      '</div><div class="bar-key">' +
+      '<span class="k-commit"><i></i>Customer commitments <b>' + rupees(plan.commitmentCost) + '</b></span>' +
+      '<span class="k-restock"><i></i>Restocking <b>' + rupees(plan.restockCost) + '</b></span>' +
+      '<span class="k-left"><i></i>Unspent <b>' + rupees(plan.remaining) + '</b></span>' +
+      '</div></div>';
+
+    if (plan.budgetIsBinding) {
+      html += '<div class="binds">This budget binds. Every customer commitment is ' +
+        'funded, and ' + plan.counts.restockDeferred + ' restocks ShopFlow would ' +
+        'otherwise recommend could not be afforded.</div>';
+    } else if (!plan.allCommitmentsFunded) {
+      html += '<div class="binds">' + rupees(plan.budget) + ' is not enough to cover ' +
+        'what is already promised to customers. The shortfall is shown below.</div>';
+    }
+
+    if (plan.confirmedCosts.length) {
+      html += '<div class="binds" style="background:var(--accent-soft); color:var(--accent); border-left-color:var(--accent)">' +
+        'Priced using ' + plan.confirmedCosts.length + ' supplier price change' +
+        (plan.confirmedCosts.length === 1 ? "" : "s") + ' you confirmed above. ' +
+        'Your selling prices are unchanged.</div>';
+    }
+
+    if (plan.commitments.length) {
+      html += '<div class="grp"><h3>Customer commitments \u2014 funded first</h3>' +
+        '<div class="lines">' + plan.commitments.map(planLine).join("") + '</div>' +
+        '<p class="more">Cost to fulfil what is already promised: ' +
+        rupees(plan.commitmentFullCost) + '. Budget left afterwards: ' +
+        rupees(plan.budgetAfterCommitments) + '.</p></div>';
+    }
+
+    if (plan.restockSelected.length) {
+      html += '<div class="grp"><h3>Recommended restocking \u2014 ' +
+        plan.counts.restockSelected + ' items</h3><div class="lines">' +
+        plan.restockSelected.map(planLine).join("") + '</div></div>';
+    }
+
+    if (plan.restockDeferred.length) {
+      var shown = plan.restockDeferred.slice(0, DEFER_SHOWN);
+      html += '<div class="grp"><h3>Deferred \u2014 ' + plan.counts.restockDeferred +
+        ' items the cash could not reach</h3><div class="lines">' +
+        shown.map(planLine).join("") + '</div>';
+      if (plan.restockDeferred.length > DEFER_SHOWN) {
+        html += '<p class="more">' + (plan.restockDeferred.length - DEFER_SHOWN) +
+          ' more deferred, in the same priority order.</p>';
+      }
+      html += '</div>';
+    }
+
+    html += '<div class="lines" style="margin-top:22px"><div class="total">' +
+      '<span><span class="label">Total recommended spend</span></span>' +
+      '<span>' + rupees(plan.totalSpend) + '</span></div>' +
+      '<div class="total" style="background:var(--panel); font-size:1rem">' +
+      '<span><span class="label" style="color:var(--muted)">Cash remaining</span></span>' +
+      '<span>' + rupees(plan.remaining) + '</span></div></div>';
+
+    // What-if: the same shop at two other budgets.
+    if (plan.whatIf && plan.whatIf.length) {
+      html += '<div class="grp"><h3>What if you had more, or less?</h3><div class="whatif">';
+      html += '<div class="wcard now"><div class="wb">' + rupees(plan.budget) + '</div>' +
+        '<div class="wl">Your figure<br>' + plan.counts.restockSelected +
+        ' restocks funded<br>' + plan.counts.restockDeferred + ' deferred</div></div>';
+      plan.whatIf.forEach(function (w) {
+        html += '<div class="wcard"><div class="wb">' + rupees(w.budget) + '</div>' +
+          '<div class="wl">' + w.restockSelectedCount + ' restocks funded<br>' +
+          w.restockDeferredCount + ' deferred<br>' +
+          rupees(w.remaining) + ' unspent</div></div>';
+      });
+      html += '</div></div>';
+    }
+
+    html += '<p class="hint">' + esc(plan.policy.tier1) + ' ' + esc(plan.policy.tier2) +
+      ' ' + esc(plan.policy.costBasis) + '</p>';
+
+    planResult.innerHTML = html;
+    show(planResult, true);
+  }
+
 })();
 </script>
 </body>

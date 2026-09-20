@@ -2,13 +2,22 @@
 
 Three routes, no more than the workflow needs:
 
-    POST /api/orders      accept an order, queue it, return a job id
-    GET  /api/jobs/{id}   poll that job
-    GET  /api/demo        the seeded example order, so the UI hard-codes nothing
+    POST /api/orders              accept an order, queue it, return a job id
+    POST /api/supplier-price-lists  read a photographed price list, queue it
+    POST /api/price-decisions     record the owner's ruling on a price change
+    POST /api/purchase-plans      allocate a cash budget across purchases
+    GET  /api/jobs/{id}           poll a queued job
+    GET  /api/demo                the seeded example, so the UI hard-codes nothing
 
-Order processing is asynchronous. A Bedrock tool loop takes seconds, and a
-public demo that holds an HTTP connection open for that long is a reliability
-risk, so the API queues the work and the browser polls.
+Order and price-list processing are asynchronous. A Bedrock tool loop takes
+seconds, and a public demo that holds an HTTP connection open for that long is
+a reliability risk, so the API queues the work and the browser polls.
+
+Purchase planning is NOT queued. It calls no model at all - it is the
+deterministic allocator over an already-loaded dataset, measured at about 4 ms
+for the full 147-SKU shop. Wrapping that in a job record, an asynchronous
+Lambda invoke and a polling loop would add three round trips and a second of
+latency to hide four milliseconds of work.
 """
 
 from __future__ import annotations
@@ -26,6 +35,11 @@ from functools import lru_cache
 from boto3.dynamodb.conditions import Key
 
 from engine.loader import cached_dataset
+from engine.purchasing import (
+    InvalidBudgetError,
+    build_purchase_plan,
+    what_if,
+)
 from engine.supplier_prices import DECISIONS, build_decision_record
 
 MAX_ORDER_CHARS = 1000
@@ -295,6 +309,69 @@ def _create_price_decision(event) -> dict:
     return _response(201, record)
 
 
+def _create_purchase_plan(event) -> dict:
+    """Allocate a stated cash budget across commitments and restocking.
+
+    Answered synchronously: this is arithmetic over seeded data, not a model
+    call. See the module docstring.
+
+    An optional `priceListJobId` points at a completed supplier price review.
+    Any change the owner CONFIRMED there is used as the purchase cost, which is
+    the step build_decision_record deliberately left for the owner to trigger.
+    Confirmed figures are read from the stored decision rows, never from the
+    request, so a caller cannot price a plan at a number the engine never saw.
+    """
+    raw = event.get("body") or ""
+    if len(raw.encode("utf-8")) > MAX_BODY_BYTES:
+        return _response(413, {"error": "request body too large"})
+    try:
+        payload = json.loads(raw) if raw else {}
+    except json.JSONDecodeError:
+        return _response(400, {"error": "body must be JSON"})
+
+    try:
+        budget = float(payload.get("budget"))
+    except (TypeError, ValueError):
+        return _response(400, {"error": "budget must be a number"})
+
+    decisions = []
+    job_id = str(payload.get("priceListJobId") or "")
+    if job_id:
+        if not re.fullmatch(r"[0-9a-f]{32}", job_id):
+            return _response(400, {"error": "invalid job id"})
+        rows = table().query(
+            KeyConditionExpression=Key("PK").eq(f"DECISION#{job_id}")
+        ).get("Items", [])
+        decisions = [
+            {
+                "skuId": row.get("skuId"),
+                "decision": row.get("decision"),
+                "currentPrice": _to_float(row.get("currentPrice")),
+                "previousPrice": _to_float(row.get("previousPrice")),
+            }
+            for row in rows
+        ]
+
+    data = cached_dataset()
+    try:
+        plan = build_purchase_plan(data, budget, decisions)
+        plan["whatIf"] = what_if(data, budget, decisions)
+    except InvalidBudgetError as exc:
+        return _response(400, {"error": str(exc)})
+
+    return _response(200, plan)
+
+
+def _to_float(value):
+    """Decimal from DynamoDB back to a plain float for the engine."""
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _get_job(event) -> dict:
     job_id = (event.get("pathParameters") or {}).get("jobId") or ""
     if not re.fullmatch(r"[0-9a-f]{32}", job_id):
@@ -364,6 +441,7 @@ ROUTES = {
     "POST /api/orders": _create_order,
     "POST /api/supplier-price-lists": _create_price_list,
     "POST /api/price-decisions": _create_price_decision,
+    "POST /api/purchase-plans": _create_purchase_plan,
     "GET /api/jobs/{jobId}": _get_job,
     "GET /api/demo": _get_demo,
 }
