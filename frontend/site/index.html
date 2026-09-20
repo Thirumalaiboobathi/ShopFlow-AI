@@ -817,7 +817,7 @@
         if (decided[l.skuId]) {
           html += '<div class="decided' + (decided[l.skuId] === "REJECTED" ? " no" : "") +
             '">' + (decided[l.skuId] === "CONFIRMED"
-              ? "&#10003; You confirmed this change. Your catalogue cost is unchanged until you apply it."
+              ? "&#10003; Confirmed. This is now your supplier purchase cost and the planner will use it. Your selling price is unchanged."
               : "Ignored — no change recorded.") + '</div>';
         } else {
           html += '<div class="decide">' +
@@ -924,10 +924,10 @@
     show(planStatus, true);
     planStatusText.textContent = "Allocating\u2026";
 
+    // Budget only. Any supplier price the owner has confirmed is durable shop
+    // state, so the planner picks it up without being told which document it
+    // came from. The API still accepts priceListJobId for older callers.
     var payload = { budget: budget };
-    // If a supplier price change was confirmed in the section above, the plan
-    // is priced at the rate the owner agreed rather than the older one.
-    if (currentPriceJob) payload.priceListJobId = currentPriceJob;
 
     fetch("/api/purchase-plans", {
       method: "POST",
@@ -967,6 +967,8 @@
     if (l.costBasis) {
       html += '<div class="costbasis">Priced at the ' + rupees(l.costBasis.confirmedCost) +
         ' you confirmed, up from ' + rupees(l.costBasis.previousCost) + '.</div>';
+    } else if (l.costSource === "CONFIRMED_SUPPLIER_PRICE") {
+      html += '<div class="costbasis">Priced at the supplier cost you confirmed.</div>';
     }
 
     html += '<details class="why"><summary>Why?</summary><div class="evidence">' +
@@ -980,6 +982,17 @@
 
   function row(term, value) {
     return "<dt>" + esc(term) + "</dt><dd>" + esc(value) + "</dd>";
+  }
+
+  function costSourceLabel(l) {
+    if (l.costSource !== "CONFIRMED_SUPPLIER_PRICE") {
+      return "SEEDED_SUPPLIER_PRICE \u2014 existing supplier cost";
+    }
+    var when = l.costProvenance && l.costProvenance.confirmedAt
+      ? new Date(l.costProvenance.confirmedAt * 1000).toLocaleDateString("en-IN")
+      : null;
+    return "CONFIRMED_SUPPLIER_PRICE \u2014 you confirmed this" +
+      (when ? " on " + when : "");
   }
 
   function evidenceRows(l) {
@@ -1001,6 +1014,7 @@
       out += row("Priority", l.priorityCalculation);
     }
     out += row("Supplier cost", rupees(l.unitCost) + " per unit");
+    out += row("Cost source", costSourceLabel(l));
     out += row("Selling price", rupees(l.sellingPrice) + " per unit");
     out += row("Full line cost", rupees(l.fullLineCost));
     out += row("Budget left then", rupees(l.evidence.budgetRemainingBefore));
@@ -1039,8 +1053,8 @@
     if (plan.confirmedCosts.length) {
       html += '<div class="binds" style="background:var(--accent-soft); color:var(--accent); border-left-color:var(--accent)">' +
         'Priced using ' + plan.confirmedCosts.length + ' supplier price change' +
-        (plan.confirmedCosts.length === 1 ? "" : "s") + ' you confirmed above. ' +
-        'Your selling prices are unchanged.</div>';
+        (plan.confirmedCosts.length === 1 ? "" : "s") + ' you confirmed. ' +
+        'These are remembered for future plans. Your selling prices are unchanged.</div>';
     }
 
     if (plan.commitments.length) {

@@ -1349,7 +1349,212 @@ is made about it. Evaluation against real anonymised shop orders remains open.
 
 ---
 
-### Open items after Stage 5
+## Stage 5.1 — Persist confirmed supplier purchase costs
+
+Stage 5 left a confirmed price reachable only through the `priceListJobId` that
+produced it. That made the shop's knowledge of what it pays a property of a
+*document* rather than of the *shop* — and job records carry a 24-hour TTL, so
+the confirmation would have quietly expired overnight. Stage 5.1 makes it
+durable, with no new AWS service and no architectural change.
+
+### The record
+
+One item per SKU in the existing table:
+
+    PK  SHOP#demo
+    SK  COST#<skuId>
+
+```json
+{
+  "PK": "SHOP#demo",
+  "SK": "COST#W-FIN-1.5-RED-90M",
+  "recordType": "CONFIRMED_SUPPLIER_COST",
+  "shopId": "demo",
+  "skuId": "W-FIN-1.5-RED-90M",
+  "productName": "Finolex 1.5 sqmm FR Wire Red 90m coil",
+  "supplierId": "SUP-BALAJI",
+  "confirmedCost": 6300,
+  "currency": "INR",
+  "effectiveDate": "15-09-2026",
+  "sourceJobId": "a250d9271ba14ddcae184ff1d5f0a099",
+  "confirmedAt": 1789915870
+}
+```
+
+Four decisions worth stating:
+
+**Overwrite is the supersede rule.** The shop has exactly one current purchase
+cost for a SKU at any moment and the newest confirmation is it. No history is
+accumulated, because the brief asked for the smallest durable solution and a
+price history is a different feature. The trail back to the document survives
+via `sourceJobId`.
+
+**No TTL.** Job records expire because they are the workings of one document.
+This is shop state. `test_1c` and a smoke check both assert its absence — it
+would be an easy line to add by copy-paste and a silent data-loss bug.
+
+**The supplier comes from the catalogue, not the document.** A price list must
+not be able to reassign a SKU to a different supplier by naming one.
+
+**`currency` is stored explicitly.** A cost without a currency is not a cost,
+even in a single-currency shop.
+
+`shopId` is the partition key although the demo is single-tenant, so
+multi-tenancy later needs no data migration.
+
+### Who may write one
+
+Only `POST /api/price-decisions` with `decision: CONFIRMED`. Extraction never
+writes here: reading a price off a photograph is not agreement to pay it.
+`build_cost_record` raises `InvalidCostRecordError` if handed anything but a
+confirmation, so a rejection cannot write a cost record even by mistake at the
+call site. A rejection returns `purchaseCostPersisted: false` and leaves the
+shop planning at the cost it already knows.
+
+The worker never touches these records — it does not handle confirmations — so
+it gained no permission. The API function already held `grant_read_write_data`
+on the table, so **the IAM model is unchanged**: `cdk diff` showed no IAM
+statement changes at all.
+
+Not written, and asserted so: selling price, stock, any quantity.
+
+### Planner behaviour
+
+A plan request now always reads `SHOP#demo` / `begins_with(COST#)` and applies
+whatever the owner has confirmed. No job id is needed — that is the whole
+point. `priceListJobId` still works and still wins where both exist, because
+that case is the owner looking at one specific document and asking what it
+would mean; Stage 5 callers are unaffected.
+
+Every line now carries provenance:
+
+| `costSource` | meaning |
+|---|---|
+| `CONFIRMED_SUPPLIER_PRICE` | the owner agreed this rate; `costProvenance` names the source price list and when |
+| `SEEDED_SUPPLIER_PRICE` | the shop's existing supplier cost, nothing newer confirmed |
+
+Provenance is carried from the record, never inferred by comparing the plan's
+cost against the seed. `test_provenance_is_not_inferred_from_the_figures` pins
+this: a confirmed price that happens to *equal* the seeded one is still
+confirmed, and that is exactly the case — the owner agreeing the supplier had
+not moved — that a comparison shortcut would mislabel.
+
+### A bug the tests would have hidden, caught before deploying
+
+The planner's new read uses a composite condition:
+
+```python
+Key("PK").eq(cost_pk(DEFAULT_SHOP_ID)) & Key("SK").begins_with("COST#")
+```
+
+`FakeTable.query` read `KeyConditionExpression._values[1]` and assumed it was
+the partition key string. For an `And` condition `_values[1]` is a `BeginsWith`
+*object*, so the comparison `k[0] == pk` was never true and the query returned
+**nothing** — the planner would have found no confirmed costs at all, and every
+unit test still passed.
+
+Found by distrusting a green suite: the tests passed on the first run after
+wiring the query, which was too easy for a change of that size. Inspecting the
+condition object confirmed it.
+
+This is the Stage 4 lesson recurring in a new shape. Stage 4's fake was too
+*permissive* (accepted float where DynamoDB would not); this one was too
+*naive* (could not parse a condition the real store handles fine). Both let a
+broken path look healthy.
+
+Two fixes. `FakeTable.query` now parses the condition properly — walking the
+`And` tree for the PK equality and any SK `begins_with` — and raises rather
+than guessing if it cannot find a partition key. And
+`test_the_planner_query_really_reaches_the_cost_rows` asserts the fake's own
+behaviour directly, including that the prefix is honoured rather than ignored,
+so the same silent-empty failure cannot return unnoticed.
+
+### Demo repeatability, and `scripts/reset_confirmed_costs.py`
+
+Durability had an immediate side effect: the demo became one-shot. Once ₹6,300
+is confirmed, the "before" state is gone, and the same price list no longer
+shows a +6.78% change against it either.
+
+`scripts/reset_confirmed_costs.py` puts the shop back to seeded state. It lists
+by default and deletes only with `--confirm`, and touches only
+`SHOP#<shopId>` / `COST#...` items.
+
+There is deliberately **no API route, button or UI** for it. Erasing what the
+owner agreed to pay is not something a web request should be able to do; it is
+an operator action run from a machine with credentials.
+
+Verified: after `--confirm`, the live planner returns the wire at ₹5,900 with
+`SEEDED_SUPPLIER_PRICE` and `confirmedCosts: []`.
+
+### Tests
+
+**303 → 336**, passing in 1.9 s. 19 in `test_cost_records.py`, 14 added to
+`test_api.py`.
+
+Covering: confirmation persists the price; reload retrieves it; the planner
+with no `priceListJobId` uses it; purchase cost stays separate from selling
+price; rejection persists nothing; a newer confirmation supersedes an older
+one; the source job id is retained end to end; the explicit job-id path still
+works; only one row per SKU ever exists; the persisted value is `Decimal` not
+float; the record carries no TTL; and the fake store's query really reaches the
+rows.
+
+### Smoke test
+
+`scripts/smoke_test_planner.py` extended from 12 to **25 checks**, all passing
+against real DynamoDB. New coverage: the cost record is accepted, carries no
+TTL, comes back as `Decimal`, retains currency, supplier, effective date and
+source job id, holds no selling price, and is found by the *composite* query —
+the exact shape the fake got wrong. Then the stored row alone, with no job id,
+produces a plan matching the job-id path to the rupee.
+
+It writes to a `SMOKE#SHOP#demo` partition rather than `SHOP#demo`, so a failed
+run can never leave a bogus cost sitting in the shop's live state.
+
+### Deployment evidence
+
+Deployed 2026-09-20, `UPDATE_COMPLETE`. `cdk diff` showed code and site only —
+no new resources, **no IAM statement changes**, budget alarm preserved (the
+`alertEmail` context was passed, per the Stage 5 warning):
+
+```
+[~] AWS::Lambda::Function       ApiFunction, WorkerFunction, HealthFunction
+[~] Custom::CDKBucketDeployment SiteDeployment
+```
+
+Live chain, end to end:
+
+```
+0. plan, budget only        wire Rs 5,900.00  SEEDED_SUPPLIER_PRICE
+                            commitments Rs 12,148.00  total Rs 24,996.56
+1. price list uploaded      SRI BALAJI ELECTRICALS, 15-09-2026
+2. change detected          5,900 -> 6,300   +6.78% INCREASE
+3. owner confirms           purchaseCostPersisted=true
+                            confirmedCost=6300.0 INR
+                            catalogPriceChanged=false
+4. plan, budget only        NO job id passed
+5.   supplier cost          Rs 6,300.00
+6.   selling price          Rs 6,608.00   UNCHANGED
+7.   commitments            Rs 12,948.00  (+Rs 800.00 exactly)
+8.   costSource             CONFIRMED_SUPPLIER_PRICE
+     provenance             job a250d9271ba14ddcae184ff1d5f0a099
+     other SKUs             SEEDED_SUPPLIER_PRICE
+     total Rs 24,993.16     remaining Rs 6.84
+backward compatible         explicit priceListJobId -> same Rs 24,993.16
+```
+
+No regression: the canonical order still quotes **₹22,306.48**, grounded;
+`/api/health` 200 JSON; unknown `/api/` route a real 404 JSON.
+
+### Data provenance
+
+Unchanged from Stage 5: all figures come from **synthetic seeded demo data**
+(147 SKUs, `data/generator.py`, seed 20260919). The confirmed cost mechanism is
+real and tested; the prices it carries are not from a real shop.
+
+---
+
+### Open items after Stage 5.1
 
 - Anthropic use-case form — **human action**, blocks nothing.
 - Real Tamil-English recording — **human action**, needed before any voice
@@ -1358,8 +1563,9 @@ is made about it. Evaluation against real anonymised shop orders remains open.
 - Seed the `shopflow-demo` table from the generator and expose read APIs.
 - Ambiguous supplier price-list lines are surfaced but not resolvable in
   the UI — the owner can see them, not fix them.
-- A confirmed price reaches a purchase plan only via `priceListJobId`.
-  There is no shop-wide "current confirmed cost" record, so a plan
-  requested without that id is priced at the older cost. Deliberate for the
-  demo; a real shop needs a durable confirmed-cost table.
+- Confirmed costs are now durable (Stage 5.1). Remaining gap: the store keeps
+  only the *current* cost per SKU, not a history — reverting a confirmation
+  means re-confirming the older price from a document.
+- A confirmed cost is shop-wide and permanent, so demo rehearsals must run
+  `scripts/reset_confirmed_costs.py --confirm` to return to seeded state.
 - Business accuracy of the allocation is unvalidated against real shop data.

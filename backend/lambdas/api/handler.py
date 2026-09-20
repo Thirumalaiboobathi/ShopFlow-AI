@@ -34,6 +34,14 @@ from functools import lru_cache
 
 from boto3.dynamodb.conditions import Key
 
+from engine.cost_records import (
+    DEFAULT_SHOP_ID,
+    InvalidCostRecordError,
+    build_cost_record,
+    cost_pk,
+    latest_confirmed_costs,
+    to_plan_decisions,
+)
 from engine.loader import cached_dataset
 from engine.purchasing import (
     InvalidBudgetError,
@@ -306,6 +314,34 @@ def _create_price_decision(event) -> dict:
         "decidedAt": now,
         "expiresAt": now + JOB_TTL_SECONDS,
     }))
+
+    # A confirmation is the only thing that may set the shop's purchase cost,
+    # and this is the only route that can issue one. The decision record above
+    # expires with the job; this one does not, because it is shop state rather
+    # than the workings of one document.
+    if decision == "CONFIRMED":
+        try:
+            cost_record = build_cost_record(
+                data, sku_id, comparison.get("currentPrice"),
+                source_job_id=job_id,
+                confirmed_at=now,
+                effective_date=result.get("review", {}).get("documentDate") or "",
+            )
+        except InvalidCostRecordError as exc:
+            return _response(400, {"error": str(exc)})
+        table().put_item(Item=_to_dynamo(cost_record))
+        record = {
+            **record,
+            "purchaseCostPersisted": True,
+            "confirmedCost": cost_record["confirmedCost"],
+            "currency": cost_record["currency"],
+            "confirmedAt": now,
+        }
+    else:
+        # Rejection records the ruling and nothing else - the shop keeps
+        # planning at the cost it already knows.
+        record = {**record, "purchaseCostPersisted": False}
+
     return _response(201, record)
 
 
@@ -334,23 +370,51 @@ def _create_purchase_plan(event) -> dict:
     except (TypeError, ValueError):
         return _response(400, {"error": "budget must be a number"})
 
-    decisions = []
+    # The shop's durable confirmed purchase costs. Read on every plan, with no
+    # job id needed: a price the owner confirmed last week is what they pay
+    # today, whether or not they still have the document open.
+    rows = table().query(
+        KeyConditionExpression=Key("PK").eq(cost_pk(DEFAULT_SHOP_ID))
+        & Key("SK").begins_with("COST#")
+    ).get("Items", [])
+    confirmed = latest_confirmed_costs([
+        {
+            "skuId": row.get("skuId"),
+            "confirmedCost": _to_float(row.get("confirmedCost")),
+            "currency": row.get("currency"),
+            "supplierId": row.get("supplierId"),
+            "effectiveDate": row.get("effectiveDate"),
+            "sourceJobId": row.get("sourceJobId"),
+            "confirmedAt": row.get("confirmedAt"),
+        }
+        for row in rows
+    ])
+    decisions = to_plan_decisions(confirmed)
+
+    # An explicit price-list job still works, and still wins: it is the owner
+    # looking at one document and asking what it would mean. Kept for
+    # backward compatibility with Stage 5 callers.
     job_id = str(payload.get("priceListJobId") or "")
     if job_id:
         if not re.fullmatch(r"[0-9a-f]{32}", job_id):
             return _response(400, {"error": "invalid job id"})
-        rows = table().query(
+        job_rows = table().query(
             KeyConditionExpression=Key("PK").eq(f"DECISION#{job_id}")
         ).get("Items", [])
-        decisions = [
-            {
-                "skuId": row.get("skuId"),
+        by_sku = {d["skuId"]: d for d in decisions}
+        for row in job_rows:
+            sku = row.get("skuId")
+            if not sku:
+                continue
+            by_sku[sku] = {
+                "skuId": sku,
                 "decision": row.get("decision"),
                 "currentPrice": _to_float(row.get("currentPrice")),
                 "previousPrice": _to_float(row.get("previousPrice")),
+                "sourceJobId": job_id,
+                "confirmedAt": int(row.get("decidedAt") or 0),
             }
-            for row in rows
-        ]
+        decisions = list(by_sku.values())
 
     data = cached_dataset()
     try:

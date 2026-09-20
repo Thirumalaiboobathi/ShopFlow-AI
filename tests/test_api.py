@@ -39,9 +39,42 @@ class FakeTable:
 
 
     def query(self, KeyConditionExpression):
-        # Only the one access pattern the API uses: everything under one PK.
-        pk = KeyConditionExpression._values[1]
-        return {"Items": [dict(v) for k, v in self.items.items() if k[0] == pk]}
+        """Interpret the condition properly, including `pk AND begins_with(sk)`.
+
+        An earlier version read `_values[1]` and assumed it was the partition
+        key string. That silently returned nothing for a composite condition -
+        the planner would have found no confirmed costs and every test would
+        still have passed. The fake now parses what it is actually given.
+        """
+        pk, prefix = self._parse(KeyConditionExpression)
+        if pk is None:
+            raise AssertionError(
+                "FakeTable.query could not find a partition key in the condition")
+        return {"Items": [
+            dict(v) for k, v in self.items.items()
+            if k[0] == pk and (prefix is None or k[1].startswith(prefix))
+        ]}
+
+    @staticmethod
+    def _parse(condition):
+        """Pull the PK equality and any SK begins_with out of the condition."""
+        from boto3.dynamodb.conditions import And, BeginsWith, Equals
+
+        pk = prefix = None
+        stack = [condition]
+        while stack:
+            node = stack.pop()
+            if isinstance(node, And):
+                stack.extend(node._values)
+            elif isinstance(node, Equals):
+                name, value = node._values
+                if name.name == "PK":
+                    pk = value
+            elif isinstance(node, BeginsWith):
+                name, value = node._values
+                if name.name == "SK":
+                    prefix = value
+        return pk, prefix
 
 
 class FakeLambda:
@@ -310,7 +343,7 @@ def test_missing_image_is_rejected(api_env):
 REVIEW_RESULT = {
     "status": "REVIEWED",
     "jobType": "PRICE_LIST",
-    "review": {"lines": [{
+    "review": {"documentDate": "15-09-2026", "lines": [{
         "status": "MATCHED",
         "skuId": "W-FIN-1.5-RED-90M",
         "comparison": {"previousPrice": 5900.0, "currentPrice": 6300.0,
@@ -545,3 +578,229 @@ def test_purchase_plan_is_json_serialisable_end_to_end(api_env):
     assert "Infinity" not in response["body"]
     assert "NaN" not in response["body"]
     json.loads(response["body"])
+
+
+# ---- Stage 5.1: durable confirmed supplier purchase costs ----
+
+WIRE = "W-FIN-1.5-RED-90M"
+COST_PK = "SHOP#demo"
+COST_SK = f"COST#{WIRE}"
+
+
+def cost_row(table):
+    return table.items.get((COST_PK, COST_SK))
+
+
+def test_1_confirming_a_change_persists_the_purchase_cost(api_env):
+    table, _lam, _s3 = api_env
+    job_id = seed_reviewed_job(table)
+
+    response = api.handler(post_decision(job_id, WIRE, "CONFIRMED"), None)
+    assert response["statusCode"] == 201
+    assert body_of(response)["purchaseCostPersisted"] is True
+
+    row = cost_row(table)
+    assert row is not None
+    assert row["skuId"] == WIRE
+    assert row["confirmedCost"] == Decimal("6300.0")
+    assert row["currency"] == "INR"
+    assert row["sourceJobId"] == job_id
+    assert row["effectiveDate"] == "15-09-2026"
+    assert row["supplierId"]
+    assert int(row["confirmedAt"]) > 0
+
+
+def test_1b_the_persisted_cost_is_decimal_not_float(api_env):
+    """The Stage 4 bug, guarded at the new write site.
+
+    DynamoDB rejects Python floats and a cost record carries one. The fake
+    store would accept either, so this asserts the type the real table needs.
+    """
+    table, _lam, _s3 = api_env
+    api.handler(post_decision(seed_reviewed_job(table), WIRE, "CONFIRMED"), None)
+    assert isinstance(cost_row(table)["confirmedCost"], Decimal)
+
+
+def test_1c_the_cost_record_has_no_ttl(api_env):
+    """Job records expire. The shop's purchase cost must not."""
+    table, _lam, _s3 = api_env
+    api.handler(post_decision(seed_reviewed_job(table), WIRE, "CONFIRMED"), None)
+    assert "expiresAt" not in cost_row(table)
+
+
+def test_2_the_confirmed_cost_survives_a_reload(api_env):
+    table, _lam, _s3 = api_env
+    job_id = seed_reviewed_job(table)
+    api.handler(post_decision(job_id, WIRE, "CONFIRMED"), None)
+
+    job = body_of(api.handler(
+        {"routeKey": "GET /api/jobs/{jobId}", "pathParameters": {"jobId": job_id}},
+        None))
+    assert [d["skuId"] for d in job["decisions"]] == [WIRE]
+    assert cost_row(table)["confirmedCost"] == Decimal("6300.0")
+
+
+def test_3_planner_without_a_job_id_uses_the_confirmed_cost(api_env):
+    """The point of Stage 5.1: no document needed, just a budget."""
+    table, _lam, _s3 = api_env
+
+    before = body_of(api.handler(post_plan({"budget": 25000}), None))
+    wire_before = next(l for l in before["commitments"] if l["skuId"] == WIRE)
+    assert wire_before["unitCost"] == 5900.0
+    assert wire_before["costSource"] == "SEEDED_SUPPLIER_PRICE"
+
+    api.handler(post_decision(seed_reviewed_job(table), WIRE, "CONFIRMED"), None)
+
+    after = body_of(api.handler(post_plan({"budget": 25000}), None))
+    wire_after = next(l for l in after["commitments"] if l["skuId"] == WIRE)
+    assert wire_after["unitCost"] == 6300.0
+    assert wire_after["costSource"] == "CONFIRMED_SUPPLIER_PRICE"
+    assert after["commitmentCost"] - before["commitmentCost"] == 800.0
+    assert after["totalSpend"] <= 25000.0
+    assert after["remaining"] >= 0
+
+
+def test_3b_the_plan_reports_where_the_confirmed_cost_came_from(api_env):
+    table, _lam, _s3 = api_env
+    job_id = seed_reviewed_job(table)
+    api.handler(post_decision(job_id, WIRE, "CONFIRMED"), None)
+
+    plan = body_of(api.handler(post_plan({"budget": 25000}), None))
+    wire = next(l for l in plan["commitments"] if l["skuId"] == WIRE)
+
+    assert wire["costProvenance"]["source"] == "CONFIRMED_SUPPLIER_PRICE"
+    assert wire["costProvenance"]["sourceJobId"] == job_id
+    assert wire["costProvenance"]["confirmedAt"]
+    assert plan["confirmedCosts"][0]["sourceJobId"] == job_id
+
+
+def test_3c_unconfirmed_skus_are_labelled_seeded(api_env):
+    table, _lam, _s3 = api_env
+    api.handler(post_decision(seed_reviewed_job(table), WIRE, "CONFIRMED"), None)
+
+    plan = body_of(api.handler(post_plan({"budget": 25000}), None))
+    others = [l for l in plan["commitments"] + plan["restockSelected"]
+              if l["skuId"] != WIRE]
+    assert others
+    for line in others:
+        assert line["costSource"] == "SEEDED_SUPPLIER_PRICE"
+
+
+def test_4_confirmed_cost_does_not_change_the_selling_price(api_env):
+    table, _lam, _s3 = api_env
+    before = body_of(api.handler(post_plan({"budget": 25000}), None))
+    selling = next(l for l in before["commitments"]
+                   if l["skuId"] == WIRE)["sellingPrice"]
+
+    api.handler(post_decision(seed_reviewed_job(table), WIRE, "CONFIRMED"), None)
+
+    after = body_of(api.handler(post_plan({"budget": 25000}), None))
+    wire = next(l for l in after["commitments"] if l["skuId"] == WIRE)
+    assert wire["unitCost"] == 6300.0
+    assert wire["sellingPrice"] == selling == 6608.0
+
+
+def test_5_rejecting_a_change_persists_no_purchase_cost(api_env):
+    table, _lam, _s3 = api_env
+    job_id = seed_reviewed_job(table)
+
+    response = api.handler(post_decision(job_id, WIRE, "REJECTED"), None)
+    assert response["statusCode"] == 201
+    assert body_of(response)["purchaseCostPersisted"] is False
+    assert cost_row(table) is None
+
+    plan = body_of(api.handler(post_plan({"budget": 25000}), None))
+    wire = next(l for l in plan["commitments"] if l["skuId"] == WIRE)
+    assert wire["unitCost"] == 5900.0
+    assert wire["costSource"] == "SEEDED_SUPPLIER_PRICE"
+
+
+def test_6_a_newer_confirmation_supersedes_the_older_one(api_env):
+    table, _lam, _s3 = api_env
+    api.handler(post_decision(seed_reviewed_job(table), WIRE, "CONFIRMED"), None)
+    assert cost_row(table)["confirmedCost"] == Decimal("6300.0")
+    first_job = cost_row(table)["sourceJobId"]
+
+    # A later price list for the same SKU, at a different rate.
+    later_job = "c" * 32
+    table.put_item(Item={
+        "PK": f"JOB#{later_job}", "SK": "META", "jobId": later_job,
+        "jobType": "PRICE_LIST", "status": "DONE", "createdAt": 2,
+        "result": json.dumps({
+            "status": "REVIEWED", "jobType": "PRICE_LIST",
+            "review": {"documentDate": "01-10-2026", "lines": [{
+                "status": "MATCHED", "skuId": WIRE,
+                "comparison": {"previousPrice": 6300.0, "currentPrice": 6750.0,
+                               "percentageDelta": 7.14, "materialChange": True},
+            }]},
+        }),
+    })
+    api.handler(post_decision(later_job, WIRE, "CONFIRMED"), None)
+
+    row = cost_row(table)
+    assert row["confirmedCost"] == Decimal("6750.0")
+    assert row["sourceJobId"] == later_job != first_job
+    assert row["effectiveDate"] == "01-10-2026"
+
+    plan = body_of(api.handler(post_plan({"budget": 25000}), None))
+    wire = next(l for l in plan["commitments"] if l["skuId"] == WIRE)
+    assert wire["unitCost"] == 6750.0
+
+
+def test_7_the_source_job_id_survives_into_the_plan(api_env):
+    table, _lam, _s3 = api_env
+    job_id = seed_reviewed_job(table)
+    api.handler(post_decision(job_id, WIRE, "CONFIRMED"), None)
+
+    assert cost_row(table)["sourceJobId"] == job_id
+    plan = body_of(api.handler(post_plan({"budget": 25000}), None))
+    wire = next(l for l in plan["commitments"] if l["skuId"] == WIRE)
+    assert wire["costProvenance"]["sourceJobId"] == job_id
+
+
+def test_the_explicit_job_id_path_still_works(api_env):
+    """Backward compatibility with the Stage 5 caller."""
+    table, _lam, _s3 = api_env
+    job_id = seed_reviewed_job(table)
+    api.handler(post_decision(job_id, WIRE, "CONFIRMED"), None)
+
+    plan = body_of(api.handler(
+        post_plan({"budget": 25000, "priceListJobId": job_id}), None))
+    wire = next(l for l in plan["commitments"] if l["skuId"] == WIRE)
+    assert wire["unitCost"] == 6300.0
+    assert wire["costSource"] == "CONFIRMED_SUPPLIER_PRICE"
+
+
+def test_a_confirmation_writes_exactly_one_cost_row(api_env):
+    """One current cost per SKU - the store must not accumulate history."""
+    table, _lam, _s3 = api_env
+    api.handler(post_decision(seed_reviewed_job(table), WIRE, "CONFIRMED"), None)
+    api.handler(post_decision(seed_reviewed_job(table), WIRE, "CONFIRMED"), None)
+
+    cost_rows = [k for k in table.items if k[0] == COST_PK]
+    assert cost_rows == [(COST_PK, COST_SK)]
+
+
+def test_the_planner_query_really_reaches_the_cost_rows(api_env):
+    """Guards the fake store itself.
+
+    An earlier FakeTable.query read `_values[1]` and assumed a bare partition
+    key, so a composite `PK = x AND begins_with(SK, ...)` silently matched
+    nothing. Every planner test still passed while the confirmed cost never
+    arrived. This asserts the query returns the row that was written.
+    """
+    from boto3.dynamodb.conditions import Key
+
+    table, _lam, _s3 = api_env
+    api.handler(post_decision(seed_reviewed_job(table), WIRE, "CONFIRMED"), None)
+
+    found = table.query(
+        KeyConditionExpression=Key("PK").eq(COST_PK) & Key("SK").begins_with("COST#")
+    )["Items"]
+    assert [r["skuId"] for r in found] == [WIRE]
+
+    # And the prefix is honoured rather than ignored.
+    none = table.query(
+        KeyConditionExpression=Key("PK").eq(COST_PK) & Key("SK").begins_with("NOPE#")
+    )["Items"]
+    assert none == []

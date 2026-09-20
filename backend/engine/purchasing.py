@@ -45,6 +45,10 @@ from .budget import (
     BudgetPlan,
     allocate_budget,
 )
+from .cost_records import (
+    CONFIRMED_SUPPLIER_PRICE,
+    SEEDED_SUPPLIER_PRICE,
+)
 from .models import Dataset, SupplierPrice, money
 from .pricing import current_cost
 
@@ -83,13 +87,17 @@ def parse_budget(value) -> float:
     return money(amount)
 
 
-def confirmed_costs(decisions: Iterable[Dict]) -> Dict[str, float]:
-    """Pick the confirmed price changes out of a list of owner decisions.
+def confirmed_cost_details(decisions: Iterable[Dict]) -> Dict[str, dict]:
+    """Confirmed price changes, with where each one came from.
 
     Rejected changes are ignored on purpose: the owner saying "that is not the
     price I agreed" means the shop keeps planning at the cost it already knows.
+
+    The provenance travels with the price so the plan can say which costs the
+    owner agreed to and which are still the seeded default, rather than the UI
+    guessing from the numbers.
     """
-    costs: Dict[str, float] = {}
+    details: Dict[str, dict] = {}
     for row in decisions or []:
         if not isinstance(row, dict):
             continue
@@ -103,9 +111,23 @@ def confirmed_costs(decisions: Iterable[Dict]) -> Dict[str, float]:
             value = float(price)
         except (TypeError, ValueError):
             continue
-        if value > 0:
-            costs[str(sku_id)] = money(value)
-    return costs
+        if value <= 0:
+            continue
+        try:
+            confirmed_at = int(row.get("confirmedAt") or 0)
+        except (TypeError, ValueError):
+            confirmed_at = 0
+        details[str(sku_id)] = {
+            "cost": money(value),
+            "sourceJobId": row.get("sourceJobId") or "",
+            "confirmedAt": confirmed_at,
+        }
+    return details
+
+
+def confirmed_costs(decisions: Iterable[Dict]) -> Dict[str, float]:
+    """Just the prices, for callers that do not need the provenance."""
+    return {sku: d["cost"] for sku, d in confirmed_cost_details(decisions).items()}
 
 
 def apply_confirmed_costs(data: Dataset, costs: Dict[str, float]) -> Dataset:
@@ -160,7 +182,8 @@ def _day_after(iso_date: str) -> str:
     return (parsed + timedelta(days=1)).isoformat()
 
 
-def _line_view(data: Dataset, line, baseline: Dataset) -> dict:
+def _line_view(data: Dataset, line, baseline: Dataset,
+               confirmed: Dict[str, dict]) -> dict:
     """One allocator line, enriched for display. Adds no arithmetic."""
     product = data.product(line.skuId)
     evidence = dict(line.evidence)
@@ -203,6 +226,27 @@ def _line_view(data: Dataset, line, baseline: Dataset) -> dict:
             "earliestPromisedDate": evidence.get("earliestPromisedDate"),
             "fulfilmentPolicy": evidence.get("fulfilmentPolicy"),
         })
+
+    # Where this purchase cost came from. Never inferred from the figures -
+    # a confirmed price that happens to equal the seeded one is still
+    # confirmed, and a plan must not claim otherwise.
+    entry = confirmed.get(line.skuId)
+    if entry:
+        view["costSource"] = CONFIRMED_SUPPLIER_PRICE
+        view["costProvenance"] = {
+            "source": CONFIRMED_SUPPLIER_PRICE,
+            "sourceJobId": entry.get("sourceJobId") or None,
+            "confirmedAt": entry.get("confirmedAt") or None,
+            "note": "You confirmed this supplier price.",
+        }
+    else:
+        view["costSource"] = SEEDED_SUPPLIER_PRICE
+        view["costProvenance"] = {
+            "source": SEEDED_SUPPLIER_PRICE,
+            "sourceJobId": None,
+            "confirmedAt": None,
+            "note": "The shop's existing supplier cost - no newer price confirmed.",
+        }
 
     baseline_cost = current_cost(baseline, line.skuId)
     if money(baseline_cost) != money(line.unitCost):
@@ -249,11 +293,12 @@ def build_purchase_plan(
     reprice the plan. Everything else is the Stage 1 allocator unchanged.
     """
     amount = parse_budget(budget)
-    costs = confirmed_costs(decisions or [])
+    details = confirmed_cost_details(decisions or [])
+    costs = {sku: d["cost"] for sku, d in details.items()}
     priced = apply_confirmed_costs(data, costs)
 
     plan = allocate_budget(priced, amount)
-    lines = [_line_view(priced, l, data) for l in plan.lines]
+    lines = [_line_view(priced, l, data, details) for l in plan.lines]
 
     commitments = [l for l in lines if l["tier"] == TIER1]
     restock = [l for l in lines if l["tier"] == TIER2]
@@ -282,9 +327,12 @@ def build_purchase_plan(
                 "skuId": sku,
                 "productName": data.product(sku).name,
                 "previousCost": money(current_cost(data, sku)),
-                "confirmedCost": price,
+                "confirmedCost": details[sku]["cost"],
+                "sourceJobId": details[sku]["sourceJobId"] or None,
+                "confirmedAt": details[sku]["confirmedAt"] or None,
+                "source": CONFIRMED_SUPPLIER_PRICE,
             }
-            for sku, price in sorted(costs.items())
+            for sku in sorted(details)
             if sku in data.products
         ],
         "counts": {
@@ -299,6 +347,8 @@ def build_purchase_plan(
                      "priority = stockoutRisk x marginPerRupee, highest first.",
             "costBasis": "All spend is in supplier purchase cost. Selling price "
                          "is never changed by a purchase plan.",
+            "costSource": "Each line states whether its purchase cost is one "
+                          "you confirmed or the shop's existing supplier cost.",
         },
     }
 

@@ -29,6 +29,7 @@ out.
 from __future__ import annotations
 
 import sys
+import time
 import uuid
 from decimal import Decimal
 from pathlib import Path
@@ -38,6 +39,16 @@ sys.path.insert(0, str(ROOT / "backend"))
 
 import boto3  # noqa: E402
 
+from boto3.dynamodb.conditions import Key  # noqa: E402
+
+from engine.cost_records import (  # noqa: E402
+    DEFAULT_SHOP_ID,
+    build_cost_record,
+    cost_pk,
+    cost_sk,
+    latest_confirmed_costs,
+    to_plan_decisions,
+)
 from engine.loader import cached_dataset  # noqa: E402
 from engine.purchasing import build_purchase_plan  # noqa: E402
 
@@ -67,6 +78,10 @@ def main() -> int:
     job_id = uuid.uuid4().hex
     pk = f"SMOKE#DECISION#{job_id}"
     sk = f"SKU#{WIRE}"
+    # The real shop key is SHOP#demo. The smoke test deliberately writes to a
+    # SMOKE# partition instead, so a failed run can never leave a bogus cost
+    # sitting in the shop's live state.
+    smoke_cost_pk = f"SMOKE#{cost_pk(DEFAULT_SHOP_ID)}"
 
     print(f"ShopFlow planner smoke test")
     print(f"  table   {TABLE_NAME}")
@@ -150,12 +165,96 @@ def main() -> int:
               plan["budgetIsBinding"] is True,
               f"{plan['counts']['restockDeferred']} deferred")
 
+        # ---- 5. Stage 5.1: the durable confirmed purchase cost ----
+        #
+        # This is the path the planner now takes with no job id at all, so it
+        # is the one that matters most. It also exercises a composite key
+        # condition against the real table - the in-memory fake once parsed
+        # that wrongly and silently matched nothing, which no unit test caught.
+        print("5. persist a confirmed purchase cost and read it back")
+        record = build_cost_record(
+            data, WIRE, float(CONFIRMED_PRICE),
+            source_job_id=job_id,
+            confirmed_at=int(time.time()),
+            effective_date="15-09-2026",
+        )
+        # Written the way the API writes it: Decimal, not float.
+        record["confirmedCost"] = CONFIRMED_PRICE
+        record["PK"] = smoke_cost_pk  # keep the smoke data out of shop state
+        table.put_item(Item=record)
+        check("DynamoDB accepted the cost record", True)
+        check("cost record carries no TTL", "expiresAt" not in record)
+
+        rows = table.query(
+            KeyConditionExpression=Key("PK").eq(smoke_cost_pk)
+            & Key("SK").begins_with("COST#")
+        ).get("Items", [])
+        check("composite query returned the cost row", len(rows) == 1,
+              f"{len(rows)} row(s)")
+
+        stored = rows[0] if rows else {}
+        check("cost came back as Decimal",
+              isinstance(stored.get("confirmedCost"), Decimal),
+              f"type={type(stored.get('confirmedCost')).__name__}")
+        check("currency recorded", stored.get("currency") == "INR",
+              str(stored.get("currency")))
+        check("source job id retained", stored.get("sourceJobId") == job_id)
+        check("supplier recorded",
+              stored.get("supplierId") == data.product(WIRE).supplierId,
+              str(stored.get("supplierId")))
+        check("effective date retained", stored.get("effectiveDate") == "15-09-2026")
+        check("no selling price on the record", "sellingPrice" not in stored)
+
+        # ---- 6. stored record -> engine, with no job id involved ----
+        print("6. plan from the stored cost alone")
+        latest = latest_confirmed_costs([{
+            "skuId": stored.get("skuId"),
+            "confirmedCost": float(stored.get("confirmedCost")),
+            "currency": stored.get("currency"),
+            "supplierId": stored.get("supplierId"),
+            "effectiveDate": stored.get("effectiveDate"),
+            "sourceJobId": stored.get("sourceJobId"),
+            "confirmedAt": stored.get("confirmedAt"),
+        }])
+        durable = build_purchase_plan(data, BUDGET, to_plan_decisions(latest))
+        print(f"  tier1={durable['commitmentCost']:,.2f} "
+              f"tier2={durable['restockCost']:,.2f} "
+              f"total={durable['totalSpend']:,.2f} "
+              f"remaining={durable['remaining']:,.2f}")
+
+        dline = next((l for l in durable["commitments"] if l["skuId"] == WIRE), None)
+        check("planner used the stored confirmed cost",
+              dline is not None and dline["unitCost"] == 6300.0,
+              f"unitCost={dline['unitCost'] if dline else 'missing'}")
+        check("evidence says CONFIRMED_SUPPLIER_PRICE",
+              dline is not None
+              and dline["costSource"] == "CONFIRMED_SUPPLIER_PRICE",
+              str(dline["costSource"]) if dline else "missing")
+        check("provenance names the source price list",
+              dline is not None
+              and dline["costProvenance"]["sourceJobId"] == job_id)
+        check("selling price still untouched",
+              dline is not None
+              and dline["sellingPrice"] == data.product(WIRE).sellingPrice)
+        check("same result as the job-id path",
+              durable["commitmentCost"] == plan["commitmentCost"],
+              f"Rs {durable['commitmentCost']:,.2f}")
+
+        unconfirmed = [l for l in durable["commitments"] if l["skuId"] != WIRE]
+        check("unconfirmed SKUs are labelled SEEDED_SUPPLIER_PRICE",
+              all(l["costSource"] == "SEEDED_SUPPLIER_PRICE" for l in unconfirmed),
+              f"{len(unconfirmed)} line(s)")
+
     finally:
-        # ---- 5. leave nothing behind ----
-        print("5. clean up")
+        # ---- 7. leave nothing behind ----
+        print("7. clean up")
         table.delete_item(Key={"PK": pk, "SK": sk})
-        gone = table.get_item(Key={"PK": pk, "SK": sk}).get("Item") is None
-        check("smoke record removed", gone)
+        table.delete_item(Key={"PK": smoke_cost_pk, "SK": cost_sk(WIRE)})
+        gone = (table.get_item(Key={"PK": pk, "SK": sk}).get("Item") is None
+                and table.get_item(
+                    Key={"PK": smoke_cost_pk, "SK": cost_sk(WIRE)}
+                ).get("Item") is None)
+        check("smoke records removed", gone)
 
     print()
     if failures:
