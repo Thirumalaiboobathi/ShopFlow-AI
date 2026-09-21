@@ -37,6 +37,34 @@ from .budget import (
     TIER1,
     TIER2,
 )
+from .credit import (
+    APPROVED,
+    BLOCKED,
+    LIMIT_EXCEEDED,
+    NO_CREDIT_ACCOUNT,
+    check_credit,
+    check_quote_credit,
+    list_customers,
+)
+from .uom import (
+    SUPPORTED_UOMS,
+    base_equivalent,
+    conversion_note,
+    normalize_uom,
+    product_uom,
+    resolve_uom,
+)
+from .margin import (
+    HEALTHY,
+    LOW_MARGIN,
+    MARGIN_REDUCED,
+    MARGIN_WARNING_PERCENT,
+    NEGATIVE_MARGIN,
+    margin_alerts,
+    margin_view,
+    quotation_margin_impact,
+    suggested_selling_price,
+)
 from .scenarios import scenario_report
 
 __all__ = [
@@ -48,5 +76,12 @@ __all__ = [
     "margin_per_rupee", "price_delta",
     "BudgetPlan", "PlanLine", "allocate_budget", "restock_candidates",
     "BUY", "DEFER", "PARTIAL", "TIER1", "TIER2",
+    "APPROVED", "BLOCKED", "LIMIT_EXCEEDED", "NO_CREDIT_ACCOUNT",
+    "check_credit", "check_quote_credit", "list_customers",
+    "SUPPORTED_UOMS", "base_equivalent", "conversion_note", "normalize_uom",
+    "product_uom", "resolve_uom",
+    "HEALTHY", "LOW_MARGIN", "MARGIN_REDUCED", "NEGATIVE_MARGIN",
+    "MARGIN_WARNING_PERCENT", "margin_alerts", "margin_view",
+    "quotation_margin_impact", "suggested_selling_price",
     "scenario_report",
 ]

@@ -129,9 +129,11 @@ core ship-gate requirement, and what both AI scoring and human judges will hit.
 
 **Open:** API Gateway → APIs → the ShopFlow HTTP API → **Routes**.
 
-**Must be visible:** all seven routes —
+**Must be visible:** all eight routes —
 `GET /api/health`, `POST /api/orders`, `POST /api/supplier-price-lists`,
 `POST /api/price-decisions`, `POST /api/purchase-plans`,
+`POST /api/shop-queries`, `GET /api/customers`,
+`GET /api/customers/{customerId}`, `POST /api/credit/check`,
 `GET /api/jobs/{jobId}`, `GET /api/demo`.
 
 **Also worth capturing** (`06b-apigw-throttle.png`): Stages → `$default` →
@@ -310,6 +312,259 @@ have silently destroyed — now guarded by `scripts/deploy.sh`.
 
 ---
 
+## 8a1. Units on a quotation
+
+**Open:** the live site, run the canonical order, look at the wire line.
+
+**Must be visible:** **3 COIL**, the **270 METER equivalent** beside it, and
+the unit price shown **per coil**.
+
+**Why it matters:** the requested unit is preserved rather than replaced. The
+equivalence is shown for information; the order is still three coils and the
+price is still per coil.
+
+**Filename:** `8a1-uom-quote-line.png`
+
+---
+
+## 8a2. A unit that will not be converted
+
+**Open:** submit *"90 metres Finolex 1.5 sq mm red wire."*
+
+**Must be visible:** the clarification, stating **1 COIL = 90 METER** and
+asking how many coils — and **no quotation**.
+
+**Why it matters:** the strongest unit claim. Ninety metres is exactly one
+coil, and ShopFlow still refuses to decide that for the owner. Capture this
+one; it is the difference between a unit field and unit handling.
+
+**Filename:** `8a2-uom-no-silent-conversion.png`
+
+---
+
+## 8a3. Khata — credit approved
+
+**Open:** choose **Bala Contractors** in **Put this on**, run the canonical
+order.
+
+**Must be visible:** the **Khata / Credit** panel showing outstanding, limit,
+this order, projected outstanding, remaining credit, and **✓ Credit
+approved** — plus the line stating ShopFlow does not perform credit scoring
+and that demo records are synthetic.
+
+**Why it matters:** shows the whole decision, with its inputs, on the screen
+that uses it.
+
+**Filename:** `8a3-khata-approved.png`
+
+---
+
+## 8a4. Khata — limit exceeded, quotation intact
+
+**Open:** switch to **Ravi Electrical Works** and run the same order.
+
+**Must be visible:** **⚠ Credit limit exceeded**, the negative remaining
+credit, *"This quotation stands"* — and the **₹22,306.48 quotation still on
+screen above it**, unchanged.
+
+**Why it matters:** the safety claim. A credit result never cancels, reprices
+or hides a quotation. Both must be in the same frame, or the screenshot does
+not prove it.
+
+**Filename:** `8a4-khata-exceeded.png`
+
+---
+
+## 8a5. Credit is not stored
+
+**Open:** DynamoDB → `shopflow-demo` → Explore items, after running several
+credit checks.
+
+**Must be visible:** the item list with **no** `CUSTOMER#` partition key and
+no new rows from the credit checks.
+
+**Why it matters:** a credit enquiry records nothing. Customers are seed data
+shipped in the bundle, not stored state, and no real customer data exists
+anywhere.
+
+**Filename:** `8a5-no-credit-rows.png`
+
+---
+
+## 8b. Margin protection panel
+
+**Open:** the live site, run the price list, confirm the wire increase
+(runbook Step E).
+
+**Must be visible:** the **Margin protection** panel under the confirmed line,
+showing selling price ₹6,608.00, previous supplier cost ₹5,900.00, confirmed
+supplier cost ₹6,300.00, previous margin ₹708.00, current margin ₹308.00 and
+the ₹400.00 reduction.
+
+**Why it matters:** this is the PROTECT job, and the strongest commercial claim
+in the product — a 6.78% cost rise measured as a 57% loss of margin. It is the
+link between the supplier price list and the purchasing plan.
+
+**Filename:** `8b-margin-protection.png`
+
+---
+
+## 8c. The suggestion, and the human boundary
+
+**Open:** click **Review price** on the same panel.
+
+**Must be visible:** the suggested selling price (₹7,055.66), *"Review and
+confirm before applying any price change"*, and *"ShopFlow does not
+automatically change your selling price."*
+
+**Why it matters:** proves the recommendation is a recommendation. There is no
+control anywhere on the page that applies it, and the selling price on the
+quotation and in the catalogue is unchanged.
+
+**Filename:** `8c-margin-suggestion.png`
+
+---
+
+## 8d. Margin protection on the purchase plan
+
+**Open:** run the planner at ₹25,000 after confirming.
+
+**Must be visible:** the **Margin protection** section inside the plan, above
+the commitments, alongside the existing ₹803.40 supplier-price-impact block.
+
+**Why it matters:** the same confirmed cost, followed through to both of its
+consequences — margin per unit sold, and restocking capacity for the week.
+They are different figures and the UI does not conflate them.
+
+**Filename:** `8d-margin-in-plan.png`
+
+---
+
+## 8e. WhatsApp quotation draft
+
+**Open:** click **Send Quote on WhatsApp** under a quotation.
+
+**Must be visible:** WhatsApp (app or web) with the draft message showing the
+real line prices, **Total: ₹22,306.48** and both shortages — and the message
+still **unsent**.
+
+**Why it matters:** shows the handoff is a draft the owner sends. Capture it
+before sending; do **not** send it to anyone.
+
+**Filename:** `8e-whatsapp-quote-draft.png`
+
+---
+
+## 8f. WhatsApp purchase-request draft
+
+**Open:** click **Share Purchase Plan** under a plan.
+
+**Must be visible:** the draft grouped by supplier, the plan's own estimated
+cost and budget, and the line *"Draft only — no order has been placed."*
+
+**Why it matters:** no order is placed, no message is sent, and the draft says
+so in its own text.
+
+**Filename:** `8f-whatsapp-plan-draft.png`
+
+---
+
+## 15b. Voice assistant — microphone UI
+
+**Open:** the live site in Chrome, scroll to **Voice assistant**.
+
+**Must be visible:** the microphone button, the language selector (Auto /
+Tamil / English), and the status line. Capture once **idle** and once
+**listening** (red, "Listening… speak naturally").
+
+**Why it matters:** shows voice is a first-class input on the real deployed
+app, not a mock.
+
+**Filenames:** `15b-voice-idle.png`, `15c-voice-listening.png`
+
+---
+
+## 15d. Tamil / Tanglish transcript
+
+**Open:** speak *"Anna, 20 Anchor modular switch 1-Way 10 amp, 3 coil Finolex
+1.5 sq mm red wire 90m, 2 Havells MCB SP 32 amp."*
+
+**Must be visible:** the recognised transcript in the editable **You said**
+box, and any "Adjusted for speech" note.
+
+**Why it matters:** proves Tanglish input reaches the system, and that the
+owner sees and can correct what was heard before anything is acted on.
+
+**Filename:** `15d-voice-transcript.png`
+
+---
+
+## 15e. Voice order result
+
+**Must be visible:** the quotation produced from the spoken order, showing
+**₹22,306.48** — the same total as the typed path.
+
+**Why it matters:** the single strongest voice claim. Voice changed the input
+channel; the deterministic engine still produced the number.
+
+**Filename:** `15e-voice-order-quote.png`
+
+---
+
+## 15f. Voice clarification
+
+**Open:** speak *"Anchor switch stock la evlo irukku?"*
+
+**Must be visible:** the assistant asking which variant, with real options —
+**no number invented**.
+
+**Why it matters:** the refusal-to-guess rule holds over voice too.
+
+**Filename:** `15f-voice-clarification.png`
+
+---
+
+## 15g. Spoken quotation / stock answer
+
+**Open:** speak *"Havells MCB SP 32 amp irukka?"*
+
+**Must be visible:** the assistant's reply with the real stock figure, and the
+fact strip showing stock, price and SKU.
+
+**Why it matters:** shows spoken answers carry engine values, not paraphrase.
+
+**Filename:** `15g-voice-stock-answer.png`
+
+---
+
+## 15h. Fallback behaviour
+
+**Open:** either a browser without the Web Speech API, or deny the microphone
+permission deliberately.
+
+**Must be visible:** the plain message ("…you can type the order instead") and
+the typed order box still fully usable below.
+
+**Why it matters:** the business workflow never depends on speech working.
+
+**Filename:** `15h-voice-fallback.png`
+
+---
+
+## 15i. Voice architecture (no AWS change)
+
+**Open:** API Gateway → Routes, showing `POST /api/shop-queries`.
+
+**Must be visible:** the route alongside the others.
+
+**Why it matters:** voice added exactly one deterministic route and **no new
+AWS service**. Speech recognition is client-side; the business workflow stays
+on AWS. The route has no Bedrock access — it is catalogue lookup only.
+
+**Filename:** `15i-voice-api-route.png`
+
+---
+
 ## 16. Final deployed state
 
 **Open:** run and capture, in one terminal frame:
@@ -369,4 +624,22 @@ Tick only when the file actually exists in this directory.
 - [ ] `14-cloudwatch-log-groups.png`
 - [ ] `14b-cloudwatch-worker-log-line.png`
 - [ ] `15-aws-budget.png`
+- [ ] `8a1-uom-quote-line.png`
+- [ ] `8a2-uom-no-silent-conversion.png`
+- [ ] `8a3-khata-approved.png`
+- [ ] `8a4-khata-exceeded.png`
+- [ ] `8a5-no-credit-rows.png`
+- [ ] `8b-margin-protection.png`
+- [ ] `8c-margin-suggestion.png`
+- [ ] `8d-margin-in-plan.png`
+- [ ] `8e-whatsapp-quote-draft.png`
+- [ ] `8f-whatsapp-plan-draft.png`
+- [ ] `15b-voice-idle.png`
+- [ ] `15c-voice-listening.png`
+- [ ] `15d-voice-transcript.png`
+- [ ] `15e-voice-order-quote.png`
+- [ ] `15f-voice-clarification.png`
+- [ ] `15g-voice-stock-answer.png`
+- [ ] `15h-voice-fallback.png`
+- [ ] `15i-voice-api-route.png`
 - [ ] `16-final-state-tests.png`

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import random
+import re
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Dict, List
@@ -23,6 +24,9 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 
 from engine.models import (  # noqa: E402
+    CUSTOMER_ACTIVE,
+    CUSTOMER_BLOCKED,
+    Customer,
     CustomerOrder,
     Dataset,
     InventoryItem,
@@ -32,6 +36,7 @@ from engine.models import (  # noqa: E402
     SupplierPrice,
     WeeklySales,
 )
+from engine.uom import METER, normalize_uom  # noqa: E402
 
 SEED = 20260919
 SHOP_ID = "demo"
@@ -93,12 +98,39 @@ def _sku(*parts) -> str:
     return "-".join(str(p) for p in parts if p not in (None, ""))
 
 
+_MEASURED_LENGTH = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*m\s*$", re.IGNORECASE)
+
+
+def _conversion_for(uom: str, length):
+    """How much base unit one catalogue unit holds, where the shop measured it.
+
+    Configured only where the catalogue ALREADY states a measurement: a wire
+    coil carries its length ("90m"), so 1 COIL = 90 METER is a fact the data
+    already contains rather than a rule about coils in general. A 180 m coil
+    gets 180, because the number is read off the SKU.
+
+    Everything else gets no conversion. Conduit is sold by the LENGTH and clips
+    by the PACK, and this shop has not recorded how many metres or how many
+    clips those contain - so nothing is assumed, and a request in metres
+    against them is refused rather than guessed. A conversion that is invented
+    is worse than a conversion that is absent.
+    """
+    if uom == METER or not length:
+        return None, None
+    match = _MEASURED_LENGTH.match(str(length))
+    if not match:
+        return None, None
+    return float(match.group(1)), METER
+
+
 def build_catalog() -> List[Product]:
     products: List[Product] = []
 
     def add(skuId, brand, category, spec, colour, length, unit, cost, name,
             is_default=False):
         selling = round(cost * CATEGORY_MARGIN[category], 2)
+        uom = normalize_uom(unit) or "PIECE"
+        base_quantity, base_uom = _conversion_for(uom, length)
         products.append(
             Product(
                 skuId=skuId, brand=brand, category=category, specification=spec,
@@ -106,6 +138,8 @@ def build_catalog() -> List[Product]:
                 sellingPrice=selling, costPrice=round(cost, 2),
                 supplierId=BRAND_SUPPLIER[brand], name=name,
                 isDefaultVariant=is_default,
+                uom=uom, uomQuantity=1.0,
+                baseQuantity=base_quantity, baseUom=base_uom,
             )
         )
 
@@ -385,6 +419,68 @@ def build_orders() -> List[CustomerOrder]:
     ]
 
 
+# ---------------------------------------------------------------------------
+# Khata accounts - SYNTHETIC DEMO DATA
+# ---------------------------------------------------------------------------
+#
+# Every customer below is invented for this demo. The names are trade names of
+# the kind an electrical shop in Madurai deals with, the phone numbers are in
+# the +91 99000 xxxxx block reserved here for fixtures and belong to nobody,
+# and no figure describes a real person or a real business. Nothing in this
+# repository ever holds real customer data.
+#
+# The four accounts exist to exercise the four credit outcomes against the
+# canonical Rs 22,306.48 quotation without any number being tuned to it:
+#
+#   BALA    a large limit and a small balance      -> APPROVED
+#   RAVI    the Rs 15,000 limit from the brief     -> LIMIT_EXCEEDED
+#   SELVAM  a clean account, nothing outstanding   -> APPROVED
+#   KUMAR   suspended by the owner                 -> BLOCKED
+#
+DEMO_CUSTOMERS = [
+    Customer(
+        customerId="CUST-BALA-002",
+        customerName="Bala Contractors",
+        phone="+919900000002",
+        creditLimit=60000.0,
+        outstandingAmount=12400.0,
+        paymentDueDays=30,
+        status=CUSTOMER_ACTIVE,
+    ),
+    Customer(
+        customerId="CUST-RAVI-001",
+        customerName="Ravi Electrical Works",
+        phone="+919900000001",
+        creditLimit=15000.0,
+        outstandingAmount=8500.0,
+        paymentDueDays=30,
+        status=CUSTOMER_ACTIVE,
+    ),
+    Customer(
+        customerId="CUST-SELVAM-003",
+        customerName="Selvam Builders",
+        phone="+919900000003",
+        creditLimit=40000.0,
+        outstandingAmount=0.0,
+        paymentDueDays=15,
+        status=CUSTOMER_ACTIVE,
+    ),
+    Customer(
+        customerId="CUST-KUMAR-004",
+        customerName="Kumar Wiring Services",
+        phone="+919900000004",
+        creditLimit=25000.0,
+        outstandingAmount=21750.0,
+        paymentDueDays=45,
+        status=CUSTOMER_BLOCKED,
+    ),
+]
+
+
+def build_customers() -> Dict[str, Customer]:
+    return {c.customerId: c for c in DEMO_CUSTOMERS}
+
+
 def build_dataset() -> Dataset:
     """The single source of truth for every ShopFlow demo number."""
     rnd = random.Random(SEED)
@@ -411,6 +507,7 @@ def build_dataset() -> Dataset:
         suppliers={s.supplierId: s for s in SUPPLIERS},
         priceHistory=prices,
         orders=build_orders(),
+        customers=build_customers(),
     )
 
 
@@ -431,6 +528,7 @@ def write_seed(data: Dataset, out_dir: Path = SEED_DIR) -> Dict[str, int]:
         "orders": [
             {**vars(o), "lines": [vars(l) for l in o.lines]} for o in data.orders
         ],
+        "customers": [vars(c) for c in data.customers.values()],
     }
     counts = {}
     for name, rows in payloads.items():

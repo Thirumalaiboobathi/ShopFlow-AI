@@ -6,6 +6,10 @@ Three routes, no more than the workflow needs:
     POST /api/supplier-price-lists  read a photographed price list, queue it
     POST /api/price-decisions     record the owner's ruling on a price change
     POST /api/purchase-plans      allocate a cash budget across purchases
+    POST /api/shop-queries        answer a spoken stock/price/availability ask
+    GET  /api/customers           the shop's khata accounts (synthetic demo data)
+    GET  /api/customers/{id}      one khata account
+    POST /api/credit/check        deterministic credit decision for an amount
     GET  /api/jobs/{id}           poll a queued job
     GET  /api/demo                the seeded example, so the UI hard-codes nothing
 
@@ -42,15 +46,27 @@ from engine.cost_records import (
     latest_confirmed_costs,
     to_plan_decisions,
 )
+from engine.credit import (
+    InvalidOrderTotalError,
+    check_credit,
+    customer_view,
+    list_customers,
+)
 from engine.loader import cached_dataset
+from engine.margin import margin_alerts, margin_view
 from engine.purchasing import (
     InvalidBudgetError,
     build_purchase_plan,
     what_if,
 )
 from engine.supplier_prices import DECISIONS, build_decision_record
+from engine.voice import MAX_TRANSCRIPT_CHARS, answer_shop_query
 
 MAX_ORDER_CHARS = 1000
+# A customer id is an internal key, not free text. Bounded and pattern-checked
+# so a junk value cannot travel any further than this function.
+MAX_CUSTOMER_ID_CHARS = 64
+CUSTOMER_ID_PATTERN = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 MAX_BODY_BYTES = 4096
 MAX_CLARIFICATIONS = 10
 
@@ -146,6 +162,15 @@ def _create_order(event) -> dict:
         return _response(
             400, {"error": f"orderText must be {MAX_ORDER_CHARS} characters or fewer"})
 
+    # The khata account this order goes on, if any. Optional on purpose: the
+    # anonymous counter sale is the common case and must behave exactly as it
+    # always has, with no credit block anywhere in the result.
+    customer_id = _CONTROL.sub("", str(payload.get("customerId") or "")).strip()
+    if customer_id:
+        if len(customer_id) > MAX_CUSTOMER_ID_CHARS or not CUSTOMER_ID_PATTERN.match(
+                customer_id):
+            return _response(400, {"error": "invalid customerId"})
+
     # Owner-confirmed answers to an earlier clarification. Validated here so an
     # invented SKU can never re-enter the flow through the front door.
     clarifications = payload.get("clarifications") or []
@@ -173,6 +198,7 @@ def _create_order(event) -> dict:
         "jobType": JOB_ORDER,
         "status": "QUEUED",
         "orderText": order_text,
+        "customerId": customer_id,
         "clarifications": cleaned,
         "createdAt": now,
         "expiresAt": now + JOB_TTL_SECONDS,
@@ -336,6 +362,12 @@ def _create_price_decision(event) -> dict:
             "confirmedCost": cost_record["confirmedCost"],
             "currency": cost_record["currency"],
             "confirmedAt": now,
+            # The margin consequence of the cost the owner just accepted,
+            # returned immediately so it is visible at the moment of the
+            # decision rather than only on the next purchase plan. It reports;
+            # it changes nothing, and the selling price is untouched.
+            "marginProtection": margin_view(
+                data, sku_id, cost_record["confirmedCost"]),
         }
     else:
         # Rejection records the ruling and nothing else - the shop keeps
@@ -370,25 +402,7 @@ def _create_purchase_plan(event) -> dict:
     except (TypeError, ValueError):
         return _response(400, {"error": "budget must be a number"})
 
-    # The shop's durable confirmed purchase costs. Read on every plan, with no
-    # job id needed: a price the owner confirmed last week is what they pay
-    # today, whether or not they still have the document open.
-    rows = table().query(
-        KeyConditionExpression=Key("PK").eq(cost_pk(DEFAULT_SHOP_ID))
-        & Key("SK").begins_with("COST#")
-    ).get("Items", [])
-    confirmed = latest_confirmed_costs([
-        {
-            "skuId": row.get("skuId"),
-            "confirmedCost": _to_float(row.get("confirmedCost")),
-            "currency": row.get("currency"),
-            "supplierId": row.get("supplierId"),
-            "effectiveDate": row.get("effectiveDate"),
-            "sourceJobId": row.get("sourceJobId"),
-            "confirmedAt": row.get("confirmedAt"),
-        }
-        for row in rows
-    ])
+    confirmed = _confirmed_costs()
     decisions = to_plan_decisions(confirmed)
 
     # An explicit price-list job still works, and still wins: it is the owner
@@ -423,7 +437,42 @@ def _create_purchase_plan(event) -> dict:
     except InvalidBudgetError as exc:
         return _response(400, {"error": str(exc)})
 
+    # What the confirmed costs did to the shop's margin. Read-only, computed
+    # by the engine from the same three numbers the shop already holds, and
+    # deliberately separate from the allocation above - no plan figure depends
+    # on it, and no selling price is touched.
+    alerts = margin_alerts(
+        data, {sku: entry["cost"] for sku, entry in confirmed.items()})
+    if alerts:
+        plan["marginProtection"] = alerts
+
     return _response(200, plan)
+
+
+def _confirmed_costs() -> dict:
+    """The shop's durable confirmed purchase costs, keyed by SKU.
+
+    Read wherever a confirmed cost matters - the planner, a margin view, a
+    spoken margin question - so there is one query and one shape rather than
+    three. A price the owner confirmed last week is what they pay today,
+    whether or not they still have the document open.
+    """
+    rows = table().query(
+        KeyConditionExpression=Key("PK").eq(cost_pk(DEFAULT_SHOP_ID))
+        & Key("SK").begins_with("COST#")
+    ).get("Items", [])
+    return latest_confirmed_costs([
+        {
+            "skuId": row.get("skuId"),
+            "confirmedCost": _to_float(row.get("confirmedCost")),
+            "currency": row.get("currency"),
+            "supplierId": row.get("supplierId"),
+            "effectiveDate": row.get("effectiveDate"),
+            "sourceJobId": row.get("sourceJobId"),
+            "confirmedAt": row.get("confirmedAt"),
+        }
+        for row in rows
+    ])
 
 
 def _to_float(value):
@@ -434,6 +483,97 @@ def _to_float(value):
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _create_shop_query(event) -> dict:
+    """Answer a spoken shop question, or say which workflow should handle it.
+
+    Synchronous and model-free, like the purchase planner: this is catalogue
+    and inventory lookup through the existing matcher, so there is nothing to
+    wait for.
+
+    Only stock, price and availability are answered here. An order or a budget
+    question is reported back with `delegateTo` so the caller uses the existing
+    /api/orders and /api/purchase-plans endpoints - voice must not grow a
+    second implementation of either workflow.
+
+    A spoken request to confirm a supplier price is never executed. It comes
+    back as NEEDS_HUMAN_CONFIRMATION, and the owner confirms on screen.
+    """
+    raw = event.get("body") or ""
+    if len(raw.encode("utf-8")) > MAX_BODY_BYTES:
+        return _response(413, {"error": "request body too large"})
+    try:
+        payload = json.loads(raw) if raw else {}
+    except json.JSONDecodeError:
+        return _response(400, {"error": "body must be JSON"})
+
+    transcript = _CONTROL.sub("", str(payload.get("transcript") or "")).strip()
+    if not transcript:
+        return _response(400, {"error": "transcript is required"})
+    if len(transcript) > MAX_TRANSCRIPT_CHARS:
+        return _response(400, {
+            "error": f"transcript must be {MAX_TRANSCRIPT_CHARS} characters or fewer"})
+
+    # A margin question needs the shop's confirmed costs. Read here rather
+    # than in the voice layer, which owns no data access of its own.
+    costs = {sku: entry["cost"] for sku, entry in _confirmed_costs().items()}
+    return _response(
+        200, answer_shop_query(cached_dataset(), transcript, costs))
+
+
+def _get_customers(event) -> dict:
+    """Every khata account. Read-only, and synthetic to the last digit."""
+    return _response(200, {
+        "customers": list_customers(cached_dataset()),
+        "synthetic": True,
+        "note": "Demo customer records are synthetic. No real customer data "
+                "is stored anywhere in this project.",
+    })
+
+
+def _get_customer(event) -> dict:
+    customer_id = (event.get("pathParameters") or {}).get("customerId") or ""
+    if not CUSTOMER_ID_PATTERN.match(customer_id):
+        return _response(400, {"error": "invalid customerId"})
+
+    customer = cached_dataset().customer(customer_id)
+    if customer is None:
+        return _response(404, {"error": "no khata account for that customer"})
+    return _response(200, customer_view(customer))
+
+
+def _create_credit_check(event) -> dict:
+    """The credit decision for one amount against one khata account.
+
+    Synchronous and model-free, like the purchase planner: it is a comparison
+    between two numbers the shop already holds. Bedrock is never called for a
+    credit decision, and no model contributes to one.
+
+    Nothing is written. A credit check records no enquiry, moves no balance
+    and changes no limit - it answers a question and stops.
+    """
+    raw = event.get("body") or ""
+    if len(raw.encode("utf-8")) > MAX_BODY_BYTES:
+        return _response(413, {"error": "request body too large"})
+    try:
+        payload = json.loads(raw) if raw else {}
+    except json.JSONDecodeError:
+        return _response(400, {"error": "body must be JSON"})
+
+    customer_id = _CONTROL.sub("", str(payload.get("customerId") or "")).strip()
+    if not customer_id:
+        return _response(400, {"error": "customerId is required"})
+    if not CUSTOMER_ID_PATTERN.match(customer_id):
+        return _response(400, {"error": "invalid customerId"})
+
+    try:
+        result = check_credit(cached_dataset(), customer_id,
+                              payload.get("orderTotal"))
+    except InvalidOrderTotalError as exc:
+        return _response(400, {"error": str(exc)})
+
+    return _response(200, result)
 
 
 def _get_job(event) -> dict:
@@ -450,6 +590,7 @@ def _get_job(event) -> dict:
         "jobType": item.get("jobType", JOB_ORDER),
         "status": item["status"],
         "orderText": item.get("orderText"),
+        "customerId": item.get("customerId") or None,
         "createdAt": int(item.get("createdAt", 0)),
     }
     if item.get("result"):
@@ -506,6 +647,10 @@ ROUTES = {
     "POST /api/supplier-price-lists": _create_price_list,
     "POST /api/price-decisions": _create_price_decision,
     "POST /api/purchase-plans": _create_purchase_plan,
+    "POST /api/shop-queries": _create_shop_query,
+    "GET /api/customers": _get_customers,
+    "GET /api/customers/{customerId}": _get_customer,
+    "POST /api/credit/check": _create_credit_check,
     "GET /api/jobs/{jobId}": _get_job,
     "GET /api/demo": _get_demo,
 }

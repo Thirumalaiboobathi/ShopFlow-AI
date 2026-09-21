@@ -14,6 +14,8 @@ from decimal import Decimal
 import pytest
 
 import lambdas.api.handler as api
+from engine.loader import cached_dataset
+from engine.margin import margin_view
 
 
 class FakeTable:
@@ -868,3 +870,293 @@ def test_selling_price_unchanged_alongside_the_impact(api_env):
     assert wire["unitCost"] == 6300.0
     assert wire["sellingPrice"] == 6608.0
     assert plan["confirmedCostImpact"]["directCommitmentIncrease"] == 800.00
+
+
+# ---- voice: POST /api/shop-queries ----
+
+def post_query(body: dict):
+    return {"routeKey": "POST /api/shop-queries", "body": json.dumps(body)}
+
+
+def test_shop_query_is_answered_synchronously_without_a_model(api_env):
+    """No job, no worker, no Bedrock - catalogue lookup only."""
+    _table, lam, _s3 = api_env
+    response = api.handler(post_query({"transcript": "Havells MCB SP 32 amp irukka?"}), None)
+
+    assert response["statusCode"] == 200
+    assert lam.invocations == []
+
+    body = body_of(response)
+    assert body["status"] == "RESOLVED"
+    assert body["product"]["skuId"] == "MCB-HAV-SP-32A-C"
+    assert body["spokenText"]
+
+
+def test_shop_query_rejects_an_empty_transcript(api_env):
+    for bad in ({}, {"transcript": ""}, {"transcript": "   "}):
+        assert api.handler(post_query(bad), None)["statusCode"] == 400
+
+
+def test_shop_query_rejects_an_overlong_transcript(api_env):
+    response = api.handler(post_query({"transcript": "a" * 1001}), None)
+    assert response["statusCode"] == 400
+
+
+def test_shop_query_delegates_an_order_rather_than_answering_it(api_env):
+    body = body_of(api.handler(
+        post_query({"transcript": "Anna 20 Anchor switch venum"}), None))
+    assert body["status"] == "DELEGATE"
+    assert body["delegateTo"] == "ORDER"
+    assert body["handledBy"] == "existing-workflow"
+
+
+def test_shop_query_never_confirms_a_supplier_price(api_env):
+    """A spoken instruction cannot change shop state."""
+    table, _lam, _s3 = api_env
+    body = body_of(api.handler(
+        post_query({"transcript": "Confirm the supplier price"}), None))
+
+    assert body["status"] == "NEEDS_HUMAN_CONFIRMATION"
+    assert body["requiresConfirmation"] is True
+    # Nothing was written to the table by that request.
+    assert not [k for k in table.items if k[0].startswith("SHOP#")]
+
+
+def test_shop_query_response_is_json_serialisable(api_env):
+    response = api.handler(
+        post_query({"transcript": "Finolex 1.5 sq mm red wire 90m price enna?"}), None)
+    assert "Infinity" not in response["body"] and "NaN" not in response["body"]
+    json.loads(response["body"])
+
+
+def test_shop_query_strips_control_characters(api_env):
+    body = body_of(api.handler(
+        post_query({"transcript": "Havells MCB SP 32 amp\x00 irukka?"}), None))
+    assert "\x00" not in body["transcript"]
+
+
+# ---- margin protection over the API ----------------------------------------
+
+
+def test_confirming_a_price_returns_the_margin_consequence(api_env):
+    """The owner sees what the cost did to their profit at the moment they
+    accept it, not two screens later."""
+    table, _lam, _s3 = api_env
+    job_id = seed_reviewed_job(table)
+
+    record = body_of(api.handler(post_decision(job_id, WIRE, "CONFIRMED"), None))
+    margin = record["marginProtection"]
+
+    data = cached_dataset()
+    assert margin == margin_view(data, WIRE, float(record["confirmedCost"]))
+    assert margin["oldMarginAmount"] > margin["newMarginAmount"]
+    assert margin["sellingPriceChanged"] is False
+
+
+def test_rejecting_a_price_reports_no_margin_change(api_env):
+    table, _lam, _s3 = api_env
+    job_id = seed_reviewed_job(table)
+
+    record = body_of(api.handler(post_decision(job_id, WIRE, "REJECTED"), None))
+    assert "marginProtection" not in record
+    assert record["purchaseCostPersisted"] is False
+
+
+def test_a_confirmed_cost_does_not_change_the_catalogue_selling_price(api_env):
+    """The safety property, checked through the front door."""
+    table, _lam, _s3 = api_env
+    before = cached_dataset().product(WIRE).sellingPrice
+
+    job_id = seed_reviewed_job(table)
+    api.handler(post_decision(job_id, WIRE, "CONFIRMED"), None)
+    api.handler(post_plan({"budget": 25000}), None)
+
+    assert cached_dataset().product(WIRE).sellingPrice == before
+
+
+def test_the_plan_reports_margin_protection_for_confirmed_costs(api_env):
+    table, _lam, _s3 = api_env
+    job_id = seed_reviewed_job(table)
+    api.handler(post_decision(job_id, WIRE, "CONFIRMED"), None)
+
+    plan = body_of(api.handler(post_plan({"budget": 25000}), None))
+    alerts = plan["marginProtection"]
+
+    assert [a["skuId"] for a in alerts] == [WIRE]
+    # Read from the same place the plan's own confirmed-cost block reads.
+    assert alerts[0]["confirmedSupplierCost"] == plan["confirmedCosts"][0]["confirmedCost"]
+    assert alerts[0]["previousSupplierCost"] == plan["confirmedCosts"][0]["previousCost"]
+
+
+def test_a_plan_with_no_confirmed_cost_omits_margin_protection(api_env):
+    """Absent rather than empty, so no UI implies a comparison was made."""
+    plan = body_of(api.handler(post_plan({"budget": 25000}), None))
+    assert "marginProtection" not in plan
+
+
+def test_margin_protection_does_not_alter_the_plans_own_figures(api_env):
+    """Adding the panel must not move a single allocation number."""
+    table, _lam, _s3 = api_env
+    job_id = seed_reviewed_job(table)
+    api.handler(post_decision(job_id, WIRE, "CONFIRMED"), None)
+
+    plan = body_of(api.handler(post_plan({"budget": 25000}), None))
+    for field in ("commitmentCost", "restockCost", "totalSpend", "remaining"):
+        assert isinstance(plan[field], (int, float))
+    # The allocator's own outputs still reconcile against the budget.
+    assert round(plan["totalSpend"] + plan["remaining"], 2) == plan["budget"]
+
+
+def test_a_spoken_margin_question_uses_the_shops_confirmed_cost(api_env):
+    table, _lam, _s3 = api_env
+    job_id = seed_reviewed_job(table)
+    api.handler(post_decision(job_id, WIRE, "CONFIRMED"), None)
+
+    body = body_of(api.handler(post_query(
+        {"transcript": "Finolex 1.5 sq mm red wire 90m margin evlo?"}), None))
+
+    assert body["intent"] == "MARGIN"
+    assert body["margin"]["comparisonAvailable"] is True
+    assert body["margin"]["confirmedSupplierCost"] == 6300.0
+    assert str(body["margin"]["newMarginAmount"]) in body["spokenText"].replace(",", "")
+
+
+def test_a_spoken_margin_question_with_no_confirmation_compares_nothing(api_env):
+    body = body_of(api.handler(post_query(
+        {"transcript": "Finolex 1.5 sq mm red wire 90m margin evlo?"}), None))
+
+    assert body["margin"]["comparisonAvailable"] is False
+    assert body["margin"]["confirmedSupplierCost"] is None
+
+
+def test_a_spoken_margin_question_writes_nothing(api_env):
+    """Asking about profit is a read. It must leave no row behind."""
+    table, _lam, _s3 = api_env
+    before = dict(table.items)
+
+    api.handler(post_query(
+        {"transcript": "Finolex 1.5 sq mm red wire 90m margin evlo?"}), None)
+
+    assert table.items == before
+
+
+# ---- khata / credit over the API -------------------------------------------
+
+
+def post_credit(body: dict):
+    return {"routeKey": "POST /api/credit/check", "body": json.dumps(body)}
+
+
+def test_customers_are_listed_and_labelled_synthetic(api_env):
+    body = body_of(api.handler({"routeKey": "GET /api/customers"}, None))
+
+    assert body["synthetic"] is True
+    assert len(body["customers"]) == 4
+    assert all(c["synthetic"] is True for c in body["customers"])
+    assert "synthetic" in body["note"].lower()
+
+
+def test_one_customer_is_returned_by_id(api_env):
+    body = body_of(api.handler({
+        "routeKey": "GET /api/customers/{customerId}",
+        "pathParameters": {"customerId": "CUST-RAVI-001"},
+    }, None))
+
+    assert body["customerName"] == "Ravi Electrical Works"
+    assert body["creditLimit"] == 15000.0
+    assert body["outstandingAmount"] == 8500.0
+
+
+def test_an_unknown_customer_id_is_a_404_not_an_invented_account(api_env):
+    response = api.handler({
+        "routeKey": "GET /api/customers/{customerId}",
+        "pathParameters": {"customerId": "CUST-NOBODY"},
+    }, None)
+    assert response["statusCode"] == 404
+
+
+def test_a_malformed_customer_id_is_rejected(api_env):
+    for bad in ("", "../../etc", "a b", "x" * 80):
+        response = api.handler({
+            "routeKey": "GET /api/customers/{customerId}",
+            "pathParameters": {"customerId": bad},
+        }, None)
+        assert response["statusCode"] == 400, bad
+
+
+def test_the_credit_check_reproduces_the_specified_example(api_env):
+    body = body_of(api.handler(post_credit(
+        {"customerId": "CUST-RAVI-001", "orderTotal": 4200}), None))
+
+    assert body == {**body, **{
+        "customerId": "CUST-RAVI-001",
+        "customerName": "Ravi Electrical Works",
+        "creditLimit": 15000.0,
+        "currentOutstanding": 8500.0,
+        "orderTotal": 4200.0,
+        "projectedOutstanding": 12700.0,
+        "remainingCredit": 2300.0,
+        "decision": "APPROVED",
+    }}
+
+
+def test_the_credit_check_calls_no_model_and_writes_nothing(api_env):
+    table, lam, _s3 = api_env
+    before = dict(table.items)
+
+    api.handler(post_credit({"customerId": "CUST-RAVI-001", "orderTotal": 4200}),
+                None)
+
+    assert lam.invocations == []
+    assert table.items == before
+
+
+def test_the_credit_check_reports_every_decision(api_env):
+    cases = {
+        "CUST-BALA-002": "APPROVED",
+        "CUST-RAVI-001": "LIMIT_EXCEEDED",
+        "CUST-KUMAR-004": "BLOCKED",
+        "CUST-NOT-REAL": "NO_CREDIT_ACCOUNT",
+    }
+    for customer_id, expected in cases.items():
+        body = body_of(api.handler(post_credit(
+            {"customerId": customer_id, "orderTotal": 22306.48}), None))
+        assert body["decision"] == expected, customer_id
+
+
+def test_the_credit_check_validates_its_input(api_env):
+    for bad in ({}, {"customerId": ""}, {"customerId": "a b", "orderTotal": 1},
+                {"customerId": "CUST-RAVI-001"},
+                {"customerId": "CUST-RAVI-001", "orderTotal": -1},
+                {"customerId": "CUST-RAVI-001", "orderTotal": "abc"}):
+        assert api.handler(post_credit(bad), None)["statusCode"] == 400, bad
+
+
+def test_the_credit_response_is_json_serialisable(api_env):
+    response = api.handler(post_credit(
+        {"customerId": "CUST-RAVI-001", "orderTotal": 4200.55}), None)
+    assert "Infinity" not in response["body"] and "NaN" not in response["body"]
+    json.loads(response["body"])
+
+
+def test_an_order_may_name_a_customer(api_env):
+    table, _lam, _s3 = api_env
+    job_id = body_of(api.handler(post_order({
+        "orderText": "20 switches", "customerId": "CUST-RAVI-001"}), None))["jobId"]
+
+    assert table.items[(f"JOB#{job_id}", "META")]["customerId"] == "CUST-RAVI-001"
+
+
+def test_an_order_without_a_customer_is_unchanged(api_env):
+    """The anonymous counter sale must behave exactly as it always has."""
+    table, _lam, _s3 = api_env
+    job_id = body_of(api.handler(post_order({"orderText": "20 switches"}), None))["jobId"]
+
+    assert table.items[(f"JOB#{job_id}", "META")]["customerId"] == ""
+
+
+def test_an_order_with_a_malformed_customer_id_is_rejected(api_env):
+    response = api.handler(post_order(
+        {"orderText": "20 switches", "customerId": "../../etc/passwd"}), None)
+    assert response["statusCode"] == 400
+    assert "customerId" in body_of(response)["error"]

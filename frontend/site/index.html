@@ -192,6 +192,8 @@
   .wcard .wl{color:var(--muted); margin-top:5px; line-height:1.55}
   .costbasis{padding:0 16px 12px; font-size:.85rem; color:var(--warn)}
 
+  .sr-only{position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+    overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0}
   .notbot{margin:18px 0 0; max-width:62ch; font-size:.93rem; line-height:1.6;
     color:var(--muted); border-left:3px solid var(--accent);
     background:var(--accent-soft); border-radius:0 8px 8px 0; padding:12px 16px}
@@ -235,6 +237,46 @@
   .im-grid dt{font-weight:650; white-space:nowrap}
   .im-grid dd{margin:0; color:var(--muted); line-height:1.5}
 
+  .vrow{display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin-top:16px}
+  .mic{display:inline-flex; align-items:center; gap:9px; background:var(--accent);
+    color:var(--bg); font-weight:650; border:none; border-radius:999px;
+    padding:12px 22px; font-size:.95rem; cursor:pointer}
+  .mic:disabled{opacity:.55; cursor:default}
+  .mic .dot{width:9px; height:9px; border-radius:50%; background:currentColor;
+    flex:none}
+  .mic.rec{background:var(--bad); color:#fff}
+  .mic.rec .dot{animation:pulse 1.1s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+  @media (prefers-reduced-motion:reduce){.mic.rec .dot{animation:none}}
+
+  .vstate{font-size:.87rem; color:var(--muted)}
+  .vstate.err{color:var(--bad)}
+  .vlang{display:flex; gap:6px; align-items:center; margin-left:auto}
+  .vlang label{font-size:.8rem; color:var(--muted)}
+  .vlang select{background:var(--panel); color:var(--ink);
+    border:1px solid var(--line); border-radius:8px; padding:7px 10px;
+    font:inherit; font-size:.85rem}
+
+  .vsaid{margin-top:16px; border:1px solid var(--line); border-radius:10px;
+    background:var(--panel); padding:14px 16px}
+  .vsaid .vlab{font-size:.74rem; letter-spacing:.07em; text-transform:uppercase;
+    color:var(--muted); font-weight:600}
+  .vsaid textarea{width:100%; margin-top:8px; background:var(--bg);
+    color:var(--ink); border:1px solid var(--line); border-radius:8px;
+    padding:10px 12px; font:inherit; font-size:1rem; resize:vertical;
+    min-height:58px; box-sizing:border-box}
+  .vsaid textarea:focus{outline:2px solid var(--accent); outline-offset:1px}
+  .valias{margin-top:8px; font-size:.79rem; color:var(--muted)}
+
+  .vreply{margin-top:16px; padding:14px 16px; border-radius:10px;
+    background:var(--accent-soft); border-left:3px solid var(--accent)}
+  .vreply .vlab{color:var(--accent)}
+  .vreply .vtext{margin-top:6px; font-size:1rem; line-height:1.55}
+  .vnote{margin-top:9px; font-size:.82rem; color:var(--muted)}
+  .vfacts{display:flex; gap:16px; flex-wrap:wrap; margin-top:10px;
+    font-size:.86rem}
+  .vfacts b{font-weight:650}
+
   ol.flow{list-style:none; margin:0; padding:0; display:grid; gap:1px;
     background:var(--line); border:1px solid var(--line); border-radius:10px; overflow:hidden}
   ol.flow li{background:var(--panel); padding:14px 17px; display:flex; gap:13px}
@@ -249,9 +291,100 @@
   .split{display:grid; gap:16px; grid-template-columns:repeat(auto-fit,minmax(225px,1fr))}
   .card{background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:15px 17px}
   .card p{margin:0; color:var(--muted); font-size:.9rem}
+  /* The three jobs the product does, stated once, in order. */
+  .jobs{display:grid; gap:9px; margin:22px 0 0}
+  .job{display:flex; gap:12px; align-items:baseline; padding:9px 13px;
+    border:1px solid var(--line); border-radius:7px; background:var(--panel)}
+  .job .jk{font-size:.72rem; letter-spacing:.11em; text-transform:uppercase;
+    font-weight:700; color:var(--accent); min-width:58px}
+  .job .jv{font-size:.9rem; color:var(--ink)}
   footer{padding-block:28px 52px; color:var(--muted); font-size:.86rem;
     border-top:1px solid var(--line)}
   footer a{color:var(--accent)}
+  /* Margin protection reads as a business decision panel, not a chat bubble:
+     ruled rows, one headline pair, and the warning carried by the border. */
+  .margin{margin-top:14px; border:1px solid var(--line); border-left:4px solid var(--muted);
+    border-radius:8px; background:var(--panel); padding:15px 17px}
+  .margin.m-reduced{border-left-color:var(--warn); background:var(--warn-soft)}
+  .margin.m-low{border-left-color:var(--warn); background:var(--warn-soft)}
+  .margin.m-negative{border-left-color:var(--bad); background:var(--bad-soft)}
+  .margin.m-healthy{border-left-color:var(--ok)}
+  .margin h4{margin:0 0 3px; font-size:.75rem; letter-spacing:.09em;
+    text-transform:uppercase; color:var(--muted)}
+  .margin .m-name{font-weight:650; margin-bottom:11px}
+  .margin .m-grid{display:grid; grid-template-columns:auto 1fr; gap:4px 16px;
+    margin:0 0 12px; font-size:.89rem}
+  .margin .m-grid dt{color:var(--muted)}
+  .margin .m-grid dd{margin:0; text-align:right; font-variant-numeric:tabular-nums}
+  .margin .m-cols{display:grid; grid-template-columns:1fr 1fr; gap:10px;
+    padding:11px 0; border-block:1px solid var(--line)}
+  .margin .m-col{display:flex; flex-direction:column; gap:1px}
+  .margin .m-lab{font-size:.78rem; color:var(--muted); text-transform:uppercase;
+    letter-spacing:.05em}
+  .margin .m-val{font-size:1.25rem; font-weight:680; font-variant-numeric:tabular-nums}
+  .margin .m-val.m-down{color:var(--warn)}
+  .margin .m-val.m-bad{color:var(--bad)}
+  .margin .m-pct{font-size:.82rem; color:var(--muted)}
+  .margin .m-cut{padding:11px 0; font-size:.93rem}
+  .margin .m-cut b{font-variant-numeric:tabular-nums}
+  .margin .m-cut span{color:var(--muted); font-size:.85rem}
+  .margin .m-badge{font-size:.88rem; font-weight:620; color:var(--warn)}
+  .margin.m-negative .m-badge{color:var(--bad)}
+  .margin.m-healthy .m-badge{color:var(--ok)}
+  .margin .m-quote{margin-top:10px; padding:9px 11px; border-radius:6px;
+    background:var(--panel); border:1px solid var(--line); font-size:.87rem}
+  .margin .m-human{margin-top:11px; font-size:.85rem; color:var(--muted)}
+  .margin .m-review{margin-top:11px}
+  .margin .m-sugg{margin-top:11px; padding:11px 13px; border-radius:6px;
+    background:var(--panel); border:1px dashed var(--line); font-size:.88rem}
+  .margin .m-sugg b{font-variant-numeric:tabular-nums}
+  .margin .m-sugg p{margin:7px 0 0; color:var(--muted); font-size:.84rem}
+
+  /* WhatsApp handoff: a draft the owner sends, never something ShopFlow sends. */
+  .share{margin-top:16px; display:flex; gap:11px; align-items:center; flex-wrap:wrap}
+  .share button{display:inline-flex; align-items:center; gap:7px}
+  .share .share-note{font-size:.83rem; color:var(--muted)}
+
+  .vmargin{margin-top:12px}
+
+  /* Khata: the ledger card a shop keeps per contractor. Same panel language
+     as margin protection - ruled rows, status carried by the left border. */
+  .khata{margin-top:16px; border:1px solid var(--line); border-left:4px solid var(--muted);
+    border-radius:8px; background:var(--panel); padding:15px 17px}
+  .khata.k-approved{border-left-color:var(--ok); background:var(--ok-soft)}
+  .khata.k-exceeded{border-left-color:var(--warn); background:var(--warn-soft)}
+  .khata.k-blocked{border-left-color:var(--bad); background:var(--bad-soft)}
+  .khata h4{margin:0 0 3px; font-size:.75rem; letter-spacing:.09em;
+    text-transform:uppercase; color:var(--muted)}
+  .khata .k-name{font-weight:650; margin-bottom:11px}
+  .khata .k-grid{display:grid; grid-template-columns:auto 1fr; gap:4px 16px;
+    margin:0 0 12px; font-size:.89rem}
+  .khata .k-grid dt{color:var(--muted)}
+  .khata .k-grid dd{margin:0; text-align:right; font-variant-numeric:tabular-nums}
+  .khata .k-grid dd.k-strong{font-weight:680}
+  .khata .k-grid dd.k-over{color:var(--bad); font-weight:680}
+  .khata .k-badge{font-size:.93rem; font-weight:650; padding-top:11px;
+    border-top:1px solid var(--line)}
+  .khata.k-approved .k-badge{color:var(--ok)}
+  .khata.k-exceeded .k-badge{color:var(--warn)}
+  .khata.k-blocked .k-badge{color:var(--bad)}
+  .khata .k-reason{margin:6px 0 0; font-size:.88rem}
+  .khata .k-stands{margin:9px 0 0; padding:9px 11px; border-radius:6px;
+    background:var(--panel); border:1px solid var(--line); font-size:.86rem}
+  .khata .k-policy{margin:11px 0 0; font-size:.82rem; color:var(--muted)}
+
+  /* Units on a quotation line. The requested unit is what the customer said;
+     the equivalent sits under it and never replaces it. */
+  .uomline{font-size:.83rem; color:var(--muted)}
+  .uomline b{color:var(--ink); font-weight:600}
+  .uomconv{font-size:.8rem; color:var(--muted)}
+
+  .who{display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+    margin:0 0 12px; font-size:.9rem}
+  .who label{color:var(--muted)}
+  .who select{padding:7px 10px; border:1px solid var(--line); border-radius:7px;
+    background:var(--panel); color:var(--ink); font:inherit; font-size:.9rem}
+
   [hidden]{display:none !important}
 </style>
 </head>
@@ -271,6 +404,15 @@
     controls prices, inventory, budgets and purchasing decisions — the model
     never writes a business number.</p>
 
+  <div class="jobs">
+    <div class="job"><span class="jk">Sell</span>
+      <span class="jv">Messy order &rarr; verified quotation</span></div>
+    <div class="job"><span class="jk">Protect</span>
+      <span class="jv">Supplier price change &rarr; margin protection</span></div>
+    <div class="job"><span class="jk">Buy</span>
+      <span class="jv">Limited cash &rarr; prioritised purchasing plan</span></div>
+  </div>
+
   <div class="chips">
     <span class="chip">Category&nbsp;<strong>Commercial Potential</strong></span>
     <span class="chip">Lane&nbsp;<strong>Startup</strong></span>
@@ -280,9 +422,64 @@
 </header>
 
 <section>
+  <h2>Voice assistant — speak your order</h2>
+  <div class="app">
+    <p class="hint" style="margin-top:0">
+      Speak naturally in Tamil, Tanglish or English. Your words are turned into
+      the same order, stock and price lookups the typed flow uses — the numbers
+      still come from the deterministic engine, never from a model.
+    </p>
+
+    <div class="vrow">
+      <button class="mic" id="mic" type="button" aria-pressed="false">
+        <span class="dot" aria-hidden="true"></span>
+        <span id="micLabel">Start speaking</span>
+      </button>
+      <span class="vstate" id="vstate" role="status" aria-live="polite">Ready.</span>
+      <span class="vlang">
+        <label for="vlangSel">Reply in</label>
+        <select id="vlangSel">
+          <option value="auto" selected>Auto</option>
+          <option value="ta">Tamil</option>
+          <option value="en">English</option>
+        </select>
+      </span>
+    </div>
+
+    <div class="vsaid" id="vsaid" hidden>
+      <span class="vlab">You said</span>
+      <label class="sr-only" for="vtext">Edit the recognised transcript</label>
+      <textarea id="vtext" rows="2" spellcheck="false"></textarea>
+      <div class="valias" id="valias" hidden></div>
+      <div class="row">
+        <button class="primary" id="vsend" type="button">Use this</button>
+        <button class="ghost" id="vretry" type="button">Speak again</button>
+      </div>
+    </div>
+
+    <div class="vreply" id="vreply" hidden>
+      <span class="vlab">Assistant</span>
+      <div class="vtext" id="vreplyText"></div>
+      <div class="vfacts" id="vfacts" hidden></div>
+      <div class="vmargin" id="vmargin" hidden></div>
+      <div class="vnote" id="vnote" hidden></div>
+    </div>
+
+    <div class="err" id="verror" hidden></div>
+  </div>
+</section>
+
+<section>
   <h2>Try it — a live customer order</h2>
   <div class="app">
     <label for="order">Customer order, in the words they actually used</label>
+    <div class="who">
+      <label for="customer">Put this on</label>
+      <select id="customer">
+        <option value="">Cash sale &mdash; no khata account</option>
+      </select>
+      <span class="hint" style="margin:0">Synthetic demo customers.</span>
+    </div>
     <textarea id="order" spellcheck="false"
       placeholder="Loading the seeded shop…"></textarea>
 
@@ -401,14 +598,16 @@
       <span class="d">A clean quotation the owner can read out or share straight away.</span></span></li>
     <li><span class="n">4</span><span><span class="t">Supplier intelligence</span>
       <span class="d">A photographed dealer price list is read and compared against what the shop paid before, surfacing increases that would otherwise pass unnoticed.</span></span></li>
-    <li><span class="n">5</span><span><span class="t">Budget</span>
+    <li><span class="n">5</span><span><span class="t">Protect</span>
+      <span class="d">A confirmed increase is immediately measured against the selling price, so the owner sees what is left of the margin. ShopFlow never changes the selling price by itself.</span></span></li>
+    <li><span class="n">6</span><span><span class="t">Budget</span>
       <span class="d">The owner states the cash actually available. That constraint is real, and it binds.</span></span></li>
-    <li><span class="n">6</span><span><span class="t">Decision</span>
+    <li><span class="n">7</span><span><span class="t">Decision</span>
       <span class="d">A purchase plan: what to buy now, what to defer, and what deferring risks. Customer commitments come first.</span></span></li>
-    <li><span class="n">7</span><span><span class="t">Why</span>
+    <li><span class="n">8</span><span><span class="t">Why</span>
       <span class="d">Every recommendation opens up into the full calculation behind it — stock, velocity, lead time, margin, budget remaining.</span></span></li>
   </ol>
-  <p class="hint">All seven steps are live above. Every figure comes from the deterministic engine — the language model never writes a number.</p>
+  <p class="hint">All eight steps are live above. Every figure comes from the deterministic engine — the language model never writes a number.</p>
 </section>
 
 <section>
@@ -423,6 +622,13 @@
       the model writes is checked against the engine's output before it is
       shown. That separation is enforced by the architecture and covered by
       tests, not asserted in a prompt.
+    </p>
+    <p>
+      The same line holds for anything consequential. ShopFlow does not change
+      your selling price, does not place an order and does not message anyone.
+      A supplier cost is recorded only when you confirm it, a margin warning is
+      a recommendation you act on yourself, and the WhatsApp buttons open a
+      draft for you to read and send.
     </p>
   </div>
 </section>
@@ -460,6 +666,7 @@
       errorBox = el("error"), spin = el("spin");
 
   var demo = { exampleOrder: "", ambiguousExample: "" };
+  var customerSel = el("customer");
   var pendingClarifications = [];
   var polling = null;
 
@@ -503,6 +710,289 @@
     show(resetBtn, true);
   }
 
+
+  // >>> panel-builders
+  // ---- khata / credit ---------------------------------------------------
+  //
+  // Every figure is read from engine.credit. Nothing is added, subtracted or
+  // compared here: the decision arrived already made, and this only styles it.
+
+  var CREDIT_CLASS = {
+    APPROVED: "k-approved", LIMIT_EXCEEDED: "k-exceeded",
+    BLOCKED: "k-blocked", NO_CREDIT_ACCOUNT: ""
+  };
+
+  var CREDIT_LABEL = {
+    APPROVED: "\u2713 Credit approved",
+    LIMIT_EXCEEDED: "\u26a0 Credit limit exceeded",
+    BLOCKED: "\u26a0 Account blocked",
+    NO_CREDIT_ACCOUNT: "No credit account"
+  };
+
+  function khataRow(term, value, cls) {
+    return "<dt>" + esc(term) + "</dt><dd" +
+      (cls ? ' class="' + cls + '"' : "") + ">" + value + "</dd>";
+  }
+
+  function khataPanel(c) {
+    if (!c) return "";
+    var html = '<div class="khata ' + (CREDIT_CLASS[c.decision] || "") + '">' +
+      '<h4>Khata / Credit</h4>' +
+      '<div class="k-name">' + esc(c.customerName || c.customerId) + '</div>' +
+      '<dl class="k-grid">';
+
+    if (c.decision === "NO_CREDIT_ACCOUNT") {
+      html += khataRow("This order", rupees(c.orderTotal));
+    } else {
+      html += khataRow("Current outstanding", rupees(c.currentOutstanding)) +
+        khataRow("Credit limit", rupees(c.creditLimit)) +
+        khataRow("This order", rupees(c.orderTotal)) +
+        khataRow("Projected outstanding", rupees(c.projectedOutstanding), "k-strong") +
+        khataRow("Remaining credit", rupees(c.remainingCredit),
+                 c.remainingCredit < 0 ? "k-over" : "k-strong") +
+        khataRow("Payment terms", esc(c.paymentDueDays) + " days");
+    }
+
+    html += '</dl><div class="k-badge">' +
+      esc(CREDIT_LABEL[c.decision] || c.decision) + '</div>' +
+      '<p class="k-reason">' + esc(c.reason) + '</p>';
+
+    if (c.decision !== "APPROVED") {
+      html += '<div class="k-stands">This quotation stands. ShopFlow does not ' +
+        'cancel or reprice an order over a credit limit \u2014 whether to sell ' +
+        'anyway is your decision.</div>';
+    }
+
+    html += '<p class="k-policy">' + esc(c.policy) +
+      ' Demo customer records are synthetic.</p></div>';
+    return html;
+  }
+
+  // ---- margin protection ------------------------------------------------
+  //
+  // Every figure below is read out of an engine margin view. There is no
+  // subtraction, no percentage and no threshold test in this file: the status
+  // is decided by engine.margin and only styled here.
+
+  var MARGIN_REASONS = {
+    NO_SUCH_SKU: "it is not in the catalogue",
+    NO_SELLING_PRICE: "it has no selling price on record",
+    NO_PREVIOUS_COST: "no earlier supplier cost is recorded, so there is " +
+                      "nothing to compare against"
+  };
+
+  var MARGIN_CLASS = {
+    MARGIN_REDUCED: "m-reduced", LOW_MARGIN: "m-low",
+    NEGATIVE_MARGIN: "m-negative", HEALTHY: "m-healthy"
+  };
+
+  function marginStatusText(m) {
+    if (m.status === "NEGATIVE_MARGIN") return "\u26a0 You are now selling below your supplier cost";
+    if (m.status === "LOW_MARGIN") return "\u26a0 Margin low \u2014 below " +
+      m.marginWarningPercent + "% of the selling price";
+    if (m.status === "MARGIN_REDUCED") return "\u26a0 Margin reduced";
+    return "\u2713 Margin healthy";
+  }
+
+  function marginPanel(m, quoteNote) {
+    if (!m) return "";
+    if (!m.available) {
+      return '<div class="margin"><h4>Margin protection</h4>' +
+        '<div class="m-name">' + esc(m.productName || m.skuId) + '</div>' +
+        '<p class="m-human">The margin cannot be shown for this product because ' +
+        esc(MARGIN_REASONS[m.unavailableReason] || "a required cost is not recorded") +
+        '.</p></div>';
+    }
+
+    var html = '<div class="margin ' + (MARGIN_CLASS[m.status] || "") + '">' +
+      '<h4>Margin protection</h4>' +
+      '<div class="m-name">' + esc(m.productName) + '</div>' +
+      '<dl class="m-grid">' +
+      '<dt>Selling price</dt><dd>' + rupees(m.sellingPrice) + '</dd>' +
+      '<dt>Previous supplier cost</dt><dd>' + rupees(m.previousSupplierCost) + '</dd>';
+    if (m.comparisonAvailable) {
+      html += '<dt>Confirmed supplier cost</dt><dd>' +
+        rupees(m.confirmedSupplierCost) + '</dd>';
+    }
+    html += '</dl>';
+
+    if (m.comparisonAvailable) {
+      html += '<div class="m-cols">' +
+        '<div class="m-col"><span class="m-lab">Previous margin</span>' +
+          '<span class="m-val">' + rupees(m.oldMarginAmount) + '</span>' +
+          '<span class="m-pct">' + esc(m.oldMarginPercent) + '% of selling price</span></div>' +
+        '<div class="m-col"><span class="m-lab">Current margin</span>' +
+          '<span class="m-val ' +
+            (m.status === "NEGATIVE_MARGIN" ? "m-bad" : "m-down") + '">' +
+            rupees(m.newMarginAmount) + '</span>' +
+          '<span class="m-pct">' + esc(m.newMarginPercent) + '% of selling price</span></div>' +
+        '</div>' +
+        '<div class="m-cut">Margin reduction <b>' + rupees(m.marginReductionAmount) +
+        '</b> <span>(' + esc(m.marginReductionPercent) + ' percentage points)</span></div>';
+    } else {
+      html += '<div class="m-cols"><div class="m-col">' +
+        '<span class="m-lab">Current margin</span>' +
+        '<span class="m-val">' + rupees(m.oldMarginAmount) + '</span>' +
+        '<span class="m-pct">' + esc(m.oldMarginPercent) + '% of selling price</span>' +
+        '</div></div>' +
+        '<div class="m-cut"><span>No supplier price change has been confirmed ' +
+        'for this product.</span></div>';
+    }
+
+    html += '<div class="m-badge">' + esc(marginStatusText(m)) + '</div>';
+    if (quoteNote) html += '<div class="m-quote">' + esc(quoteNote) + '</div>';
+    html += '<div class="m-human">' + esc(m.note) + '</div>';
+
+    if (m.suggestedSellingPrice) {
+      html += '<button class="ghost m-review" type="button">Review price</button>' +
+        '<div class="m-sugg" hidden>Suggested selling price <b>' +
+        rupees(m.suggestedSellingPrice) + '</b> \u2014 the price that would restore ' +
+        'the ' + esc(m.oldMarginPercent) + '% margin you were earning.' +
+        '<p>' + esc(m.suggestionNote || "") + ' ShopFlow has not changed your ' +
+        'selling price, and nothing here will change it. Applying a new price ' +
+        'is a decision you make yourself.</p></div>';
+    }
+    return html + '</div>';
+  }
+
+  function wireMarginPanels(container) {
+    Array.prototype.forEach.call(container.querySelectorAll(".m-review"), function (btn) {
+      btn.addEventListener("click", function () {
+        var box = btn.parentNode.querySelector(".m-sugg");
+        if (!box) return;
+        var wasOpen = !box.hidden;
+        show(box, !wasOpen);
+        btn.textContent = wasOpen ? "Review price" : "Hide recommendation";
+      });
+    });
+  }
+
+  // Membership test, not a calculation: does the quotation currently on screen
+  // contain this SKU? Nothing about the quotation is recomputed, and its total
+  // does not change - a supplier cost change never reprices a quotation the
+  // customer has already been given.
+  function quoteAffectedNote(skuId) {
+    if (!lastQuote || !lastQuote.lines) return "";
+    var hit = false;
+    lastQuote.lines.forEach(function (l) { if (l.skuId === skuId) hit = true; });
+    return hit
+      ? "Supplier price change affects this quotation. The quotation total is " +
+        "unchanged \u2014 it keeps the selling prices it was priced at."
+      : "";
+  }
+
+  // <<< panel-builders
+
+  // >>> whatsapp-builders
+  // ---- WhatsApp handoff -------------------------------------------------
+  //
+  // Frontend only. There is no WhatsApp Business API, no webhook, no OAuth, no
+  // backend WhatsApp service and no message store anywhere in this project.
+  // Clicking opens WhatsApp with a draft the owner reads and sends themselves.
+  //
+  // Every figure below is copied out of an API response. Nothing is summed,
+  // multiplied or rounded here: l.lineTotal, plan.totalSpend and the rest are
+  // the engine's own numbers, and rupees() only formats them.
+  function whatsappUrl(text) {
+    return "https://wa.me/?text=" + encodeURIComponent(text);
+  }
+
+  function lineUom(l) {
+    // The SKU's own unit, read from the response. Upper-cased only.
+    return String(l.catalogueUom || l.unit || "").toUpperCase();
+  }
+
+  function whatsappQuoteText(quote) {
+    if (!quote || !quote.lines || !quote.lines.length) return "";
+    var out = ["SHOPFLOW AI \u2014 QUOTATION", ""];
+    quote.lines.forEach(function (l) {
+      out.push(l.name);
+      // The unit belongs in the draft. A bare "3 x amount" is ambiguous to a
+      // dealer; "3 COIL x amount" is not. Both figures are the engine's, and
+      // the unit is the SKU's own.
+      out.push(l.quantity + " " + lineUom(l) + " \u00d7 " +
+               rupees(l.sellingPrice) + " = " + rupees(l.lineTotal));
+      out.push("");
+    });
+    out.push("Total: " + rupees(quote.total));
+
+    var short = quote.lines.filter(function (l) { return l.shortageQty > 0; });
+    if (short.length) {
+      out.push("", "Shortage:");
+      short.forEach(function (l) {
+        out.push("\u2022 " + l.name + ": " + l.shortageQty + " " + lineUom(l));
+      });
+    }
+    out.push("", "Generated by ShopFlow AI");
+    return out.join("\n");
+  }
+
+  function whatsappPlanText(plan) {
+    if (!plan) return "";
+    var funded = (plan.commitments || []).concat(plan.restockSelected || [])
+      .filter(function (l) { return l.selected; });
+    if (!funded.length) return "";
+
+    // Grouped by supplier so the draft can be sent to one dealer at a time.
+    // Grouping only sorts lines; no per-supplier subtotal is computed, because
+    // that would be arithmetic this layer is not allowed to do.
+    var order = [], bySupplier = {};
+    funded.forEach(function (l) {
+      var name = l.supplierName || l.supplierId || "Supplier";
+      if (!bySupplier[name]) { bySupplier[name] = []; order.push(name); }
+      bySupplier[name].push(l);
+    });
+
+    var out = ["SHOPFLOW AI \u2014 PURCHASE REQUEST", ""];
+    order.forEach(function (name) {
+      out.push("Supplier:", String(name).toUpperCase(), "", "Please supply:");
+      bySupplier[name].forEach(function (l) {
+        // A product can appear twice under one supplier: once to cover a
+        // customer order and once to restock the shelf. They are labelled
+        // rather than added together - adding them would be arithmetic, and
+        // the dealer reads the two reasons differently anyway.
+        var why = l.tier === "COMMITTED_ORDER" ? " (customer order)" : " (restock)";
+        out.push("\u2022 " + l.productName + " \u2014 " + l.fundedQty +
+                 " units" + why);
+      });
+      out.push("");
+    });
+    out.push("Estimated purchasing cost:", rupees(plan.totalSpend) + " (whole plan)", "");
+    out.push("Budget:", rupees(plan.budget), "");
+    out.push("Please confirm availability and final invoice.", "");
+    out.push("Draft only \u2014 no order has been placed.");
+    return out.join("\n");
+  }
+
+  function shareRow(id, label) {
+    return '<div class="share"><button class="ghost" type="button" id="' + id +
+      '">' + label + '</button><span class="share-note">Opens WhatsApp with a ' +
+      'draft message for you to review. ShopFlow sends nothing by itself.</span></div>';
+  }
+
+  function wireShare(id, build) {
+    var btn = el(id);
+    if (!btn) return;
+    btn.addEventListener("click", function () {
+      var text = build();
+      if (!text) return;
+      window.open(whatsappUrl(text), "_blank", "noopener");
+    });
+  }
+  // <<< whatsapp-builders
+
+  // Khata accounts, so the selector is never hard-coded. Every account is
+  // synthetic demo data and the API says so on the response.
+  fetch("/api/customers").then(function (r) { return r.json(); }).then(function (d) {
+    (d.customers || []).forEach(function (c) {
+      var opt = document.createElement("option");
+      opt.value = c.customerId;
+      opt.textContent = c.customerName +
+        (c.status === "ACTIVE" ? "" : " \u2014 " + c.status);
+      customerSel.appendChild(opt);
+    });
+  }).catch(function () { /* the cash-sale option alone still works */ });
+
   fetch("/api/demo").then(function (r) { return r.json(); }).then(function (d) {
     demo = d;
     orderBox.value = d.exampleOrder;
@@ -529,6 +1019,7 @@
   });
 
   goBtn.addEventListener("click", function () { submit(orderBox.value); });
+  customerSel.addEventListener("change", clearOutput);
 
   function submit(text) {
     if (polling) { clearTimeout(polling); polling = null; }
@@ -542,6 +1033,9 @@
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         orderText: text.trim(),
+        // Empty means a cash sale, and the backend then runs no credit check
+        // at all - the anonymous flow is unchanged in every respect.
+        customerId: customerSel.value || "",
         clarifications: pendingClarifications
       })
     }).then(function (r) {
@@ -748,8 +1242,22 @@
         '<div class="line-body"><div class="line-name">' + esc(l.name) + '</div>' +
         '<div class="sku mono">' + esc(l.skuId) + '</div>';
 
+      // Units, exactly as the engine reported them. The requested quantity is
+      // never replaced by the converted one - the equivalent sits beside it.
+      if (l.catalogueUom) {
+        html += '<div class="uomline"><b>' + esc(l.quantity) + ' ' +
+          esc(l.catalogueUom) + '</b>' +
+          (l.baseEquivalent
+            ? ' \u00b7 ' + esc(l.baseEquivalent.quantity) + ' ' +
+              esc(l.baseEquivalent.uom) + ' equivalent'
+            : '') + '</div>';
+      }
+
       html += '</div><div class="line-right"><div class="amount">' +
-        rupees(l.lineTotal) + '</div>' + stock + '</div></div>';
+        rupees(l.lineTotal) + '</div>' +
+        '<div class="uomconv">' + rupees(l.sellingPrice) + ' / ' +
+        esc((l.catalogueUom || l.unit || "").toLowerCase()) + '</div>' +
+        stock + '</div></div>';
 
       html += '<details class="why"><summary>Why?</summary><div class="evidence"><dl>' +
         '<dt>Line total</dt><dd>' + esc(l.evidence.lineTotal) + '</dd>' +
@@ -758,6 +1266,14 @@
         html += '<dt>Cover</dt><dd>' + esc(l.evidence.coverage) + '</dd>';
       }
       html += '<dt>Unit price</dt><dd>' + rupees(l.sellingPrice) + ' per ' + esc(l.unit) + '</dd>';
+      html += '<dt>Units</dt><dd>' + esc(l.evidence.units) + '</dd>';
+      if (l.requestedUom) {
+        html += '<dt>You asked in</dt><dd>' + esc(l.requestedUom) +
+          ' (' + esc(l.uomStatus) + ')</dd>';
+      }
+      if (l.conversion) {
+        html += '<dt>Conversion</dt><dd>' + esc(l.conversion) + '</dd>';
+      }
       if (match) {
         html += '<dt>Matched by</dt><dd>' + esc(match.resolvedBy || "catalogue lookup") + '</dd>';
       }
@@ -780,6 +1296,21 @@
         ' of ' + quote.lineCount + ' lines cannot be fulfilled from stock. ' +
         'The purchase planner below decides what to buy with limited cash.</p>';
     }
+    if (result.marginProtection && result.marginProtection.affectedCount) {
+      html += '<div class="grp"><h3>Margin protection</h3>' +
+        '<p class="more" style="margin-top:0">' +
+        esc(result.marginProtection.note) + ' ' +
+        esc(result.marginProtection.explanation) + '</p>';
+      result.marginProtection.affected.forEach(function (m) {
+        html += marginPanel(m, "");
+      });
+      html += '</div>';
+    }
+
+    // Credit sits under the quotation, never in place of it.
+    html += khataPanel(result.credit);
+
+    html += shareRow("waQuote", "Send Quote on WhatsApp");
     html += tracePanel(result);
 
     html += '<p class="hint mono" style="opacity:.7">model: ' +
@@ -788,6 +1319,11 @@
 
     resultBox.innerHTML = html;
     show(resultBox, true);
+    wireMarginPanels(resultBox);
+    wireShare("waQuote", function () { return whatsappQuoteText(quote); });
+    // Remembered only so a spoken "total evlo?" can read back the engine's
+    // own figure. Nothing recomputes it.
+    lastQuote = quote;
   }
 
   // ---- supplier price lists -------------------------------------------
@@ -1012,6 +1548,17 @@
       row.innerHTML = res.body.decision === "CONFIRMED"
         ? "&#10003; You confirmed this change. Your catalogue cost is unchanged until you apply it."
         : "Ignored — no change recorded.";
+
+      // What the confirmed cost did to the margin, shown at the moment of the
+      // decision. The panel is built entirely from the engine's margin view.
+      if (res.body.marginProtection) {
+        var box = document.createElement("div");
+        box.style.padding = "0 16px 14px";
+        box.innerHTML = marginPanel(res.body.marginProtection,
+                                    quoteAffectedNote(res.body.skuId));
+        row.parentNode.insertBefore(box, row.nextSibling);
+        wireMarginPanels(box);
+      }
     }).catch(function (e) {
       row.className = "note";
       row.textContent = e.message;
@@ -1259,6 +1806,16 @@
         '</dl></div>';
     }
 
+    if (plan.marginProtection && plan.marginProtection.length) {
+      html += '<div class="grp"><h3>Margin protection</h3>' +
+        '<p class="more" style="margin-top:0">What the supplier costs you ' +
+        'confirmed did to the profit on each product. These figures report; ' +
+        'they change nothing. Your selling prices and the allocation above ' +
+        'are unaffected by them.</p>';
+      plan.marginProtection.forEach(function (m) { html += marginPanel(m, ""); });
+      html += '</div>';
+    }
+
     if (plan.commitments.length) {
       html += '<div class="grp"><h3>Customer commitments \u2014 funded first</h3>' +
         '<div class="lines">' + plan.commitments.map(planLine).join("") + '</div>' +
@@ -1314,10 +1871,342 @@
     html += '<p class="hint">' + esc(plan.policy.tier1) + ' ' + esc(plan.policy.tier2) +
       ' ' + esc(plan.policy.costBasis) + '</p>';
 
+    html += shareRow("waPlan", "Share Purchase Plan");
+
     planResult.innerHTML = html;
     show(planResult, true);
+    wireMarginPanels(planResult);
+    wireShare("waPlan", function () { return whatsappPlanText(plan); });
   }
 
+
+  // ---- voice assistant --------------------------------------------------
+  //
+  // Voice is an input/output skin over the workflows that already exist. It
+  // owns no business logic: a spoken order goes to /api/orders, a budget
+  // question to /api/purchase-plans, and a stock or price question to
+  // /api/shop-queries, which is catalogue lookup through the same matcher the
+  // typed flow uses. Nothing here computes a business number.
+
+  var micBtn = el("mic"), micLabel = el("micLabel"), vstate = el("vstate"),
+      vsaid = el("vsaid"), vtext = el("vtext"), valias = el("valias"),
+      vsend = el("vsend"), vretry = el("vretry"), vreply = el("vreply"),
+      vreplyText = el("vreplyText"), vfacts = el("vfacts"), vnote = el("vnote"),
+      vmargin = el("vmargin"),
+      verror = el("verror"), vlangSel = el("vlangSel");
+
+  var VOICE_IDLE = "IDLE", VOICE_LISTENING = "LISTENING",
+      VOICE_PROCESSING = "PROCESSING", VOICE_SPEAKING = "SPEAKING",
+      VOICE_ERROR = "ERROR";
+
+  var voiceState = VOICE_IDLE;
+  var lastLanguage = "en";
+
+  // --- speech provider ---------------------------------------------------
+  //
+  // One small interface: start, stop, onTranscript, onError, isSupported.
+  // The browser engine is used because it handles ta-IN on-device with no
+  // credential in the page. An AWS Transcribe streaming adapter can implement
+  // the same four methods without any caller changing.
+  function BrowserSpeechProvider() {
+    var Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    var recognition = null;
+    var handlers = { transcript: function () {}, error: function () {} };
+
+    return {
+      name: "browser",
+      isSupported: function () { return !!Recognition; },
+      onTranscript: function (fn) { handlers.transcript = fn; },
+      onError: function (fn) { handlers.error = fn; },
+      start: function (lang) {
+        if (!Recognition) { handlers.error("unsupported"); return; }
+        try {
+          recognition = new Recognition();
+        } catch (e) { handlers.error("unsupported"); return; }
+        // Tamil covers Tanglish too: the engine returns romanised words when
+        // the speaker code-switches, which is exactly what we normalise.
+        recognition.lang = lang === "en" ? "en-IN" : "ta-IN";
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+        recognition.continuous = false;
+
+        recognition.onresult = function (ev) {
+          var best = ev.results && ev.results[0] && ev.results[0][0];
+          if (best && best.transcript) handlers.transcript(best.transcript);
+          else handlers.error("no-speech");
+        };
+        recognition.onerror = function (ev) { handlers.error(ev.error || "failed"); };
+        recognition.onend = function () {
+          if (voiceState === VOICE_LISTENING) setVoiceState(VOICE_IDLE);
+        };
+        try { recognition.start(); }
+        catch (e) { handlers.error("failed"); }
+      },
+      stop: function () {
+        if (recognition) { try { recognition.stop(); } catch (e) {} }
+      }
+    };
+  }
+
+  var speech = BrowserSpeechProvider();
+
+  var VOICE_ERRORS = {
+    "not-allowed": "Microphone permission was denied. You can type the order instead.",
+    "service-not-allowed": "Microphone permission was denied. You can type the order instead.",
+    "no-speech": "No speech detected. Try again, or type the order below.",
+    "audio-capture": "No microphone found. You can type the order instead.",
+    "network": "Speech recognition needs a network connection. You can type the order instead.",
+    "unsupported": "This browser does not support speech input. Please type the order below.",
+    "aborted": "Listening stopped."
+  };
+
+  function setVoiceState(state, message) {
+    voiceState = state;
+    var listening = state === VOICE_LISTENING;
+    micBtn.className = listening ? "mic rec" : "mic";
+    micBtn.setAttribute("aria-pressed", listening ? "true" : "false");
+    micLabel.textContent = listening ? "Stop listening" : "Start speaking";
+    micBtn.disabled = (state === VOICE_PROCESSING);
+    vstate.className = state === VOICE_ERROR ? "vstate err" : "vstate";
+    vstate.textContent = message || {
+      IDLE: "Ready.",
+      LISTENING: "Listening… speak naturally in Tamil or English.",
+      PROCESSING: "Working…",
+      SPEAKING: "Speaking the answer.",
+      ERROR: "Something went wrong."
+    }[state];
+  }
+
+  function voiceFail(message) {
+    setVoiceState(VOICE_ERROR, "Voice unavailable.");
+    verror.textContent = message;
+    show(verror, true);
+  }
+
+  function clearVoice() {
+    show(verror, false);
+    show(vreply, false);
+    show(vfacts, false);
+    show(vnote, false);
+    show(vmargin, false);
+    vfacts.innerHTML = "";
+    vmargin.innerHTML = "";
+  }
+
+  if (!speech.isSupported()) {
+    micBtn.disabled = true;
+    setVoiceState(VOICE_IDLE, "Speech input is not supported in this browser — type below instead.");
+  }
+
+  speech.onTranscript(function (text) {
+    setVoiceState(VOICE_IDLE);
+    vtext.value = text;
+    show(vsaid, true);
+    vtext.focus();
+    // Never auto-submit. The owner sees and can correct what was heard first.
+    handleTranscript(text, false);
+  });
+
+  speech.onError(function (code) {
+    if (code === "aborted") { setVoiceState(VOICE_IDLE); return; }
+    voiceFail(VOICE_ERRORS[code] || "Speech recognition failed. Please type the order below.");
+  });
+
+  micBtn.addEventListener("click", function () {
+    if (voiceState === VOICE_LISTENING) { speech.stop(); setVoiceState(VOICE_IDLE); return; }
+    clearVoice();
+    setVoiceState(VOICE_LISTENING);
+    var pref = vlangSel.value;
+    speech.start(pref === "auto" ? "ta" : pref);
+  });
+
+  vretry.addEventListener("click", function () {
+    clearVoice();
+    show(vsaid, false);
+    micBtn.click();
+  });
+
+  vsend.addEventListener("click", function () {
+    handleTranscript(vtext.value, true);
+  });
+
+  // --- routing -----------------------------------------------------------
+  function handleTranscript(text, actOnIt) {
+    var transcript = String(text || "").trim();
+    if (!transcript) return;
+    clearVoice();
+    setVoiceState(VOICE_PROCESSING);
+
+    fetch("/api/shop-queries", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ transcript: transcript })
+    }).then(function (r) {
+      return r.json().then(function (b) { return { ok: r.ok, body: b }; });
+    }).then(function (res) {
+      if (!res.ok) throw new Error(res.body.error || "That could not be processed.");
+      routeVoiceResult(res.body, transcript, actOnIt);
+    }).catch(function (e) {
+      voiceFail(e.message + " You can type the order below.");
+    });
+  }
+
+  function routeVoiceResult(result, transcript, actOnIt) {
+    setVoiceState(VOICE_IDLE);
+    lastLanguage = result.language || "en";
+
+    if (result.aliasesApplied && result.aliasesApplied.length) {
+      valias.textContent = "Adjusted for speech: " + result.aliasesApplied.join(", ");
+      show(valias, true);
+    } else {
+      show(valias, false);
+    }
+
+    // A spoken instruction can never perform a consequential action.
+    if (result.requiresConfirmation) {
+      sayAndShow(result.spokenText, result,
+        "Voice cannot change supplier costs. Use the Supplier prices section below.");
+      return;
+    }
+
+    if (result.status === "DELEGATE") {
+      if (result.delegateTo === "ORDER") {
+        // Straight into the existing order workflow, unchanged.
+        orderBox.value = result.normalizedTranscript || transcript;
+        sayAndShow(
+          lastLanguage === "en"
+            ? "Sending that to the order desk."
+            : "Order-ku anuppuren. Kezha paarunga.",
+          result, "Processing through the existing order workflow.");
+        submit(orderBox.value);
+        document.getElementById("order").scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+      if (result.delegateTo === "PURCHASE_PLAN") {
+        if (result.budget) budgetBox.value = result.budget;
+        markPreset();
+        runPlan();
+        sayAndShow(
+          lastLanguage === "en"
+            ? "Running the purchase planner. Details are on screen."
+            : "Purchase planner run pannuren. Details screen-la paarunga.",
+          result, "The deterministic planner produced the figures below.");
+        document.getElementById("plan").scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+      // Quote total: read back whatever the last quote actually returned.
+      sayAndShow(lastQuoteSpoken(), result,
+        "Read from the quotation already on screen.");
+      return;
+    }
+
+    if (result.status === "RESOLVED") {
+      sayAndShow(result.spokenText, result, "");
+      renderVoiceFacts(result.product);
+      // Present only on a margin question, and only ever the engine's own view.
+      renderVoiceMargin(result.margin);
+      return;
+    }
+
+    if (result.status === "AMBIGUOUS") {
+      sayAndShow(result.spokenText, result,
+        "ShopFlow is asking rather than guessing — the same rule as typed orders.");
+      renderVoiceOptions(result.options);
+      return;
+    }
+
+    sayAndShow(result.spokenText, result, "");
+  }
+
+  // The quotation total is whatever the engine last returned, or nothing.
+  var lastQuote = null;
+  function lastQuoteSpoken() {
+    if (!lastQuote) {
+      return lastLanguage === "en"
+        ? "There is no quotation on screen yet. Speak an order first."
+        : "Ippo quotation illai. Modhal order sollunga.";
+    }
+    return (lastLanguage === "en" ? "Total " : "Total ") + rupees(lastQuote.total) + ".";
+  }
+
+  function renderVoiceFacts(product) {
+    if (!product) return;
+    // Values are printed exactly as the API returned them.
+    vfacts.innerHTML =
+      '<span>Stock <b>' + esc(product.onHand) + ' ' + esc(product.unit) + '</b></span>' +
+      '<span>Price <b>' + rupees(product.sellingPrice) + '</b></span>' +
+      '<span class="mono">' + esc(product.skuId) + '</span>';
+    show(vfacts, true);
+  }
+
+  function renderVoiceMargin(m) {
+    if (!m) return;
+    vmargin.innerHTML = marginPanel(m, quoteAffectedNote(m.skuId));
+    show(vmargin, true);
+    wireMarginPanels(vmargin);
+  }
+
+  function renderVoiceOptions(options) {
+    if (!options || !options.length) return;
+    vfacts.innerHTML = options.slice(0, 6).map(function (o) {
+      return '<span class="mono">' + esc(o.value || o.name) + '</span>';
+    }).join("");
+    show(vfacts, true);
+  }
+
+  function sayAndShow(text, result, note) {
+    vreplyText.textContent = text;
+    show(vreply, true);
+    if (note) { vnote.textContent = note; show(vnote, true); }
+    speakAloud(text, result.language);
+  }
+
+  // --- text to speech ----------------------------------------------------
+  //
+  // Playback is a convenience. If the device has no Tamil voice the text is
+  // already on screen, and the business workflow is unaffected either way.
+  function speakAloud(text, language) {
+    if (!text || !("speechSynthesis" in window)) {
+      ttsUnavailable(language);
+      return;
+    }
+    var pref = vlangSel.value;
+    var wantTamil = pref === "ta" || (pref === "auto" && language !== "en");
+    var code = wantTamil ? "ta-IN" : "en-IN";
+
+    var voices = window.speechSynthesis.getVoices() || [];
+    var match = null;
+    voices.forEach(function (v) {
+      if (!match && v.lang && v.lang.toLowerCase().indexOf(code.toLowerCase()) === 0) match = v;
+    });
+    if (wantTamil && !match) { ttsUnavailable(language); return; }
+
+    try {
+      window.speechSynthesis.cancel();
+      var utter = new SpeechSynthesisUtterance(text);
+      utter.lang = code;
+      if (match) utter.voice = match;
+      utter.onstart = function () { setVoiceState(VOICE_SPEAKING); };
+      utter.onend = function () { setVoiceState(VOICE_IDLE); };
+      utter.onerror = function () { ttsUnavailable(language); };
+      window.speechSynthesis.speak(utter);
+    } catch (e) {
+      ttsUnavailable(language);
+    }
+  }
+
+  function ttsUnavailable(language) {
+    setVoiceState(VOICE_IDLE);
+    vnote.textContent = (language && language !== "en")
+      ? "Tamil voice playback is not available on this device — the reply is shown above."
+      : "Voice playback is not available on this device — the reply is shown above.";
+    show(vnote, true);
+  }
+
+  // Some browsers populate the voice list asynchronously.
+  if ("speechSynthesis" in window) {
+    window.speechSynthesis.onvoiceschanged = function () {};
+  }
 })();
 </script>
 </body>

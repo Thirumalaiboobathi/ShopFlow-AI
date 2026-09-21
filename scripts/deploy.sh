@@ -69,7 +69,7 @@ if [[ -z "${SHOPFLOW_ALERT_EMAIL:-}" ]]; then
   echo
   echo "Set it and try again:"
   echo
-  echo "    export SHOPFLOW_ALERT_EMAIL=\"you@example.com\""
+  echo "    export SHOPFLOW_ALERT_EMAIL=\"thiru260402@gmail.com\""
   echo "    ./scripts/deploy.sh"
   echo
   exit 1

@@ -25,6 +25,27 @@ shows the arithmetic behind every one of them.
 
 ---
 
+## Three jobs
+
+ShopFlow does three things for the shop, in this order:
+
+| | | |
+|---|---|---|
+| **SELL** | messy order | → verified quotation |
+| **PROTECT** | supplier price change | → margin protection |
+| **BUY** | limited cash | → prioritised purchasing plan |
+
+Two smaller capabilities sit inside those: a **khata** check, so the owner
+knows whether an order can go on a contractor's account before it is promised,
+and **units of measure**, so "3 coils" and "90 metres" are different requests
+rather than the same number.
+
+The middle one is the link between the other two. A dealer's price rise is only
+half a fact; the half that matters is what it left of the profit, and what it
+costs the shop in restocking capacity this week.
+
+---
+
 ## The problem
 
 A single-shop electrical retailer in India runs on a phone, a paper ledger and
@@ -95,6 +116,7 @@ supplier price list photo
   → price-change detection (engine)
   → OWNER CONFIRMS                          [human gate — nothing moves without it]
   → durable confirmed supplier cost
+  → margin protection (engine)              [reports only — never reprices]
 
 owner's available cash
   → purchase plan (engine)
@@ -129,7 +151,23 @@ its own arithmetic: `(6300.0 - 5900.0) / 5900.0 x 100 = 6.78%`
 → The confirmed supplier cost is persisted. The **selling price is not touched**
 (₹6,608, unchanged). Inventory is not touched.
 
-**5. "I only have ₹25,000."**
+**5. The margin consequence is measured**
+
+| | |
+|---|---:|
+| Selling price | ₹6,608.00 |
+| Previous supplier cost | ₹5,900.00 |
+| Confirmed supplier cost | ₹6,300.00 |
+| **Previous margin** | **₹708.00** (10.71%) |
+| **Current margin** | **₹308.00** (4.66%) |
+| **Margin reduction** | **₹400.00** (6.05 points) |
+
+A 6.78% cost increase removed **57% of the profit** on every coil. ShopFlow
+flags it, and offers the price that would restore the old margin — **₹7,055.66**
+— as a recommendation. It does not apply it. The selling price on the shelf,
+and on any quotation already given, is unchanged.
+
+**6. "I only have ₹25,000."**
 
 | | |
 |---|---:|
@@ -138,18 +176,312 @@ its own arithmetic: `(6300.0 - 5900.0) / 5900.0 x 100 = 6.78%`
 | **Total recommended spend** | **₹24,993.16** |
 | **Cash remaining** | **₹6.84** |
 
-**6. The consequence is made explicit**
+**7. The purchasing consequence is made explicit**
 
 Confirming that +6.78% rise cost the shop **₹803.40 of restocking capacity** —
 the extra ₹800 on two wire coils, plus ₹3.40 as the allocator refits what
 remains. A price change buried in a photograph, traced all the way to what the
 shop can afford to stock this week.
 
-**7. Every recommendation opens up**
+**8. Every recommendation opens up**
 
 Each deferred item explains itself with engine figures — for example:
 stock covers 0.5 weeks at 3.9 units/week, 3-day supplier lead time,
 `priority = 0.7875 x 0.35 = 0.275617`.
+
+---
+
+## Margin protection
+
+A supplier increase does not arrive labelled with what it costs you. This is
+the layer that labels it.
+
+For any SKU where all three numbers are on record — the catalogue selling
+price, the supplier cost the shop was paying, and a supplier cost the owner has
+confirmed — `backend/engine/margin.py` reports:
+
+```
+oldMarginAmount        = sellingPrice - previousSupplierCost
+newMarginAmount        = sellingPrice - confirmedSupplierCost
+oldMarginPercent       = oldMarginAmount / sellingPrice x 100
+newMarginPercent       = newMarginAmount / sellingPrice x 100
+marginReductionAmount  = oldMarginAmount - newMarginAmount
+marginReductionPercent = oldMarginPercent - newMarginPercent
+```
+
+and classifies the result as `HEALTHY`, `MARGIN_REDUCED`, `LOW_MARGIN` or
+`NEGATIVE_MARGIN`.
+
+**The threshold is configurable and its default is measured, not assumed.**
+`MARGIN_WARNING_PERCENT` defaults to **10%**, chosen because the thinnest
+margin anywhere in this 147-SKU catalogue is 10.71% and the median is 21.88% —
+so it flags nothing in a healthy shop and lights up only when an increase has
+genuinely eroded a product. Every caller may pass its own. No purchasing or
+quotation decision depends on it.
+
+**Nothing is inferred.** A missing previous cost returns an explicit
+`NO_PREVIOUS_COST` state rather than a plausible substitute; the confirmed
+price is never quietly promoted into the previous-cost slot. With no confirmed
+cost at all, the current margin is still reported but no comparison is made.
+
+### Supplier price → margin → cash
+
+The three are one chain, and ShopFlow shows all three links for the same event:
+
+| Link | Figure | Where |
+|---|---|---|
+| Supplier cost rose | ₹5,900 → ₹6,300, +6.78% | price-list review |
+| Margin fell | ₹708 → ₹308, down ₹400 per coil | margin protection |
+| Restocking capacity fell | ₹803.40 | purchase plan |
+
+They are different quantities and are never conflated. The first is per unit
+of cost, the second is per unit sold, and the third is what the whole budget
+could no longer reach once the allocator refitted it.
+
+### The selling price is never changed
+
+Not by the engine, not by the API, not by the UI. `Product.sellingPrice` is not
+assigned anywhere in `margin.py`, and a test asserts the module cannot reach a
+store at all. The suggested selling price is a number on a panel behind a
+**Review price** button, with the words *"Review and confirm before applying
+any price change"* next to it. Applying a new price is not implemented in this
+phase, deliberately: a half-built repricing workflow is more dangerous than
+none.
+
+### Asking by voice
+
+*"Indha wire-la margin evlo?"* → *"Current margin ₹308.00. Previous margin
+₹708.00. Margin reduced by ₹400.00."*
+
+The voice layer performs none of that arithmetic. It resolves the product with
+the existing matcher, hands the SKU and the confirmed cost to `margin_view`,
+and reads the result back. A test feeds it figures that cannot be derived from
+each other and checks they come back verbatim — a function that computed
+anything would disagree.
+
+---
+
+## Khata — credit at the counter
+
+An Indian hardware shop runs on the khata: a ledger page per contractor, with
+a limit the owner set and a balance that moves every week. The question at the
+counter is never "what is this customer's risk profile". It is *"he owes me
+eight and a half thousand, his limit is fifteen, this order is four two — can
+I give it?"*
+
+`backend/engine/credit.py` answers exactly that, by subtraction:
+
+```
+projectedOutstanding = outstandingAmount + orderTotal
+remainingCredit      = creditLimit - projectedOutstanding
+```
+
+| Decision | When |
+|---|---|
+| `APPROVED` | the account exists, is `ACTIVE`, and `projectedOutstanding <= creditLimit` |
+| `LIMIT_EXCEEDED` | `projectedOutstanding > creditLimit` |
+| `BLOCKED` | the owner suspended the account, whatever the numbers say |
+| `NO_CREDIT_ACCOUNT` | there is no khata for this customer |
+
+> **ShopFlow does not perform credit scoring. Khata decisions are
+> deterministic checks against shop-defined customer credit limits and
+> outstanding balances.**
+>
+> There is no model, no score, no bureau data, no history from other shops and
+> nothing predictive. Every input is a number the shop owner put on the
+> account themselves. That sentence is returned on every API response, not
+> only written here.
+
+**The language model never decides this.** It may read *"put it on Ravi's
+account"* and produce a customer id. It never produces a limit, a balance, a
+projection or a decision — and `credit.py` contains no reference to Bedrock,
+boto3 or any store, which a test asserts.
+
+**A credit decision changes nothing.** `LIMIT_EXCEEDED` does not cancel the
+quotation, reprice it or hide it. The quotation stays on screen and the panel
+says outright that selling anyway is the owner's call — shops extend past the
+limit for a good contractor every day, and software that refused to print the
+quote would simply be switched off.
+
+**Nothing is written.** A credit check records no enquiry, moves no balance
+and creates no row. The smoke test scans the whole DynamoDB table before and
+after and fails if a single key appears.
+
+### Synthetic customers
+
+The four demo accounts are invented, and they exist to exercise the four
+outcomes against the canonical ₹22,306.48 quotation:
+
+| Account | Limit | Outstanding | Against the canonical order |
+|---|---:|---:|---|
+| Bala Contractors | ₹60,000 | ₹12,400 | `APPROVED` |
+| Ravi Electrical Works | ₹15,000 | ₹8,500 | `LIMIT_EXCEEDED` |
+| Selvam Builders | ₹40,000 | ₹0 | `APPROVED` |
+| Kumar Wiring Services | ₹25,000 | ₹21,750 | `BLOCKED` |
+
+> **Every customer record in this repository is synthetic demo data.** The
+> names are trade names of a kind, the phone numbers are in a `+91 99000 000xx`
+> block that belongs to nobody, and no figure describes a real person or
+> business. No real customer data is stored anywhere in this project, and a
+> test fails if a seeded phone number falls outside that block.
+
+---
+
+## Units of measure
+
+Wire sells by the coil, conduit by the length, clips by the pack, everything
+else by the piece. Until now `unit` was a display string, which meant *"3
+coils Finolex wire"* and *"3 Finolex wire"* were the same request. They are
+not — and *"90 metres Finolex wire"* is a third thing again.
+
+**Supported units:** `PIECE`, `COIL`, `PACK`, `LENGTH` — the four this
+catalogue actually trades in — plus `BOX`, which the shop hears and does not
+stock, and `METER`, which exists only as a base unit underneath `COIL` and is
+never a stocking unit. Plurals, abbreviations (`pcs`, `nos`, `mtr`) and a few
+Tanglish forms (`kandu`, `petti`) all normalise onto these. A unit this shop
+does not use — a dozen, a sack — is refused, never mapped onto one that it
+does.
+
+### Conversion comes from the product, not from a rule
+
+```json
+{
+  "skuId": "W-FIN-1.5-RED-90M",
+  "uom": "COIL", "uomQuantity": 1,
+  "baseQuantity": 90, "baseUom": "METER"
+}
+```
+
+Nothing assumes a coil is 90 metres. The 90 is read off the SKU, and the 180 m
+variant says 180. Conduit and clips declare **no** conversion at all, because
+this shop has not recorded what a length or a pack contains — and an invented
+conversion is worse than an absent one. A test asserts that exactly the 35
+coil SKUs carry a conversion and that each one matches the length printed on
+the product.
+
+### The rule that matters: no silent conversion
+
+Reconciling a stated unit with a SKU has four outcomes, and none of them
+rewrites a quantity:
+
+| Status | Meaning |
+|---|---|
+| `UNSPECIFIED` | no unit stated; the catalogue unit is used, exactly as before |
+| `MATCHES` | the stated unit **is** the catalogue unit |
+| `CONVERTIBLE` | the stated unit is the SKU's base unit — the relationship is known, which is precisely why it is not applied |
+| `NOT_RECONCILABLE` | no configured relationship with this SKU at all |
+
+*"90 metres of Finolex 1.5 red wire"* returns `CONVERTIBLE` and stops the
+quotation. It does **not** quietly become one coil — not even *"180 metres"*,
+which is exactly two. A coil is indivisible at that price; cutting it is a
+different product, and a system that guesses here gets both the price and the
+delivery wrong. *"2 boxes of switches"* returns `NOT_RECONCILABLE`, because no
+switch in this catalogue is stocked in boxes.
+
+Either way the owner is asked, through the clarification path that already
+exists.
+
+### The quotation keeps what was asked for
+
+```
+Finolex 1.5 sqmm Red Wire
+3 COIL · 270 METER equivalent
+₹6,608.00 / coil                ₹19,824.00
+```
+
+The ordered quantity stays 3 coils. The equivalent sits beside it, never
+instead of it, and the price is still per coil.
+
+### Inventory stays in the SKU's own unit
+
+One coil in stock is one coil, not ninety metres. Three wanted, one held, two
+short — the shortage is in coils. Conversion is presentation and validation;
+it never re-denominates stock.
+
+---
+
+## Sharing on WhatsApp
+
+Two buttons — **Send Quote on WhatsApp** under a quotation, and **Share
+Purchase Plan** under a plan — open WhatsApp with a preformatted draft.
+
+> **This is a user-initiated share, not a WhatsApp integration.** There is no
+> WhatsApp Business API, no webhook, no OAuth, no backend WhatsApp service and
+> no message store anywhere in this project. Nothing is sent automatically, and
+> ShopFlow never claims an order was placed. The draft is `https://wa.me/?text=`
+> with the message URL-encoded, and the owner reads and sends it themselves.
+
+The message is generated from the actual API response. Nothing is summed,
+multiplied or rounded in the browser: line totals, the quotation total, the
+plan's spend and the budget are the engine's own figures, and the share layer
+only formats them. Tests pull those two builders out of `index.html`, run them
+in Node against real engine output, and assert that every rupee token in the
+draft exists in the response that produced it.
+
+---
+
+## Voice assistant
+
+A shop owner with both hands on a wire coil cannot type. Voice is an
+input/output layer over the workflows that already exist — **not** a second
+brain, and not a chatbot.
+
+```
+speech  →  transcript  →  normalisation  →  EXISTING api  →  deterministic
+                                                              engine
+                                                                  ↓
+   voice playback  ←  short spoken line  ←  structured result  ←──┘
+```
+
+**Languages:** Tamil (`ta-IN`), English (`en-IN`), and the Tanglish that Madurai
+shop speech actually uses — English product nouns inside Tamil grammar, e.g.
+*"Anna, 20 Anchor modular switch 10 amp venum"*. Language is detected from
+script plus romanised Tamil function words, and the reply matches. English in,
+English out — Tamil is never forced.
+
+**What voice can do**
+
+| Spoken | Handled by |
+|---|---|
+| *"Anna, 20 Anchor modular switch 10 amp venum"* | the existing `/api/orders` flow |
+| *"Anchor switch stock la evlo irukku?"* | catalogue + inventory lookup |
+| *"Finolex 1.5 sq mm red wire 90m price enna?"* | catalogue selling price |
+| *"2 Havells MCB SP 32 amp irukka?"* | availability from real stock |
+| *"Indha order total evlo?"* | reads back the quotation already on screen |
+| *"5000 budget la enna purchase panna mudiyum?"* | the existing purchase planner |
+
+**What voice cannot do.** It cannot confirm a supplier price, or change any
+shop state. A spoken *"confirm the supplier price"* returns
+`NEEDS_HUMAN_CONFIRMATION` and sends the owner to the on-screen control. The
+human confirmation boundary is identical to the typed flow.
+
+**No business number is produced by the voice layer.** `backend/engine/voice.py`
+resolves products through the *same* `resolve_product` matcher the typed flow
+uses, and its spoken sentences only interpolate values the engine returned. An
+ambiguous phrase produces the same question as typing it would — voice never
+picks a variant to keep the conversation flowing.
+
+**Speech recognition runs in the browser** (Web Speech API, `ta-IN`/`en-IN`).
+That choice is deliberate: AWS Transcribe streaming would need either AWS
+credentials in the page — which this project does not do — or a new WebSocket
+service, which is a lot of infrastructure for an MVP. The business workflow
+stays entirely on AWS; only the microphone is client-side. The provider sits
+behind a four-method interface (`start`, `stop`, `onTranscript`, `onError`,
+`isSupported`), so a Transcribe adapter can replace it without touching callers.
+
+**Text-to-speech** uses the browser's `SpeechSynthesis` with a `ta-IN` voice
+where the device has one. Amazon Polly is not used, because Tamil support
+cannot be assumed. If no Tamil voice exists the reply is shown on screen with a
+note saying playback is unavailable — the workflow never fails because speech
+output failed.
+
+**Everything degrades to text.** No microphone, denied permission, unsupported
+browser, no speech detected, network failure, backend error — each shows a
+plain message and the typed order box remains fully usable.
+
+> Accuracy is not production-grade. This is a practical hackathon MVP for
+> electrical-shop vocabulary, not a general Tamil speech system. See
+> [Limitations](#limitations).
 
 ---
 
@@ -240,6 +572,10 @@ model. It runs offline, in a unit test, in milliseconds.
 | `POST /api/price-decisions` | Owner confirms/rejects a detected change |
 | `POST /api/purchase-plans` | Deterministic plan → `200` with the plan |
 | `GET /api/jobs/{jobId}` | Poll a queued job |
+| `POST /api/shop-queries` | Spoken stock/price/availability lookup, no model |
+| `GET /api/customers` | The shop's khata accounts (synthetic demo data) |
+| `GET /api/customers/{customerId}` | One khata account |
+| `POST /api/credit/check` | Deterministic credit decision, no model, no write |
 | `GET /api/demo` | Seeded examples, so the UI hard-codes nothing |
 
 An unknown `/api/` route returns a real JSON **404**, while frontend routes
@@ -276,14 +612,34 @@ distribution required care — see [Engineering lessons](#engineering-lessons).
 ## Testing
 
 ```bash
-python -m pytest            # 336 tests, ~2 seconds, no AWS account needed
+python -m pytest            # 615 tests, ~4 seconds, no AWS account needed
 ```
 
 The engine is pure, so the business rules are tested directly rather than
 through HTTP. Coverage includes: velocity and coverage maths, shortage
 calculation, SKU matching and ambiguity, quote arithmetic, supplier price
 comparison, vision-extraction validation, budget allocation, the purchasing
-planner, confirmed-cost persistence, and API request validation.
+planner, confirmed-cost persistence, API request validation, and the voice
+layer - transcript normalisation, language detection, intent classification,
+and a block asserting that no spoken reply contains a number the engine did
+not produce. Margin protection adds the four status boundaries, every
+missing-data case, and a test that the selling prices, the supplier costs and
+the stock levels are all unchanged after a full margin pass over the real
+catalogue.
+
+The WhatsApp draft builders are tested too. They live in the browser, so
+`tests/test_whatsapp.py` extracts them from `index.html`, executes them in Node
+against real engine output, and checks that every money figure in the draft
+came from the response that produced it. Those tests skip rather than fail
+where Node is not installed. The same harness runs the khata and margin
+panels against real engine output and asserts that every rupee token in the
+rendered HTML exists in the response that produced it.
+
+Khata adds the four decisions, both sides of the limit boundary to the paisa,
+Decimal exactness, and a check that the customer records are never touched.
+Units add every supported unit, plural and alias normalisation, conversion
+read from the SKU, and a block confirming that no unit that cannot be honoured
+is ever quietly converted.
 
 Guarantees asserted against the real seeded shop at nine budgets from ₹0 to
 ₹100,000: **total spend never exceeds the budget**, and **remaining cash is
@@ -292,7 +648,9 @@ never negative**.
 ### Real DynamoDB smoke tests
 
 ```bash
-python scripts/smoke_test_planner.py        # 25 checks against real DynamoDB
+python scripts/smoke_test_planner.py        # 36 checks against real DynamoDB
+python scripts/smoke_test_credit_uom.py     # 28 checks; writes nothing, and
+                                            # fails if the table gains a row
 ```
 
 Deliberately **not** part of the pytest suite — unit tests must stay fast and
@@ -350,7 +708,11 @@ owner agreed to pay is not something a web request should be able to do.
 ## Repository layout
 
 ```
-backend/engine/      pure business logic — no AWS, no model, 12 modules
+backend/engine/      pure business logic — no AWS, no model, 16 modules
+                     (includes voice.py: normalisation, intent, spoken replies;
+                      margin.py: margin protection, read-only;
+                      credit.py: khata decisions, read-only;
+                      uom.py: units and conversion, read-only)
 backend/agent/       Bedrock tool loop, vision extraction, grounding validation
 backend/lambdas/     api · worker · health
 backend/seed_data/   generated synthetic dataset (147 SKUs)
@@ -448,6 +810,39 @@ separate is most of what makes the system trustworthy.
 
 ---
 
+## Roadmap — not implemented
+
+Listed here so the boundary is explicit. None of this exists in the code, and
+nothing in the product implies it does.
+
+**Credit-aware purchasing.** The khata now records what each contractor owes
+and what their limit is, and checks an order against it. What it does **not**
+do is feed that back into the purchasing planner: "₹25,000 available" is still
+a number the owner types, not a position derived from receivables, supplier
+credit terms and outstanding payments. Joining the two is the obvious next
+step and is deliberately not built.
+
+**Payments and ageing.** The khata holds a balance and payment terms. It does
+not record payments, age a balance, or tell the owner which invoice is
+overdue — the outstanding figure is a number on the account, not a ledger with
+entries behind it.
+
+**Richer units.** Units are per SKU, with at most one configured conversion
+each. There is no unit graph, no weight-to-length conversion, and no
+kilogram — which is how wire is sometimes actually bought.
+
+**WhatsApp voice-note ingestion.** Orders often arrive as a voice note on
+WhatsApp rather than spoken across the counter. Reading those would reuse the
+existing voice pipeline, but needs the WhatsApp Business API this project
+deliberately does not have.
+
+**Multi-supplier comparison.** `pricing.cheaper_alternatives` already surfaces
+rival quotes, but choosing between suppliers is advisory and does not feed the
+allocator. Making it a purchasing input is a larger commercial decision than a
+code change.
+
+---
+
 ## Limitations
 
 Stated plainly, because the system is only useful if its claims are reliable.
@@ -466,7 +861,40 @@ Stated plainly, because the system is only useful if its claims are reliable.
 - **Ambiguous supplier price-list lines are surfaced but not resolvable in the
   UI** — the owner can see them, not fix them.
 - **Clarification is single-round** in the interface.
-- **No voice and no Tamil output.** Deliberately not built and not claimed.
+- **The khata is a ledger card, not a ledger.** Balances are seeded and
+  read-only: ShopFlow never moves an outstanding amount, records a payment or
+  ages a debt. Confirming an order does not add it to the account.
+- **Credit limits are not validated against anything.** They are numbers on a
+  synthetic record. No claim is made about real trade credit behaviour.
+- **Units are configured for this catalogue only.** Four stocking units, one
+  base unit, and conversions on the coil SKUs. There is no general conversion
+  framework and no weight-based unit.
+- **A unit stated against the wrong product asks a question rather than
+  offering the right SKU.** "2 boxes of switches" reports that nothing is
+  stocked in boxes; it does not suggest the loose piece as an alternative.
+- **Margin protection is informational only.** It reprices nothing, and the
+  suggested selling price is a recommendation with no mechanism behind it —
+  applying a price change is not implemented.
+- **The margin warning threshold is a heuristic.** 10% is chosen from this
+  catalogue's own distribution, not from measured trade economics, and a real
+  shop would set its own.
+- **WhatsApp is a share link, not an integration.** No message is ever sent by
+  ShopFlow, no delivery is tracked and nothing is stored. The button opens
+  WhatsApp with a draft; sending is entirely the owner's action.
+- **The WhatsApp button has not been clicked on a device.** The two message
+  builders are exercised in Node against real engine output, which covers the
+  message itself; the browser hand-off has not been tested by the author.
+- **Voice accuracy is unmeasured.** Speech recognition quality depends on the
+  browser, device and accent. No Tamil or Tanglish accuracy figure is claimed,
+  because none has been measured against real shop recordings.
+- **Voice is Chrome-family in practice.** The Web Speech API is not available
+  in every browser; where it is missing the typed flow is used instead.
+- **Tamil speech playback depends on the device** having a `ta-IN` voice
+  installed. Where it is absent the reply is shown as text.
+- **A category word can broaden a lookup.** Saying "Kaveri armoured cable" —
+  a brand this shop does not stock — matches on the word *cable* and returns a
+  brand question rather than a flat "not stocked". It asks rather than invents,
+  but the question is less direct than it could be.
 - **Single-tenant demo.** No authentication, no multi-shop support.
 - **Amazon Nova Pro only.** Anthropic model access is not available on this
   account, so the model adapter defaults to Nova Pro.

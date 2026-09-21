@@ -11,6 +11,7 @@ import os
 import time
 
 import boto3
+from boto3.dynamodb.conditions import Key
 
 from agent.orchestrator import (
     DEFAULT_MODEL_ID,
@@ -18,7 +19,10 @@ from agent.orchestrator import (
     run_order_agent,
 )
 from agent.vision import ExtractionError, extract_price_list
+from engine.cost_records import DEFAULT_SHOP_ID, cost_pk, latest_confirmed_costs
+from engine.credit import check_quote_credit
 from engine.loader import cached_dataset
+from engine.margin import margin_alerts, quotation_margin_impact
 from engine.supplier_prices import InvalidSupplierLineError, review_price_list
 
 TABLE_NAME = os.environ["TABLE_NAME"]
@@ -45,6 +49,47 @@ def _update(job_id: str, **fields) -> None:
         ExpressionAttributeNames=names,
         ExpressionAttributeValues=values,
     )
+
+
+def _margin_protection(payload: dict):
+    """Which confirmed supplier price changes touch this quotation.
+
+    Attached to a finished quotation so the owner sees the margin consequence
+    on the document it applies to, rather than having to go and ask.
+
+    It reports and nothing more. The quotation's own figures are already
+    calculated and are not re-derived, adjusted or re-totalled here - a
+    supplier cost change does not reprice a quotation the customer was given.
+
+    Best effort on purpose: an order must not fail because a margin panel
+    could not be built, so any problem here is logged and dropped.
+    """
+    quote = (payload or {}).get("quote")
+    if not quote or not quote.get("lines"):
+        return None
+    try:
+        rows = _table.query(
+            KeyConditionExpression=Key("PK").eq(cost_pk(DEFAULT_SHOP_ID))
+            & Key("SK").begins_with("COST#")
+        ).get("Items", [])
+        confirmed = latest_confirmed_costs([
+            {
+                "skuId": row.get("skuId"),
+                "confirmedCost": float(row.get("confirmedCost") or 0),
+                "confirmedAt": row.get("confirmedAt"),
+                "sourceJobId": row.get("sourceJobId"),
+            }
+            for row in rows
+        ])
+        if not confirmed:
+            return None
+        costs = {sku: entry["cost"] for sku, entry in confirmed.items()}
+        impact = quotation_margin_impact(
+            quote, margin_alerts(cached_dataset(), costs))
+        return impact if impact["affectedCount"] else None
+    except Exception as exc:  # noqa: BLE001
+        print(f"margin protection skipped: {type(exc).__name__}: {exc}")
+        return None
 
 
 def _process_price_list(job_id: str, item: dict) -> dict:
@@ -160,10 +205,24 @@ def handler(event, context):
         "orderChars": len(order_text),
     }))
 
+    payload = result.as_dict()
+    protection = _margin_protection(payload)
+    if protection:
+        payload["marginProtection"] = protection
+
+    # Credit, when this order goes on someone's khata. The quotation is
+    # already priced and is neither withheld nor altered by the answer: a
+    # customer over their limit still gets their quotation, and whether to
+    # sell anyway is the owner's decision, not the software's.
+    credit = check_quote_credit(
+        cached_dataset(), item.get("customerId"), payload.get("quote"))
+    if credit:
+        payload["credit"] = credit
+
     _update(
         job_id,
         status="DONE" if result.status != "FAILED" else "FAILED",
-        result=json.dumps(result.as_dict()),
+        result=json.dumps(payload),
         finishedAt=int(time.time()),
     )
     return {"ok": True, "status": result.status}

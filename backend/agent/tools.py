@@ -20,9 +20,11 @@ from engine.models import Dataset
 from engine.quote import (
     InvalidQuantityError,
     UnknownSkuError,
+    UomMismatchError,
     calculate_quote,
     check_inventory,
 )
+from engine.uom import STOCKING_UOMS, SUPPORTED_UOMS
 
 SEARCH_CATALOG = "search_catalog"
 GET_INVENTORY = "get_inventory"
@@ -74,6 +76,16 @@ TOOL_CONFIG = {
                             "type": "string",
                             "description": "Length if stated, e.g. '90m'. Omit if not stated.",
                         },
+                        "uom": {
+                            "type": "string",
+                            "enum": list(STOCKING_UOMS),
+                            "description": (
+                                "The unit the customer counted in, if they said one: "
+                                "'3 coils' is COIL, '2 boxes' is BOX, '20 pieces' is "
+                                "PIECE. Report what they said - do not convert it and "
+                                "do not supply a unit they did not use."
+                            ),
+                        },
                     },
                     "required": ["requestedText"],
                 }},
@@ -116,6 +128,15 @@ TOOL_CONFIG = {
                                 "properties": {
                                     "skuId": {"type": "string"},
                                     "quantity": {"type": "integer"},
+                                    "uom": {
+                                        "type": "string",
+                                        "enum": list(SUPPORTED_UOMS),
+                                        "description": (
+                                            "The unit the customer used, exactly as "
+                                            "they said it. Never converted, never "
+                                            "supplied when they did not say one."
+                                        ),
+                                    },
                                 },
                                 "required": ["skuId", "quantity"],
                             },
@@ -173,6 +194,7 @@ Rules you must follow:
 3. If search_catalog returns AMBIGUOUS, do not pick one. Call request_clarification with that attribute and stop.
 4. Never substitute a different brand. If the customer said Finolex, it is Finolex or nothing.
 5. Quantities come from the customer's words. "3 coils" is 3. Do not invent quantities.
+5a. Units come from the customer's words too. If they counted in coils, boxes, packs, lengths, metres or pieces, pass that as uom. If they did not say a unit, omit it. Never convert one unit into another - "90 metres" is not "1 coil", and deciding that is not your job.
 6. When every product is RESOLVED, call calculate_quote once with all the items together.
 7. Never state a price, total, stock level or shortage yourself. Those come from calculate_quote.
 
@@ -197,6 +219,7 @@ def _tool_search_catalog(data: Dataset, args: Dict) -> Dict:
         specification=args.get("specification"),
         colour=args.get("colour"),
         length=args.get("length"),
+        uom=args.get("uom"),
     )
     payload = result.as_dict()
 
@@ -254,6 +277,17 @@ def _tool_calculate_quote(data: Dataset, args: Dict) -> Dict:
         ) from exc
     except InvalidQuantityError as exc:
         raise ToolError(str(exc), kind="INVALID_QUANTITY") from exc
+    except UomMismatchError as exc:
+        # The unit is a question, not a rounding problem. The model is sent to
+        # the clarification tool rather than being allowed to retry with a
+        # quantity it converted itself.
+        raise ToolError(
+            f"{exc.resolution.get('message')} Do not convert the quantity "
+            f"yourself. Call {REQUEST_CLARIFICATION} and ask the shop owner "
+            f"how many {exc.resolution.get('catalogueUom', '').lower()}s "
+            f"they want.",
+            kind="UOM_MISMATCH",
+        ) from exc
 
     return {"quote": quote.as_dict()}
 

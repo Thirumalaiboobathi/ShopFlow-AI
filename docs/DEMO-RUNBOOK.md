@@ -122,8 +122,81 @@ Anna, 20 Anchor modular switches 1-Way 10A, 3 coils Finolex 1.5 sq mm red wire 9
 
 **Say:** *"That's everyday shop language — abbreviated, mixed with Tamil
 address, no SKU codes. Every line is matched to a real catalogue product and
-checked against live stock. The total is computed by a deterministic engine, not
+checked against the shop's inventory. The total is computed by a deterministic
+engine, not
 written by the model."*
+
+---
+
+## A2. Units — "3 coils" is not "90 metres"
+
+Still on the quotation from Step A. Point at the wire line.
+
+**Expected:** the line reads **3 COIL · 270 METER equivalent**, priced
+**₹6,608.00 / coil**, line total **₹19,824.00**.
+
+**Say:** *"Three coils, and it tells you that's 270 metres. It does not turn it
+into 270 and price it per metre — the shop sells coils."*
+
+Now clear the box and type:
+
+> *"90 metres Finolex 1.5 sq mm red wire."*
+
+**Expected:** a clarification, not a quotation. ShopFlow says the wire is sold
+by the coil, states **1 COIL = 90 METER**, and asks how many coils are wanted.
+
+**Say:** *"Ninety metres IS one coil. It still will not assume that. A coil is
+not divisible at this price, and a system that guesses here gets both the
+price and the delivery wrong."*
+
+> Optional, if you have a second to spare: *"2 boxes of Anchor switches"*
+> returns "not stocked in boxes" — the shop sells them loose, and ShopFlow
+> will not quietly substitute the loose one.
+
+> **Do not claim** a general unit-conversion system. Conversions exist only
+> where the catalogue records a measurement; conduit and clips have none.
+
+---
+
+## A3. Khata — can this go on his account?
+
+Scroll up to **Put this on** above the order box and choose
+**Ravi Electrical Works**. Click **Process order** on the canonical order
+again.
+
+**Expected:** the same quotation, **₹22,306.48**, with a **Khata / Credit**
+panel beneath it:
+
+| | |
+|---|---:|
+| Current outstanding | ₹8,500.00 |
+| Credit limit | ₹15,000.00 |
+| This order | ₹22,306.48 |
+| Projected outstanding | ₹30,806.48 |
+| Remaining credit | −₹15,806.48 |
+
+with **⚠ Credit limit exceeded** and *"This quotation stands."*
+
+**Say:** *"Ravi is good for fifteen thousand and he already owes eight and a
+half. This order does not fit. Notice what ShopFlow did not do — it did not
+cancel the quotation, and it did not reprice anything. It told the owner, and
+the owner decides. Shops extend past the limit for a good contractor every
+day; software that refused to print the quote would just get switched off."*
+
+Now switch the selector to **Bala Contractors** and run it again.
+
+**Expected:** **✓ Credit approved**, remaining credit **₹25,293.52**.
+
+**Say:** *"Same order, different account, different answer — and it is
+subtraction, not a score. There is no model anywhere in that decision."*
+
+> **Do not claim** credit scoring, risk assessment or any real-world
+> validation. The panel itself says: *"ShopFlow does not perform credit
+> scoring. Khata decisions are deterministic checks against shop-defined
+> customer credit limits and outstanding balances."*
+>
+> **Do not claim** the customers are real. They are synthetic demo records
+> with unusable phone numbers, and the UI says so under the selector.
 
 ---
 
@@ -221,6 +294,45 @@ decision, not an arithmetic consequence of a supplier's invoice."*
 
 ---
 
+## E2. Margin protection *(appears the moment you confirm)*
+
+A **Margin protection** panel opens directly under the confirmed line.
+
+**Expected:**
+
+| | |
+|---|---:|
+| Selling price | ₹6,608.00 |
+| Previous supplier cost | ₹5,900.00 |
+| Confirmed supplier cost | ₹6,300.00 |
+| Previous margin | **₹708.00** (10.71%) |
+| Current margin | **₹308.00** (4.66%) |
+| Margin reduction | **₹400.00** (6.05 points) |
+| Status | ⚠ Margin low — below 10% of the selling price |
+
+If you ran Step A first, the panel also says **"Supplier price change affects
+this quotation"** — and states that the quotation total is unchanged.
+
+**Say:** *"A 6.78% increase on the cost. But look at what it did to the profit:
+₹708 down to ₹308. Fifty-seven percent of the margin on that coil, gone. That's
+the number the owner actually feels, and nothing in a price list tells them."*
+
+Click **Review price**.
+
+**Expected:** a suggested selling price of **₹7,055.66** — the price that would
+restore the 10.71% margin — with *"Review and confirm before applying any price
+change"* beside it.
+
+**Say:** *"ShopFlow will tell you what price restores your margin. It will not
+set it. Nothing here has changed what the shop charges, and there is no button
+that would."*
+
+> **Do not claim** that ShopFlow reprices anything, or that these margins are
+> validated against a real shop's economics. The 10% warning threshold is taken
+> from this catalogue's own distribution, and the data is synthetic.
+
+---
+
 ## F. "I only have ₹25,000"
 
 Scroll to **Purchase planner**. Budget already defaults to **25,000**. Click
@@ -274,6 +386,92 @@ why the cash isn't there."*
 > To show both sides live, run the planner **before** Step E as well and keep
 > the numbers on screen. Otherwise quote the before-figures from this table.
 
+**The three links of one chain.** Say them in order, they are three different
+quantities:
+
+| Supplier cost rose | Margin fell | Restocking capacity fell |
+|---|---|---|
+| ₹5,900 → ₹6,300, +6.78% | ₹708 → ₹308, down ₹400 per coil | ₹803.40 |
+
+---
+
+## W. Hand it to the customer *(30 seconds)*
+
+Under the quotation, click **Send Quote on WhatsApp**. Under the plan, click
+**Share Purchase Plan**.
+
+**Expected:** WhatsApp opens with a draft already written — the quotation lines
+at their real prices, the ₹22,306.48 total and both shortages; or the purchase
+request grouped by supplier with the plan's own spend and budget.
+
+**Say:** *"This is where the work actually ends up — in the WhatsApp thread the
+shop already runs its business on. ShopFlow writes the draft. The owner reads
+it and sends it."*
+
+> **Do not claim** a WhatsApp integration. There is no WhatsApp Business API,
+> no webhook and no backend service — this is a share link, and nothing is sent
+> by ShopFlow. Do not claim an order was placed; the draft says *"Draft only —
+> no order has been placed."*
+
+If WhatsApp is not installed on the demo machine, the link opens `web.whatsapp.com`
+instead. Say so and move on; the draft text is the point, not the transport.
+
+---
+
+## V. Voice (optional — run before A, or skip entirely)
+
+> **Use Chrome or Edge on desktop.** The Web Speech API is not in every
+> browser. If speech is unavailable the card says so and the typed flow below
+> is unaffected — that fallback is itself worth showing.
+
+Allow the microphone when prompted. **Do this once before the audience is
+watching**, so the permission dialog does not interrupt the demo.
+
+**V1 — a spoken order.** Click **Start speaking** and say:
+
+> *"Anna, 20 Anchor modular switch 1-Way 10 amp, 3 coil Finolex 1.5 sq mm red
+> wire 90m, 2 Havells MCB SP 32 amp."*
+
+Expect: the transcript appears under **You said** and is editable. The order is
+sent through the existing workflow and quotes **₹22,306.48** — the same number
+as typing it.
+
+**Say:** *"That's the same engine. Voice changed how the order arrived, not how
+the answer was calculated."*
+
+**V2 — a stock question.**
+
+> *"Havells MCB SP 32 amp irukka?"*
+
+Expect a spoken reply using real inventory, e.g. *"Aamaam, Havells MCB SP 32A
+C-Curve 5 piece irukku."*
+
+**V3 — voice refuses to guess.**
+
+> *"Anchor switch stock la evlo irukku?"*
+
+Expect a clarification, not a number — the shop stocks several Anchor switches.
+
+**V4 — a margin question.** *(run this after Step E, or the answer will
+correctly say no price change has been confirmed)*
+
+> *"Finolex 1.5 sq mm red wire 90m margin evlo?"*
+
+Expect: *"Current margin ₹308.00. Previous margin ₹708.00. Margin reduced by
+₹400.00."* — the same three figures as the panel, because they are the same
+engine call.
+
+**V5 — voice cannot confirm a price.**
+
+> *"Confirm the supplier price."*
+
+Expect: *"Please confirm the supplier price on screen."* Nothing is changed.
+
+**Say:** *"Voice can ask anything. It cannot change what the shop pays."*
+
+If the transcript comes out wrong, **edit it in the box and click Use this** —
+that is the designed path, not a failure.
+
 ---
 
 ## I. "Why?" — the evidence
@@ -313,6 +511,19 @@ helps them decide what to do next — and shows exactly why."*
 | `/api/health` fails | Deeper problem | Check CloudFormation is `UPDATE_COMPLETE` and CloudWatch for errors |
 | Page loads but calls fail | CloudFront/API routing | Confirm `/api/health` directly; check `/api/nope` still returns JSON 404 |
 | Confirm button errors | Job expired (24h TTL) | Re-upload the price list to get a fresh job |
+| Mic button disabled | Browser has no Web Speech API | Say so, and use the typed flow — the fallback is the point |
+| Microphone permission denied | Blocked in the browser | Shown as a message; type the order instead |
+| Transcript is wrong | Accent, noise, unusual term | Edit it in the box and click **Use this** |
+| No Tamil playback | Device has no `ta-IN` voice | Reply is on screen with a note; carry on |
+| Voice reply but no numbers | Product was ambiguous | Correct — it asks rather than guessing |
+| No margin panel after confirming | The price list job expired | Re-upload and confirm again |
+| Margin says "no price change confirmed" | Step E not yet done | Correct — run Step E first |
+| WhatsApp button does nothing | No quotation or plan on screen yet | Run Step A or Step F first |
+| WhatsApp opens the web client | App not installed on this machine | Expected; the draft text is the point |
+| No Khata panel on the quote | Selector left on "Cash sale" | Correct — an anonymous order gets no credit check |
+| Customer selector is empty | `/api/customers` did not load | Cash sale still works; run the order without an account |
+| "Credit limit exceeded" on the demo | Expected for Ravi | That is the point of the step — do not switch accounts to hide it |
+| A unit request asks a question | The SKU is not sold in that unit | Correct — it refuses to convert silently |
 
 **If live AWS misbehaves during judging:** fall back to a recording, and say
 plainly that you are showing a recording. Do not narrate a recording as if it
@@ -329,7 +540,8 @@ Run after **any** deployment, before demoing.
 
 ```bash
 python -m pytest                            # expect: 336 passed
-python scripts/smoke_test_planner.py        # expect: 25 checks, SMOKE TEST PASSED
+python scripts/smoke_test_planner.py        # expect: 36 checks, SMOKE TEST PASSED
+python scripts/smoke_test_credit_uom.py     # expect: 28 checks, SMOKE TEST PASSED
 ```
 
 Then live:
@@ -347,7 +559,7 @@ Then live:
 Deploy **only** via:
 
 ```bash
-export SHOPFLOW_ALERT_EMAIL="you@example.com"
+export SHOPFLOW_ALERT_EMAIL="thiru260402@gmail.com"
 ./scripts/deploy.sh
 ```
 

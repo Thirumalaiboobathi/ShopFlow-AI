@@ -13,6 +13,7 @@ from typing import Dict, Iterable, List, Sequence, Tuple
 from .models import Dataset, money
 from .pricing import current_cost
 from .shortage import shortage_qty
+from .uom import base_equivalent, conversion_note, product_uom, uom_evidence
 from .velocity import coverage_weeks, velocity_for
 
 
@@ -31,6 +32,22 @@ class InvalidQuantityError(ValueError):
     pass
 
 
+class UomMismatchError(ValueError):
+    """The unit the customer used cannot be reconciled with the SKU.
+
+    Raised rather than resolved, because every way of resolving it is a guess.
+    Someone asking for 90 metres of a wire sold in 90 m coils might mean one
+    coil or might mean a cut length the shop does not sell; someone asking for
+    a box of switches is describing a pack size this shop does not stock. Both
+    are questions, and the caller turns this into one.
+    """
+
+    def __init__(self, skuId: str, resolution: dict):
+        self.skuId = skuId
+        self.resolution = resolution
+        super().__init__(resolution.get("message") or "unit cannot be reconciled")
+
+
 @dataclass
 class QuoteLine:
     skuId: str
@@ -43,6 +60,15 @@ class QuoteLine:
     shortageQty: int
     weeklyVelocity: float
     coverageWeeks: float | None
+    # Units. `quantity` is, and stays, a count of CATALOGUE units - the price
+    # and the stock check are both denominated in them. What the customer
+    # actually said is preserved beside it rather than overwritten, so a
+    # quotation for "3 coils" reads back as 3 coils.
+    catalogueUom: str = "PIECE"
+    requestedUom: str | None = None
+    uomStatus: str = "UNSPECIFIED"
+    conversion: str | None = None
+    baseEquivalent: dict | None = None
 
     @property
     def inStock(self) -> bool:
@@ -61,6 +87,13 @@ class QuoteLine:
             "inStock": self.inStock,
             "weeklyVelocity": self.weeklyVelocity,
             "coverageWeeks": self.coverageWeeks,
+            # The requested unit is reported as given. Nothing downstream may
+            # substitute the converted figure for the ordered quantity.
+            "catalogueUom": self.catalogueUom,
+            "requestedUom": self.requestedUom,
+            "uomStatus": self.uomStatus,
+            "conversion": self.conversion,
+            "baseEquivalent": self.baseEquivalent,
             "evidence": {
                 "lineTotal": f"{self.quantity} x {self.sellingPrice} = {self.lineTotal}",
                 "shortage": (
@@ -71,6 +104,12 @@ class QuoteLine:
                     None if self.coverageWeeks is None else
                     f"{self.onHand} units at {self.weeklyVelocity}/week "
                     f"= {self.coverageWeeks} weeks of cover"
+                ),
+                "units": (
+                    f"{self.quantity} {self.catalogueUom}"
+                    + (f" = {self.baseEquivalent['quantity']} "
+                       f"{self.baseEquivalent['uom']}"
+                       if self.baseEquivalent else "")
                 ),
             },
         }
@@ -129,6 +168,11 @@ def check_inventory(data: Dataset, skuIds: Iterable[str]) -> List[dict]:
             "coverageWeeks": None if cover == float("inf") else round(cover, 2),
             "supplierLeadTimeDays": data.supplierFor(skuId).leadTimeDays,
             "currentSupplierCost": current_cost(data, skuId),
+            # Stock is counted in the SKU's own unit and stays that way. The
+            # equivalent is shown beside it, never instead of it.
+            "uom": product_uom(data.product(skuId)),
+            "conversion": conversion_note(data.product(skuId)),
+            "baseEquivalent": base_equivalent(data.product(skuId), on_hand),
         })
     return out
 
@@ -138,14 +182,22 @@ def calculate_quote(
 ) -> Quote:
     """Price an order and check it against stock.
 
-    `items` may be (skuId, quantity) pairs or dicts with those keys. Unknown
-    SKUs and non-positive quantities are rejected outright rather than being
-    coerced into something plausible.
+    `items` may be (skuId, quantity) pairs or dicts with those keys. A dict
+    may also carry `uom`, the unit the customer actually used. Unknown SKUs,
+    non-positive quantities and units that cannot be reconciled with the SKU
+    are all rejected outright rather than coerced into something plausible.
     """
     normalised: List[Tuple[str, int]] = []
+    requested_uoms: Dict[str, object] = {}
     for item in items:
         if isinstance(item, dict):
             skuId, qty = item.get("skuId"), item.get("quantity")
+            stated = item.get("uom") or item.get("requestedUom")
+            # First statement wins. Two lines for one SKU in two different
+            # units is a question for the owner, not something to reconcile
+            # here; in practice the agent sends one line per product.
+            if stated and skuId not in requested_uoms:
+                requested_uoms[skuId] = stated
         else:
             skuId, qty = item
         normalised.append((skuId, qty))
@@ -161,10 +213,20 @@ def calculate_quote(
                 f"quantity for {skuId} must be a positive integer, got {qty!r}")
         merged[skuId] = merged.get(skuId, 0) + qty
 
+    # Units are validated before anything is priced. A line whose unit cannot
+    # be reconciled is not quoted at a guessed quantity and then flagged - it
+    # stops the quotation, and the caller asks.
+    for skuId in merged:
+        resolution = uom_evidence(
+            data.product(skuId), requested_uoms.get(skuId), merged[skuId])
+        if resolution["needsClarification"]:
+            raise UomMismatchError(skuId, resolution)
+
     lines = []
     for skuId, qty in merged.items():
         p = data.product(skuId)
         on_hand = data.onHand(skuId)
+        units = uom_evidence(p, requested_uoms.get(skuId), qty)
         velocity = round(velocity_for(data, skuId).weeklyVelocity, 2)
         cover = coverage_weeks(on_hand, velocity)
         lines.append(QuoteLine(
@@ -178,6 +240,11 @@ def calculate_quote(
             shortageQty=shortage_qty(qty, on_hand),
             weeklyVelocity=velocity,
             coverageWeeks=None if cover == float("inf") else round(cover, 2),
+            catalogueUom=units["catalogueUom"],
+            requestedUom=units["requestedUom"],
+            uomStatus=units["status"],
+            conversion=units["conversion"],
+            baseEquivalent=units["baseEquivalent"],
         ))
 
     return Quote(lines=lines)

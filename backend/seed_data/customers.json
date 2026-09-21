@@ -1,0 +1,42 @@
+[
+  {
+    "customerId": "CUST-BALA-002",
+    "customerName": "Bala Contractors",
+    "phone": "+919900000002",
+    "creditLimit": 60000.0,
+    "outstandingAmount": 12400.0,
+    "paymentDueDays": 30,
+    "status": "ACTIVE",
+    "currency": "INR"
+  },
+  {
+    "customerId": "CUST-RAVI-001",
+    "customerName": "Ravi Electrical Works",
+    "phone": "+919900000001",
+    "creditLimit": 15000.0,
+    "outstandingAmount": 8500.0,
+    "paymentDueDays": 30,
+    "status": "ACTIVE",
+    "currency": "INR"
+  },
+  {
+    "customerId": "CUST-SELVAM-003",
+    "customerName": "Selvam Builders",
+    "phone": "+919900000003",
+    "creditLimit": 40000.0,
+    "outstandingAmount": 0.0,
+    "paymentDueDays": 15,
+    "status": "ACTIVE",
+    "currency": "INR"
+  },
+  {
+    "customerId": "CUST-KUMAR-004",
+    "customerName": "Kumar Wiring Services",
+    "phone": "+919900000004",
+    "creditLimit": 25000.0,
+    "outstandingAmount": 21750.0,
+    "paymentDueDays": 45,
+    "status": "BLOCKED",
+    "currency": "INR"
+  }
+]

@@ -1,0 +1,293 @@
+"""The WhatsApp handoff.
+
+WHAT IS BEING TESTED
+--------------------
+The two message builders live in the browser, because the handoff is a share
+link and nothing else - there is no WhatsApp Business API, no webhook, no OAuth
+and no backend service anywhere in this project. That does not make them
+untestable. These tests pull the real functions out of `index.html`, run them in
+Node against real engine output, and check the message that comes back.
+
+The thing worth proving is that the draft carries the shop's own numbers. A
+share button that quietly reformats, re-adds or rounds a total would be a
+second source of truth for money, which is exactly what this architecture
+exists to prevent.
+
+Skipped, not failed, where Node is unavailable: a machine without Node can
+still run the rest of the suite.
+"""
+
+from __future__ import annotations
+
+import json
+import pathlib
+import re
+import shutil
+import subprocess
+
+import pytest
+
+from engine.loader import cached_dataset
+from engine.purchasing import build_purchase_plan
+from engine.quote import calculate_quote
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+INDEX = ROOT / "frontend" / "site" / "index.html"
+
+BUDGET = 25000.0
+WIRE = "W-FIN-1.5-RED-90M"
+CANONICAL = [("SW-ANC-1W10A", 20), (WIRE, 3), ("MCB-HAV-SP-32A-C", 2)]
+
+node = pytest.mark.skipif(
+    shutil.which("node") is None, reason="Node is not installed")
+
+
+# ---------------------------------------------------------------------------
+# extracting the real source
+# ---------------------------------------------------------------------------
+
+def _function_source(page: str, name: str) -> str:
+    """One named function, lifted out by balancing its braces."""
+    start = page.index(f"function {name}(")
+    depth, i = 0, page.index("{", start)
+    while True:
+        if page[i] == "{":
+            depth += 1
+        elif page[i] == "}":
+            depth -= 1
+            if depth == 0:
+                return page[start:i + 1]
+        i += 1
+
+
+def _builders() -> str:
+    page = INDEX.read_text(encoding="utf-8")
+    begin = page.index("// >>> whatsapp-builders")
+    end = page.index("// <<< whatsapp-builders")
+    block = page[begin:end]
+    # rupees() is shared with the rest of the page, so it is taken from where
+    # it actually lives rather than duplicated here.
+    return _function_source(page, "rupees") + "\n" + block
+
+
+def _run(payload: dict, tmp_path: pathlib.Path) -> dict:
+    script = tmp_path / "wa.js"
+    data_file = tmp_path / "in.json"
+    data_file.write_text(json.dumps(payload), encoding="utf-8")
+    script.write_text(
+        _builders()
+        + """
+const input = JSON.parse(require('fs').readFileSync(process.argv[2], 'utf8'));
+process.stdout.write(JSON.stringify({
+  quote: whatsappQuoteText(input.quote),
+  plan: whatsappPlanText(input.plan),
+  nullQuote: whatsappQuoteText(null),
+  nullPlan: whatsappPlanText(null),
+  emptyQuote: whatsappQuoteText({ lines: [] }),
+  emptyPlan: whatsappPlanText({ commitments: [], restockSelected: [],
+                                budget: 0, totalSpend: 0 }),
+  url: whatsappUrl(whatsappQuoteText(input.quote)),
+  weirdUrl: whatsappUrl("a&b ?c #d \\u20b91,000")
+}));
+""",
+        encoding="utf-8")
+    out = subprocess.run(
+        ["node", str(script), str(data_file)],
+        capture_output=True, text=True, encoding="utf-8", timeout=60)
+    assert out.returncode == 0, out.stderr
+    return json.loads(out.stdout)
+
+
+@pytest.fixture(scope="module")
+def engine_output():
+    data = cached_dataset()
+    quote = calculate_quote(data, CANONICAL).as_dict()
+    plan = build_purchase_plan(data, BUDGET)
+    return {"quote": quote, "plan": plan}
+
+
+@pytest.fixture(scope="module")
+def messages(engine_output, tmp_path_factory):
+    if shutil.which("node") is None:
+        pytest.skip("Node is not installed")
+    return _run(engine_output, tmp_path_factory.mktemp("wa"))
+
+
+def _numbers(text: str):
+    """Every money-looking token in a message, normalised for comparison."""
+    return {m.replace(",", "") for m in re.findall(r"\d[\d,]*\.\d{2}", text)}
+
+
+# ---------------------------------------------------------------------------
+# 17-18  the quotation message
+# ---------------------------------------------------------------------------
+
+@node
+def test_17_the_quote_message_carries_the_engines_own_figures(
+        messages, engine_output):
+    text = messages["quote"]
+    quote = engine_output["quote"]
+
+    assert text.startswith("SHOPFLOW AI — QUOTATION")
+    assert f"{quote['total']:,.2f}" in text
+    for line in quote["lines"]:
+        assert line["name"] in text
+        assert f"{line['lineTotal']:,.2f}" in text
+        assert f"{line['sellingPrice']:,.2f}" in text
+        unit = (line.get("catalogueUom") or line["unit"]).upper()
+        # The unit is carried into the draft, and it is the SKU's own unit —
+        # never a converted quantity.
+        assert f"{line['quantity']} {unit} ×" in text
+    assert text.rstrip().endswith("Generated by ShopFlow AI")
+
+
+@node
+def test_17b_the_canonical_total_reaches_the_message_unchanged(messages):
+    """22,306.48 typed, spoken or shared is the same number."""
+    assert "Total: ₹22,306.48" in messages["quote"]
+
+
+@node
+def test_17c_the_message_invents_no_money_figure(messages, engine_output):
+    """Every rupee amount in the draft must exist in the engine's own output."""
+    quote = engine_output["quote"]
+    allowed = {f"{quote['total']:.2f}"}
+    for line in quote["lines"]:
+        allowed.add(f"{line['lineTotal']:.2f}")
+        allowed.add(f"{line['sellingPrice']:.2f}")
+
+    assert _numbers(messages["quote"]) <= allowed
+
+
+@node
+def test_18_shortages_are_included_with_the_engines_quantities(
+        messages, engine_output):
+    text = messages["quote"]
+    shorts = [l for l in engine_output["quote"]["lines"] if l["shortageQty"] > 0]
+    assert shorts, "the canonical order is expected to be short on two lines"
+
+    assert "Shortage:" in text
+    for line in shorts:
+        unit = (line.get("catalogueUom") or line["unit"]).upper()
+        assert f"• {line['name']}: {line['shortageQty']} {unit}" in text
+    for line in engine_output["quote"]["lines"]:
+        if line["shortageQty"] == 0:
+            assert f"• {line['name']}:" not in text
+
+
+# ---------------------------------------------------------------------------
+# 19-20  the purchase-plan message
+# ---------------------------------------------------------------------------
+
+@node
+def test_19_the_plan_message_uses_the_plans_own_values(messages, engine_output):
+    text = messages["plan"]
+    plan = engine_output["plan"]
+
+    assert text.startswith("SHOPFLOW AI — PURCHASE REQUEST")
+    assert "Supplier:" in text
+    assert "Please supply:" in text
+    assert f"{plan['totalSpend']:,.2f}" in text
+    assert f"{plan['budget']:,.2f}" in text
+    assert "Please confirm availability and final invoice." in text
+
+    funded = [l for l in plan["commitments"] + plan["restockSelected"]
+              if l["selected"]]
+    assert funded
+    for line in funded:
+        why = " (customer order)" if line["tier"] == "COMMITTED_ORDER" else " (restock)"
+        assert (f"• {line['productName']} — {line['fundedQty']} "
+                f"units{why}") in text
+
+
+@node
+def test_19b_every_supplier_named_is_one_the_plan_returned(messages, engine_output):
+    plan = engine_output["plan"]
+    names = {
+        l["supplierName"] for l in plan["commitments"] + plan["restockSelected"]
+        if l["selected"]
+    }
+    assert names, "plan lines must carry a supplier name"
+    for name in re.findall(r"^Supplier:\n(.+)$", messages["plan"], re.MULTILINE):
+        assert name in {n.upper() for n in names}
+
+
+@node
+def test_19c_the_draft_never_claims_an_order_was_placed(messages):
+    text = messages["plan"]
+    assert "Draft only" in text
+    for claim in ("order placed", "we have ordered", "confirmed order",
+                  "your order has been"):
+        assert claim.lower() not in text.lower()
+
+
+@node
+def test_20_the_plan_message_invents_no_money_figure(messages, engine_output):
+    plan = engine_output["plan"]
+    allowed = {f"{plan['totalSpend']:.2f}", f"{plan['budget']:.2f}"}
+    assert _numbers(messages["plan"]) <= allowed, (
+        "the draft contains a rupee figure the planner did not produce - "
+        "arithmetic has crept into the share layer")
+
+
+@node
+def test_20b_no_business_number_is_hard_coded_in_the_share_layer():
+    """The builders must read every figure from the response."""
+    block = _builders()
+    block = block[block.index("// >>> whatsapp-builders"):]
+    for banned in ("22306", "22,306", "25000", "25,000", "6608", "6,608",
+                   "6300", "5900", "803.40", "78.30", "458.24"):
+        assert banned not in block, f"{banned} is hard-coded in the share layer"
+
+
+# ---------------------------------------------------------------------------
+# 21-22  encoding and empty states
+# ---------------------------------------------------------------------------
+
+@node
+def test_21_the_share_link_is_a_plain_encoded_wa_me_url(messages):
+    url = messages["url"]
+    assert url.startswith("https://wa.me/?text=")
+    # Nothing that would break the link survives unencoded.
+    for raw in ("\n", " ", "#", "&", "₹"):
+        assert raw not in url.split("text=", 1)[1]
+    assert "%0A" in url  # the line breaks are there, encoded
+
+
+@node
+def test_21b_reserved_characters_are_encoded_not_stripped(messages):
+    encoded = messages["weirdUrl"].split("text=", 1)[1]
+    assert "%26" in encoded      # &
+    assert "%23" in encoded      # #
+    assert "%3F" in encoded      # ?
+    assert "%E2%82%B9" in encoded  # the rupee sign
+
+
+@node
+def test_22_missing_or_empty_input_produces_no_message_rather_than_a_broken_one(
+        messages):
+    assert messages["nullQuote"] == ""
+    assert messages["nullPlan"] == ""
+    assert messages["emptyQuote"] == ""
+    assert messages["emptyPlan"] == ""
+
+
+@node
+def test_22b_an_empty_draft_never_opens_whatsapp():
+    """wireShare refuses to open a window for an empty message."""
+    page = INDEX.read_text(encoding="utf-8")
+    wire = _function_source(page, "wireShare")
+    assert "if (!text) return;" in wire
+    assert "window.open" in wire
+
+
+def test_22c_the_handoff_is_frontend_only():
+    """No backend route, no stored message, no WhatsApp credential anywhere."""
+    page = INDEX.read_text(encoding="utf-8")
+    assert "https://wa.me/?text=" in page
+
+    backend = ROOT / "backend"
+    for path in list(backend.rglob("*.py")) + [ROOT / "infrastructure" / "shopflow_stack.py"]:
+        source = path.read_text(encoding="utf-8")
+        for token in ("wa.me", "whatsapp", "WhatsApp", "WHATSAPP"):
+            assert token not in source, f"{path.name} mentions {token}"

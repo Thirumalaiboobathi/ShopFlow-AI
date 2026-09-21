@@ -40,6 +40,22 @@ class Product:
     supplierId: str
     name: str
     fulfilmentPolicy: str = PARTIAL_ALLOWED
+    # --- unit of measure -------------------------------------------------
+    # The unit this SKU is stocked, priced and sold in, as a canonical value
+    # (PIECE, COIL, BOX, PACK, LENGTH). `unit` above is the older free-text
+    # display string and is kept because names and evidence already read from
+    # it; `engine.uom.product_uom` is the single accessor and falls back to it.
+    uom: str = ""
+    # How many `uom` one catalogue line represents. One, everywhere in this
+    # shop. It exists so the conversion below is expressed per stated quantity
+    # rather than per assumed single unit.
+    uomQuantity: float = 1.0
+    # How much of `baseUom` one `uomQuantity` of `uom` contains - 90 metres in
+    # a 90 m coil. Configured PER PRODUCT and left unset wherever the shop has
+    # not measured it, because an assumed conversion is worse than none. Used
+    # to SHOW an equivalence, never to rewrite an ordered quantity.
+    baseQuantity: Optional[float] = None
+    baseUom: Optional[str] = None
     # The variant a shop reaches for when the customer does not specify, e.g.
     # the 90m coil rather than the 180m one. Used only to break a tie between
     # otherwise-identical candidates, and always reported in the evidence so
@@ -117,6 +133,39 @@ class CustomerOrder:
     committed: bool = True
 
 
+# A customer's credit status with this shop.
+#   ACTIVE    may be given goods on credit, up to their limit
+#   BLOCKED   may not, whatever the limit says - a decision the owner made
+CUSTOMER_ACTIVE = "ACTIVE"
+CUSTOMER_BLOCKED = "BLOCKED"
+
+
+@dataclass(frozen=True)
+class Customer:
+    """One khata account: what this customer may owe, and what they owe now.
+
+    This is a shop's own ledger card, not a credit bureau record. There is no
+    score, no history of other shops, and nothing predictive - the limit is a
+    number the owner set, and the outstanding is what is on the account today.
+
+    Every customer in this repository is SYNTHETIC demo data. See
+    `backend/seed_data/customers.json`.
+    """
+
+    customerId: str
+    customerName: str
+    phone: str
+    creditLimit: float
+    outstandingAmount: float
+    paymentDueDays: int
+    status: str = CUSTOMER_ACTIVE
+    currency: str = "INR"
+
+    @property
+    def isActive(self) -> bool:
+        return str(self.status).upper() == CUSTOMER_ACTIVE
+
+
 @dataclass
 class Dataset:
     """Everything the engine needs, indexed for lookup."""
@@ -127,6 +176,7 @@ class Dataset:
     suppliers: Dict[str, Supplier] = field(default_factory=dict)
     priceHistory: Dict[str, List[SupplierPrice]] = field(default_factory=dict)
     orders: List[CustomerOrder] = field(default_factory=list)
+    customers: Dict[str, Customer] = field(default_factory=dict)
 
     def product(self, skuId: str) -> Product:
         return self.products[skuId]
@@ -144,6 +194,10 @@ class Dataset:
 
     def prices(self, skuId: str) -> List[SupplierPrice]:
         return sorted(self.priceHistory.get(skuId, []), key=lambda p: p.effectiveDate)
+
+    def customer(self, customerId: str) -> Optional[Customer]:
+        """The khata account, or None. A missing customer is never invented."""
+        return self.customers.get(customerId)
 
     def committedOrders(self) -> List[CustomerOrder]:
         return [o for o in self.orders if o.committed]

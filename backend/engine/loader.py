@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Dict, List
 
 from .models import (
+    Customer,
     CustomerOrder,
     Dataset,
     InventoryItem,
@@ -55,8 +56,18 @@ def load_dataset(seed_dir: Path | str | None = None) -> Dataset:
         for o in _read(directory, "orders")
     ]
 
+    # Khata accounts. Tolerated as absent rather than required, so a dataset
+    # assembled from a partial fixture directory still loads - a shop with no
+    # credit accounts is a legitimate shop, and `credit.check_credit` answers
+    # NO_CREDIT_ACCOUNT for every id in that case rather than crashing.
+    customers = {}
+    if (directory / "customers.json").exists():
+        customers = {c["customerId"]: Customer(**c)
+                     for c in _read(directory, "customers")}
+
     return Dataset(products=products, inventory=inventory, sales=sales,
-                   suppliers=suppliers, priceHistory=prices, orders=orders)
+                   suppliers=suppliers, priceHistory=prices, orders=orders,
+                   customers=customers)
 
 
 @lru_cache(maxsize=1)

@@ -188,9 +188,16 @@ def _line_view(data: Dataset, line, baseline: Dataset,
     product = data.product(line.skuId)
     evidence = dict(line.evidence)
 
+    supplier = data.suppliers.get(product.supplierId)
+
     view = {
         "skuId": line.skuId,
         "productName": product.name,
+        # Who the shop buys this from. Presentation only - the allocator has
+        # never considered supplier, and adding these fields does not make it
+        # start. They exist so a purchase request can be addressed to somebody.
+        "supplierId": product.supplierId,
+        "supplierName": supplier.name if supplier else product.supplierId,
         "tier": line.tier,
         "decision": line.decision,
         "selected": line.fundedQty > 0,

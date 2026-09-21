@@ -28,6 +28,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
 from .models import Dataset, Product
+from .uom import normalize_uom, product_uom
 
 RESOLVED = "RESOLVED"
 AMBIGUOUS = "AMBIGUOUS"
@@ -82,6 +83,7 @@ class MatchCandidate:
             "colour": p.colour,
             "length": p.length,
             "unit": p.unit,
+            "uom": product_uom(p),
             "sellingPrice": p.sellingPrice,
             "isDefaultVariant": p.isDefaultVariant,
             "score": round(self.score, 3),
@@ -111,6 +113,12 @@ class MatchResult:
 
 
 def _attr_matches(product: Product, attr: str, wanted: str) -> bool:
+    if attr == "uom":
+        # A unit is an exact fact about the SKU, not a description of it.
+        # "2 boxes of switches" may only match a switch actually stocked in
+        # boxes; there is no partial credit and no nearest unit.
+        return product_uom(product) == normalize_uom(wanted)
+
     actual = getattr(product, attr, None)
     if actual is None:
         return False
@@ -134,6 +142,7 @@ def search_catalog(
     specification: Optional[str] = None,
     colour: Optional[str] = None,
     length: Optional[str] = None,
+    uom: Optional[str] = None,
     # High enough to hold every variant of a real product family. A cap that
     # bites would hand back an alphabetically-biased subset, and a truncated
     # candidate list becomes a clarification that omits the right answer.
@@ -145,7 +154,8 @@ def search_catalog(
     Polycab. Free text only ranks what survives those filters.
     """
     filters = {"brand": brand, "category": category,
-               "specification": specification, "colour": colour, "length": length}
+               "specification": specification, "colour": colour,
+               "length": length, "uom": uom}
     filters = {k: v for k, v in filters.items() if v}
 
     pool: List[Product] = []
@@ -185,11 +195,19 @@ def resolve_product(
     specification: Optional[str] = None,
     colour: Optional[str] = None,
     length: Optional[str] = None,
+    uom: Optional[str] = None,
 ) -> MatchResult:
-    """Turn a described product into exactly one SKU, or into a question."""
+    """Turn a described product into exactly one SKU, or into a question.
+
+    A stated `uom` is a hard filter like any other attribute. Asking for a box
+    of something this shop only sells by the piece returns NOT_FOUND, which is
+    the truthful answer: the shop does not stock that pack size, and quietly
+    matching the loose product would be selling the customer something they
+    did not ask for.
+    """
     candidates = search_catalog(
         data, query=requested_text, brand=brand, category=category,
-        specification=specification, colour=colour, length=length,
+        specification=specification, colour=colour, length=length, uom=uom,
     )
 
     if not candidates:
