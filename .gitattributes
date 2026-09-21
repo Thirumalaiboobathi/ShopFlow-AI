@@ -1,0 +1,17 @@
+# This repository is developed on Windows with core.autocrlf=true, which
+# rewrites line endings on checkout. Shell scripts must keep LF: a CRLF shell
+# script fails on Linux and macOS with errors like
+#
+#     /usr/bin/env: 'bash\r': No such file or directory
+#
+# scripts/deploy.sh is the guard that stops a deploy from destroying the cost
+# budget, so it failing to run on a collaborator's machine would be the worst
+# possible thing to leave to chance.
+#
+# Note: Git Bash on this Windows machine tolerates CRLF, so the failure was NOT
+# reproduced locally. This is protection for clones on other platforms.
+*.sh text eol=lf
+
+# Normalise text files, and never touch binaries.
+* text=auto
+*.png binary

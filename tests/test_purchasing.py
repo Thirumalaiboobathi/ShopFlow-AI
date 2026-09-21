@@ -426,3 +426,180 @@ def test_19d_tiers_are_labelled_consistently(seeded):
         l["tier"] == TIER2
         for l in plan["restockSelected"] + plan["restockDeferred"]
     )
+
+
+# ---------------------------------------------------------------------------
+# P1.5 - the confirmed supplier cost impact block
+#
+# Reported by running the SAME allocator twice over the SAME data and budget,
+# once with the confirmed costs applied and once without, then subtracting.
+# No new decision logic, and no canonical number is hard-coded into the engine.
+# ---------------------------------------------------------------------------
+
+IMPACT = "confirmedCostImpact"
+
+
+def wire_confirmed(price=6300.0):
+    return [{"skuId": WIRE, "decision": "CONFIRMED", "currentPrice": price,
+             "sourceJobId": "j" * 32, "confirmedAt": 1}]
+
+
+def test_p15_1_no_confirmed_costs_omits_the_impact_block(seeded):
+    """Absent, not a zero-filled object that implies a comparison happened.
+
+    Matches the existing `costBasis` convention: a conditional key is left out
+    rather than returned empty.
+    """
+    plan = build_purchase_plan(seeded, CANONICAL_BUDGET)
+    assert IMPACT not in plan
+
+
+def test_p15_1b_a_rejected_decision_omits_the_impact_block(seeded):
+    decisions = [{"skuId": WIRE, "decision": "REJECTED", "currentPrice": 6300.0}]
+    plan = build_purchase_plan(seeded, CANONICAL_BUDGET, decisions)
+    assert IMPACT not in plan
+
+
+def test_p15_2_canonical_confirmed_price_reports_the_verified_impact(seeded):
+    plan = build_purchase_plan(seeded, CANONICAL_BUDGET, wire_confirmed())
+    impact = plan[IMPACT]
+
+    assert impact["directCommitmentIncrease"] == 800.00
+    assert impact["restockingCapacityReduction"] == 803.40
+    assert impact["restockCostWithout"] == 12848.56
+    assert impact["restockCostWith"] == 12045.16
+
+
+def test_p15_2b_the_impact_reconciles_with_the_plan_it_describes(seeded):
+    """Every reported figure must agree with the plan actually returned."""
+    baseline = build_purchase_plan(seeded, CANONICAL_BUDGET)
+    plan = build_purchase_plan(seeded, CANONICAL_BUDGET, wire_confirmed())
+    impact = plan[IMPACT]
+
+    assert impact["restockCostWith"] == plan["restockCost"]
+    assert impact["restockCostWithout"] == baseline["restockCost"]
+    assert impact["totalSpendWith"] == plan["totalSpend"]
+    assert impact["totalSpendWithout"] == baseline["totalSpend"]
+    assert impact["directCommitmentIncrease"] == round(
+        plan["commitmentCost"] - baseline["commitmentCost"], 2)
+    assert impact["restockingCapacityReduction"] == round(
+        baseline["restockCost"] - plan["restockCost"], 2)
+
+
+def test_p15_2c_the_two_figures_are_genuinely_different_quantities(seeded):
+    """The core distinction: 800.00 is not 803.40.
+
+    If these ever became equal the greedy re-fit would have stopped mattering,
+    and the wording shown in the UI would be misleading.
+    """
+    impact = build_purchase_plan(
+        seeded, CANONICAL_BUDGET, wire_confirmed())[IMPACT]
+    assert impact["directCommitmentIncrease"] != impact["restockingCapacityReduction"]
+
+
+def test_p15_3_a_confirmed_price_equal_to_the_seeded_one_has_zero_impact(seeded):
+    """Zero impact, but still confirmed - provenance must not be downgraded."""
+    same = current_cost(seeded, WIRE)
+    plan = build_purchase_plan(seeded, CANONICAL_BUDGET, wire_confirmed(same))
+
+    impact = plan[IMPACT]
+    assert impact["directCommitmentIncrease"] == 0.0
+    assert impact["restockingCapacityReduction"] == 0.0
+    assert impact["restockCostWithout"] == impact["restockCostWith"]
+
+    # The block is present because a cost WAS confirmed, and the line still
+    # says so. A zero delta is not the same as no confirmation.
+    line = next(l for l in plan["commitments"] if l["skuId"] == WIRE)
+    assert line["costSource"] == "CONFIRMED_SUPPLIER_PRICE"
+
+
+def test_p15_4_the_comparison_covers_every_confirmed_sku(seeded):
+    """Not just the wire. Adding a second confirmed cost must move the impact."""
+    switch = "SW-ANC-1W10A"
+    switch_cost = current_cost(seeded, switch)
+
+    one = build_purchase_plan(seeded, CANONICAL_BUDGET, wire_confirmed())
+    two = build_purchase_plan(seeded, CANONICAL_BUDGET, wire_confirmed() + [
+        {"skuId": switch, "decision": "CONFIRMED",
+         "currentPrice": switch_cost + 10.0, "sourceJobId": "k" * 32,
+         "confirmedAt": 2},
+    ])
+
+    assert len(two["confirmedCosts"]) == 2
+    # The switch is also on committed order, so the commitment rise is larger.
+    assert (two[IMPACT]["directCommitmentIncrease"]
+            > one[IMPACT]["directCommitmentIncrease"])
+
+
+def test_p15_4b_the_impact_does_not_assume_a_committed_sku(seeded):
+    """A confirmed cost on a restock-only SKU must still report correctly."""
+    plan = build_purchase_plan(seeded, CANONICAL_BUDGET)
+    committed = {c["skuId"] for c in plan["commitments"]}
+    restock_sku = next(
+        l["skuId"] for l in plan["restockSelected"] if l["skuId"] not in committed
+    )
+    cost = current_cost(seeded, restock_sku)
+    decisions = [{"skuId": restock_sku, "decision": "CONFIRMED",
+                  "currentPrice": cost * 1.2, "sourceJobId": "m" * 32,
+                  "confirmedAt": 3}]
+
+    impact = build_purchase_plan(seeded, CANONICAL_BUDGET, decisions)[IMPACT]
+    # Nothing committed changed, so there is no direct commitment increase.
+    assert impact["directCommitmentIncrease"] == 0.0
+    # The figures still reconcile against each other.
+    assert impact["restockingCapacityReduction"] == round(
+        impact["restockCostWithout"] - impact["restockCostWith"], 2)
+
+
+def test_p15_5_selling_price_is_untouched_by_the_comparison(seeded):
+    before = seeded.product(WIRE).sellingPrice
+    plan = build_purchase_plan(seeded, CANONICAL_BUDGET, wire_confirmed())
+
+    line = next(l for l in plan["commitments"] if l["skuId"] == WIRE)
+    assert line["sellingPrice"] == before
+    assert seeded.product(WIRE).sellingPrice == before
+
+
+def test_p15_6_inventory_is_untouched_by_the_comparison(seeded):
+    before = {sku: seeded.onHand(sku) for sku in seeded.products}
+    build_purchase_plan(seeded, CANONICAL_BUDGET, wire_confirmed())
+    after = {sku: seeded.onHand(sku) for sku in seeded.products}
+    assert before == after
+
+
+def test_p15_6b_the_extra_pass_does_not_alter_the_plan_returned(seeded):
+    """The counterfactual is a comparison, never an influence."""
+    with_impact = build_purchase_plan(seeded, CANONICAL_BUDGET, wire_confirmed())
+    without_impact = build_purchase_plan(
+        seeded, CANONICAL_BUDGET, wire_confirmed(), include_impact=False)
+
+    assert IMPACT in with_impact and IMPACT not in without_impact
+    for key in ("commitmentCost", "restockCost", "totalSpend", "remaining",
+                "allCommitmentsFunded", "budgetIsBinding"):
+        assert with_impact[key] == without_impact[key]
+    assert with_impact["counts"] == without_impact["counts"]
+
+
+@pytest.mark.parametrize("budget", [0, 1000, 20000, 25000, 30000, 100000])
+def test_p15_7_planner_invariants_still_hold_with_the_impact_block(seeded, budget):
+    plan = build_purchase_plan(seeded, budget, wire_confirmed())
+    assert plan["totalSpend"] <= plan["budget"] + 1e-9
+    assert plan["remaining"] >= 0
+
+
+def test_p15_7b_impact_figures_never_exceed_the_budget(seeded):
+    impact = build_purchase_plan(
+        seeded, CANONICAL_BUDGET, wire_confirmed())[IMPACT]
+    for key in ("restockCostWithout", "restockCostWith",
+                "totalSpendWithout", "totalSpendWith"):
+        assert 0 <= impact[key] <= CANONICAL_BUDGET
+
+
+def test_p15_9_what_if_scenarios_are_unaffected(seeded):
+    """what_if reports none of the impact fields and must not gain them."""
+    scenarios = what_if(seeded, CANONICAL_BUDGET, wire_confirmed())
+    assert [s["budget"] for s in scenarios] == [20000.0, 30000.0]
+    for s in scenarios:
+        assert IMPACT not in s
+        assert s["totalSpend"] <= s["budget"]
+        assert s["remaining"] >= 0

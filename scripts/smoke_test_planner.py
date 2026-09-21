@@ -245,9 +245,45 @@ def main() -> int:
               all(l["costSource"] == "SEEDED_SUPPLIER_PRICE" for l in unconfirmed),
               f"{len(unconfirmed)} line(s)")
 
+        # ---- 7. the confirmed-cost impact, from the stored record ----
+        #
+        # Reported by running the same allocator twice - once with the stored
+        # confirmed cost applied, once without - and subtracting. Verified here
+        # against the real persisted row rather than an in-memory fixture.
+        print("7. confirmed-cost impact")
+        check("baseline plan omits the impact block",
+              "confirmedCostImpact" not in baseline)
+
+        impact = durable.get("confirmedCostImpact")
+        check("confirmed plan returns the impact block", impact is not None)
+        if impact:
+            print(f"  directCommitmentIncrease    Rs {impact['directCommitmentIncrease']:,.2f}")
+            print(f"  restockingCapacityReduction Rs {impact['restockingCapacityReduction']:,.2f}")
+            print(f"  restockCostWithout          Rs {impact['restockCostWithout']:,.2f}")
+            print(f"  restockCostWith             Rs {impact['restockCostWith']:,.2f}")
+
+            check("direct commitment increase is the expected Rs 800.00",
+                  impact["directCommitmentIncrease"] == EXPECTED_EXTRA_TIER1,
+                  f"Rs {impact['directCommitmentIncrease']:,.2f}")
+            check("restocking capacity reduction is a DIFFERENT figure",
+                  impact["restockingCapacityReduction"]
+                  != impact["directCommitmentIncrease"],
+                  f"Rs {impact['restockingCapacityReduction']:,.2f}")
+            check("impact describes the plan it came with",
+                  impact["restockCostWith"] == durable["restockCost"])
+            check("impact baseline matches the unconfirmed plan",
+                  impact["restockCostWithout"] == baseline["restockCost"],
+                  f"Rs {baseline['restockCost']:,.2f}")
+            check("the two figures reconcile",
+                  round(impact["restockCostWithout"] - impact["restockCostWith"], 2)
+                  == impact["restockingCapacityReduction"])
+            check("impact did not change the plan's own totals",
+                  durable["totalSpend"] <= BUDGET and durable["remaining"] >= 0,
+                  f"total Rs {durable['totalSpend']:,.2f}")
+
     finally:
-        # ---- 7. leave nothing behind ----
-        print("7. clean up")
+        # ---- 8. leave nothing behind ----
+        print("8. clean up")
         table.delete_item(Key={"PK": pk, "SK": sk})
         table.delete_item(Key={"PK": smoke_cost_pk, "SK": cost_sk(WIRE)})
         gone = (table.get_item(Key={"PK": pk, "SK": sk}).get("Item") is None

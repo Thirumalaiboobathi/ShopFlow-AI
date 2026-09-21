@@ -804,3 +804,67 @@ def test_the_planner_query_really_reaches_the_cost_rows(api_env):
         KeyConditionExpression=Key("PK").eq(COST_PK) & Key("SK").begins_with("NOPE#")
     )["Items"]
     assert none == []
+
+
+# ---- P1.5: confirmedCostImpact through the API ----
+
+def test_impact_absent_when_nothing_is_confirmed(api_env):
+    plan = body_of(api.handler(post_plan({"budget": 25000}), None))
+    assert "confirmedCostImpact" not in plan
+
+
+def test_impact_returned_after_a_confirmation(api_env):
+    table, _lam, _s3 = api_env
+    api.handler(post_decision(seed_reviewed_job(table), WIRE, "CONFIRMED"), None)
+
+    plan = body_of(api.handler(post_plan({"budget": 25000}), None))
+    impact = plan["confirmedCostImpact"]
+
+    assert impact["directCommitmentIncrease"] == 800.00
+    assert impact["restockingCapacityReduction"] == 803.40
+    assert impact["restockCostWithout"] == 12848.56
+    assert impact["restockCostWith"] == 12045.16
+    # The block describes the plan it was returned with.
+    assert impact["restockCostWith"] == plan["restockCost"]
+
+
+def test_impact_absent_after_a_rejection(api_env):
+    table, _lam, _s3 = api_env
+    api.handler(post_decision(seed_reviewed_job(table), WIRE, "REJECTED"), None)
+    plan = body_of(api.handler(post_plan({"budget": 25000}), None))
+    assert "confirmedCostImpact" not in plan
+
+
+def test_impact_survives_json_serialisation(api_env):
+    """No Decimal, no inf - the browser must get plain JSON numbers."""
+    table, _lam, _s3 = api_env
+    api.handler(post_decision(seed_reviewed_job(table), WIRE, "CONFIRMED"), None)
+
+    response = api.handler(post_plan({"budget": 25000}), None)
+    assert "Infinity" not in response["body"] and "NaN" not in response["body"]
+    impact = json.loads(response["body"])["confirmedCostImpact"]
+    for key in ("directCommitmentIncrease", "restockingCapacityReduction",
+                "restockCostWithout", "restockCostWith"):
+        assert isinstance(impact[key], float)
+
+
+def test_impact_present_on_the_explicit_job_id_path_too(api_env):
+    """Backward compatibility: the Stage 5 caller gets the block as well."""
+    table, _lam, _s3 = api_env
+    job_id = seed_reviewed_job(table)
+    api.handler(post_decision(job_id, WIRE, "CONFIRMED"), None)
+
+    plan = body_of(api.handler(
+        post_plan({"budget": 25000, "priceListJobId": job_id}), None))
+    assert plan["confirmedCostImpact"]["directCommitmentIncrease"] == 800.00
+
+
+def test_selling_price_unchanged_alongside_the_impact(api_env):
+    table, _lam, _s3 = api_env
+    api.handler(post_decision(seed_reviewed_job(table), WIRE, "CONFIRMED"), None)
+
+    plan = body_of(api.handler(post_plan({"budget": 25000}), None))
+    wire = next(l for l in plan["commitments"] if l["skuId"] == WIRE)
+    assert wire["unitCost"] == 6300.0
+    assert wire["sellingPrice"] == 6608.0
+    assert plan["confirmedCostImpact"]["directCommitmentIncrease"] == 800.00

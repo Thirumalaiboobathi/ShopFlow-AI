@@ -192,6 +192,49 @@
   .wcard .wl{color:var(--muted); margin-top:5px; line-height:1.55}
   .costbasis{padding:0 16px 12px; font-size:.85rem; color:var(--warn)}
 
+  .notbot{margin:18px 0 0; max-width:62ch; font-size:.93rem; line-height:1.6;
+    color:var(--muted); border-left:3px solid var(--accent);
+    background:var(--accent-soft); border-radius:0 8px 8px 0; padding:12px 16px}
+  .notbot strong{color:var(--accent)}
+
+  details.trace{border-top:1px solid var(--line); margin-top:14px}
+  ol.tsteps{list-style:none; margin:0; padding:0; display:grid; gap:7px}
+  ol.tsteps li{display:flex; gap:10px; align-items:flex-start}
+  ol.tsteps .tn{flex:none; width:20px; height:20px; border-radius:6px;
+    background:var(--accent-soft); color:var(--accent); font-size:.7rem;
+    font-weight:700; display:grid; place-items:center; margin-top:1px}
+  ol.tsteps .tl{font-size:.88rem; line-height:1.45}
+  ol.tsteps .td{display:block; color:var(--muted); font-size:.83rem}
+
+  .confirmed-note{margin-top:14px; padding:14px 16px; border-radius:8px;
+    background:var(--accent-soft); border-left:3px solid var(--accent)}
+  .confirmed-note .cn-head{margin:0; font-size:.89rem; color:var(--accent);
+    font-weight:600}
+  .cn-grid{display:grid; grid-template-columns:auto 1fr; gap:5px 14px;
+    margin:12px 0 0; font-size:.88rem}
+  .cn-grid dt{color:var(--muted)}
+  .cn-grid dd{margin:0}
+  .cn-grid .was{color:var(--muted); font-weight:400}
+  .confirmed-note .cn-foot{margin:12px 0 0; font-size:.85rem; color:var(--muted)}
+
+  .impact{margin-top:14px; padding:15px 17px; border-radius:8px;
+    background:var(--panel); border:1px solid var(--warn);
+    border-left:3px solid var(--warn)}
+  .impact h4{margin:0 0 9px; font-size:.79rem; letter-spacing:.07em;
+    text-transform:uppercase; color:var(--warn)}
+  .impact .im-lead{margin:0; font-size:.93rem; line-height:1.6}
+  .im-cols{display:grid; gap:10px; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+    margin-top:14px}
+  .im-col{background:var(--bg); border:1px solid var(--line); border-radius:8px;
+    padding:11px 13px}
+  .im-lab{display:block; color:var(--muted); font-size:.79rem; line-height:1.4}
+  .im-val{display:block; font-weight:700; font-size:1.05rem; margin-top:4px}
+  .im-val.im-down{color:var(--warn)}
+  .im-grid{display:grid; grid-template-columns:auto 1fr; gap:7px 14px;
+    margin:14px 0 0; font-size:.85rem}
+  .im-grid dt{font-weight:650; white-space:nowrap}
+  .im-grid dd{margin:0; color:var(--muted); line-height:1.5}
+
   ol.flow{list-style:none; margin:0; padding:0; display:grid; gap:1px;
     background:var(--line); border:1px solid var(--line); border-radius:10px; overflow:hidden}
   ol.flow li{background:var(--panel); padding:14px 17px; display:flex; gap:13px}
@@ -223,6 +266,11 @@
     verify inventory, detect supplier price changes and make purchasing
     decisions when cash is limited.
   </p>
+  <p class="notbot"><strong>Not a chatbot.</strong> ShopFlow uses AI for
+    understanding messy orders and asking for clarification. Deterministic code
+    controls prices, inventory, budgets and purchasing decisions — the model
+    never writes a business number.</p>
+
   <div class="chips">
     <span class="chip">Category&nbsp;<strong>Commercial Potential</strong></span>
     <span class="chip">Lane&nbsp;<strong>Startup</strong></span>
@@ -244,8 +292,10 @@
       <button class="ghost" id="reset" hidden>Start over</button>
     </div>
     <p class="hint" id="hint">
-      Reading a seeded Madurai shop — <span id="catalogSize">147</span> real SKUs,
-      six months of sales history. Every figure below is calculated by the
+      Demo data: <span id="catalogSize">147</span> SKUs and six months of
+      <strong>synthetic</strong> sales history, modelled on an independent
+      electrical retailer's workflow — not a real shop's records.
+      Every figure below is calculated by the
       deterministic engine, never written by the model.
     </p>
 
@@ -272,9 +322,12 @@
   <div class="app">
     <p class="hint" style="margin-top:0">
       Photograph a supplier's price list. ShopFlow reads it, matches each line
-      to a real catalogue SKU, and compares the printed rate against what this
-      shop last paid. A move of more than 5% is flagged — and nothing changes
-      until you say so.
+      to a catalogue SKU, and compares the printed rate against what this shop
+      last paid. A move of more than 5% is flagged.
+      <strong>Reading a supplier price list does not automatically change the
+      shop's cost.</strong> Extract &rarr; compare &rarr; you confirm &rarr; the
+      confirmed cost is stored &rarr; the planner uses it. Nothing moves until
+      you say so.
     </p>
 
     <div class="row">
@@ -343,7 +396,7 @@
     <li><span class="n">1</span><span><span class="t">Order</span>
       <span class="d">A contractor sends a spoken or typed order in everyday shop language. ShopFlow maps it to real catalogue SKUs — and asks when a request is ambiguous instead of guessing.</span></span></li>
     <li><span class="n">2</span><span><span class="t">Verify</span>
-      <span class="d">Each line is checked against live inventory to find exactly what is short.</span></span></li>
+      <span class="d">Each line is checked against the shop's current inventory state to find exactly what is short.</span></span></li>
     <li><span class="n">3</span><span><span class="t">Quote</span>
       <span class="d">A clean quotation the owner can read out or share straight away.</span></span></li>
     <li><span class="n">4</span><span><span class="t">Supplier intelligence</span>
@@ -523,6 +576,92 @@
     }, attempt === 0 ? 700 : 1000);
   }
 
+
+  // ---- execution trace (tool calls, never model reasoning) -------------
+  //
+  // The order API already returns `trace`: one entry per tool the agent
+  // called, with {turn, tool, input, ok}. Only the tool name and the text the
+  // user themselves typed are surfaced. No prompt, no model output and no
+  // chain-of-thought is exposed here - none of that is returned by the API in
+  // the first place.
+  var TOOL_LABELS = {
+    search_catalog: "Searched the catalogue for matching products",
+    get_inventory: "Checked the shop's inventory",
+    calculate_quote: "Calculated the quotation",
+    request_clarification: "Asked the owner for clarification"
+  };
+
+  function tracePanel(result) {
+    var trace = result && result.trace;
+    // No trace, no panel. Never invent one.
+    if (!trace || !trace.length) return "";
+
+    var steps = ['<li><span class="tn">1</span><span class="tl">' +
+      'Understood the order</span></li>'];
+
+    trace.forEach(function (t, i) {
+      var label = TOOL_LABELS[t.tool];
+      if (!label) return;                       // unknown tool: show nothing
+      var detail = "";
+      if (t.input && t.input.requestedText) {
+        detail = '<span class="td">&ldquo;' + esc(t.input.requestedText) + '&rdquo;</span>';
+      }
+      steps.push('<li><span class="tn">' + (steps.length + 1) + '</span>' +
+        '<span class="tl">' + esc(label) + (t.ok ? "" : " (failed)") + detail +
+        '</span></li>');
+    });
+
+    if (result.status === "QUOTED" && result.grounded !== false) {
+      steps.push('<li><span class="tn">' + (steps.length + 1) + '</span>' +
+        '<span class="tl">Verified every number against the engine\'s output' +
+        '</span></li>');
+    }
+
+    return '<details class="why trace"><summary>How ShopFlow worked this out</summary>' +
+      '<div class="evidence">' +
+      '<p class="hint" style="margin:0 0 10px">This is the record of which ' +
+      'tools ran, in order. It is an execution trace, not the model\'s ' +
+      'reasoning.</p>' +
+      '<ol class="tsteps">' + steps.join("") + '</ol>' +
+      '</div></details>';
+  }
+
+  // Which attributes actually differ across the candidate products, read from
+  // the match data the API already returns. The model's own question can name
+  // one attribute while the candidates differ by more than one, so the label
+  // is derived from the products rather than from the sentence.
+  var ATTR_LABELS = {
+    brand: "brand",
+    specification: "type",
+    colour: "colour",
+    length: "length"
+  };
+
+  function differingAttributes(result, requestedText) {
+    var match = null;
+    (result.matches || []).forEach(function (m) {
+      if (m && m.status === "AMBIGUOUS" && m.requestedText === requestedText) match = m;
+    });
+    if (!match || !match.options || match.options.length < 2) return [];
+
+    var names = [];
+    Object.keys(ATTR_LABELS).forEach(function (attr) {
+      var seen = {}, count = 0;
+      match.options.forEach(function (o) {
+        var v = String(o[attr] === null || o[attr] === undefined ? "" : o[attr]);
+        if (!seen[v]) { seen[v] = true; count++; }
+      });
+      if (count > 1) names.push(ATTR_LABELS[attr]);
+    });
+    return names;
+  }
+
+  function joinWords(list) {
+    if (list.length === 0) return "";
+    if (list.length === 1) return list[0];
+    return list.slice(0, -1).join(", ") + " and " + list[list.length - 1];
+  }
+
   function matchIndex(result) {
     var byId = {};
     (result.matches || []).forEach(function (m) {
@@ -537,7 +676,7 @@
 
     if (result.status === "NEEDS_CLARIFICATION" && result.clarification) {
       show(stepsBox, false);
-      renderClarification(result.clarification);
+      renderClarification(result.clarification, result);
       return;
     }
     if (result.status !== "QUOTED" || !result.quote) {
@@ -549,13 +688,23 @@
     renderQuote(result);
   }
 
-  function renderClarification(c) {
+  function renderClarification(c, result) {
+    // The candidates can differ by more than the single attribute the model
+    // names, so the question is built from the products themselves.
+    var differing = differingAttributes(result || {}, c.requestedText);
+    var question = differing.length
+      ? "Which " + joinWords(differing) + " do you need?"
+      : esc(c.question);
+
     var html = '<div class="clarify"><h3>ShopFlow needs one detail</h3>' +
-      '<p>' + esc(c.question) + '</p>';
+      '<p>' + (differing.length ? esc(question) : question) + '</p>';
     if (c.requestedText) {
-      html += '<p class="hint">Asked for: “' + esc(c.requestedText) + '”. ' +
-        'Several catalogue products match and they differ only by ' +
-        esc(c.clarifyingAttribute) + ', so ShopFlow is not guessing.</p>';
+      var differsBy = differing.length
+        ? 'they differ by ' + esc(joinWords(differing))
+        : 'several catalogue products match';
+      html += '<p class="hint">Asked for: \u201c' + esc(c.requestedText) + '\u201d. ' +
+        'More than one catalogue product fits and ' + differsBy +
+        ', so ShopFlow is asking rather than guessing.</p>';
     }
     if (c.options && c.options.length) {
       html += '<div class="options">';
@@ -568,6 +717,7 @@
       html += '</div>';
     }
     html += '</div>';
+    if (result) html += tracePanel(result);
     clarifyBox.innerHTML = html;
     show(clarifyBox, true);
 
@@ -628,9 +778,10 @@
     if (quote.shortageCount > 0) {
       html += '<p class="hint">' + quote.shortageCount +
         ' of ' + quote.lineCount + ' lines cannot be fulfilled from stock. ' +
-        'Deciding what to buy with limited cash is step 5–6 of the workflow, ' +
-        'shipping next.</p>';
+        'The purchase planner below decides what to buy with limited cash.</p>';
     }
+    html += tracePanel(result);
+
     html += '<p class="hint mono" style="opacity:.7">model: ' +
       esc(result.modelId) + ' · ' + result.turns + ' turns · ' +
       Math.round(result.elapsedMs) + ' ms</p>';
@@ -1051,10 +1202,61 @@
     }
 
     if (plan.confirmedCosts.length) {
-      html += '<div class="binds" style="background:var(--accent-soft); color:var(--accent); border-left-color:var(--accent)">' +
-        'Priced using ' + plan.confirmedCosts.length + ' supplier price change' +
-        (plan.confirmedCosts.length === 1 ? "" : "s") + ' you confirmed. ' +
-        'These are remembered for future plans. Your selling prices are unchanged.</div>';
+      html += '<div class="confirmed-note">' +
+        '<p class="cn-head">Priced using ' + plan.confirmedCosts.length +
+        ' supplier price change' + (plan.confirmedCosts.length === 1 ? "" : "s") +
+        ' you confirmed. These are remembered for future plans.</p>';
+
+      // Every figure below is read from the response - nothing is computed here.
+      plan.confirmedCosts.forEach(function (c) {
+        var line = null;
+        plan.commitments.concat(plan.restockSelected).forEach(function (l) {
+          if (!line && l.skuId === c.skuId) line = l;
+        });
+        html += '<dl class="cn-grid">' +
+          '<dt>Product</dt><dd>' + esc(c.productName) + '</dd>' +
+          '<dt>Confirmed supplier cost</dt><dd><strong>' + rupees(c.confirmedCost) +
+            '</strong> <span class="was">(was ' + rupees(c.previousCost) + ')</span></dd>';
+        if (line) {
+          html += '<dt>Selling price</dt><dd>' + rupees(line.sellingPrice) +
+            ' <span class="was">&mdash; unchanged</span></dd>' +
+            '<dt>Cost source</dt><dd class="mono">' + esc(line.costSource) + '</dd>';
+        }
+        html += '</dl>';
+      });
+
+      html += '<p class="cn-foot">A confirmed supplier cost changes what the ' +
+        'shop pays. It never changes what the shop charges.</p></div>';
+    }
+
+    // Supplier price change impact. The backend reports this by running the
+    // same allocator twice - with and without the confirmed costs - so the UI
+    // only formats the figures it is given. Absent field means no block.
+    var impact = plan.confirmedCostImpact;
+    if (impact) {
+      html += '<div class="impact">' +
+        '<h4>Supplier price change impact</h4>' +
+        '<p class="im-lead">Confirmed supplier pricing adds <strong>' +
+        rupees(impact.directCommitmentIncrease) +
+        '</strong> to committed purchasing cost and reduces restocking ' +
+        'capacity by <strong>' + rupees(impact.restockingCapacityReduction) +
+        '</strong>.</p>' +
+        '<div class="im-cols">' +
+          '<div class="im-col"><span class="im-lab">Restocking before ' +
+            'confirmed price</span><span class="im-val">' +
+            rupees(impact.restockCostWithout) + '</span></div>' +
+          '<div class="im-col"><span class="im-lab">Restocking after ' +
+            'confirmed price</span><span class="im-val im-down">' +
+            rupees(impact.restockCostWith) + '</span></div>' +
+        '</div>' +
+        '<dl class="im-grid">' +
+          '<dt>' + rupees(impact.directCommitmentIncrease) + '</dt>' +
+          '<dd>Direct increase on units already promised to customers.</dd>' +
+          '<dt>' + rupees(impact.restockingCapacityReduction) + '</dt>' +
+          '<dd>Total reduction in restocking capacity, after the planner ' +
+            're-fits the remaining budget. This is a different figure from ' +
+            'the direct increase above, not the price rise restated.</dd>' +
+        '</dl></div>';
     }
 
     if (plan.commitments.length) {
@@ -1074,7 +1276,11 @@
     if (plan.restockDeferred.length) {
       var shown = plan.restockDeferred.slice(0, DEFER_SHOWN);
       html += '<div class="grp"><h3>Deferred \u2014 ' + plan.counts.restockDeferred +
-        ' items the cash could not reach</h3><div class="lines">' +
+        ' items the cash could not reach</h3>' +
+        '<p class="more" style="margin-top:0">These are valid purchasing ' +
+        'candidates the engine would recommend. They were not funded because ' +
+        'the stated budget ran out, not because they are poor choices.</p>' +
+        '<div class="lines">' +
         shown.map(planLine).join("") + '</div>';
       if (plan.restockDeferred.length > DEFER_SHOWN) {
         html += '<p class="more">' + (plan.restockDeferred.length - DEFER_SHOWN) +

@@ -268,6 +268,46 @@ def _priority_calculation(evidence: Dict) -> Optional[str]:
     return f"priority = {risk} x {mpr} = {priority}"
 
 
+def _confirmed_cost_impact(
+    with_plan: BudgetPlan, without_plan: BudgetPlan
+) -> dict:
+    """What the owner's confirmed supplier costs cost them, in this budget.
+
+    Both arguments are outputs of the SAME allocator over the SAME data and the
+    SAME budget. The only difference is whether the confirmed supplier costs
+    were applied. Nothing here re-derives a purchasing decision - it subtracts
+    two results the allocator already produced.
+
+    The two figures are deliberately different quantities and must not be
+    conflated:
+
+      directCommitmentIncrease
+          How much more the committed customer orders now cost. This is the
+          price rise landing on units the shop had already promised.
+
+      restockingCapacityReduction
+          How much less is left for discretionary restocking afterwards. It is
+          NOT simply the price rise: Tier 2 is a greedy fit over whatever cash
+          survives Tier 1, so when less cash survives the allocator re-fits a
+          different basket, and the shortfall differs from the direct increase
+          by whatever that re-fit recovers or loses.
+    """
+    return {
+        "directCommitmentIncrease": money(
+            with_plan.tier1Spend - without_plan.tier1Spend),
+        "restockingCapacityReduction": money(
+            without_plan.tier2Spend - with_plan.tier2Spend),
+        "restockCostWithout": without_plan.tier2Spend,
+        "restockCostWith": with_plan.tier2Spend,
+        "totalSpendWithout": without_plan.totalSpend,
+        "totalSpendWith": with_plan.totalSpend,
+        "note": "directCommitmentIncrease is the rise on units already "
+                "promised to customers. restockingCapacityReduction is how "
+                "much less remains for restocking once the allocator re-fits "
+                "the budget, which is a different figure.",
+    }
+
+
 def budget_is_binding(plan: BudgetPlan) -> bool:
     """True when the budget forces a genuine tradeoff.
 
@@ -286,11 +326,17 @@ def build_purchase_plan(
     data: Dataset,
     budget: float,
     decisions: Optional[Iterable[Dict]] = None,
+    include_impact: bool = True,
 ) -> dict:
     """The owner-facing purchase plan for one budget.
 
     `decisions` are owner rulings from a supplier price review; confirmed ones
     reprice the plan. Everything else is the Stage 1 allocator unchanged.
+
+    When confirmed costs are in play and `include_impact` is set, the allocator
+    is run a second time with those costs withheld, and the difference between
+    the two runs is reported as `confirmedCostImpact`. The second run is a
+    comparison only - it never influences the plan that is returned.
     """
     amount = parse_budget(budget)
     details = confirmed_cost_details(decisions or [])
@@ -299,6 +345,13 @@ def build_purchase_plan(
 
     plan = allocate_budget(priced, amount)
     lines = [_line_view(priced, l, data, details) for l in plan.lines]
+
+    # The counterfactual: the same allocator, the same data, the same budget,
+    # with the confirmed costs withheld. Computed only when there is something
+    # to compare, so an unconfirmed plan pays nothing for this.
+    impact = None
+    if costs and include_impact:
+        impact = _confirmed_cost_impact(plan, allocate_budget(data, amount))
 
     commitments = [l for l in lines if l["tier"] == TIER1]
     restock = [l for l in lines if l["tier"] == TIER2]
@@ -309,7 +362,7 @@ def build_purchase_plan(
         sum(l["fullLineCost"] or 0.0 for l in commitments)
     )
 
-    return {
+    result = {
         "budget": amount,
         "commitments": commitments,
         "commitmentCost": plan.tier1Spend,
@@ -352,6 +405,14 @@ def build_purchase_plan(
         },
     }
 
+    # Omitted entirely when there is no confirmed cost, rather than returned as
+    # a zero-filled object that would imply a comparison was made. This follows
+    # the same convention as `costBasis` on a line.
+    if impact is not None:
+        result["confirmedCostImpact"] = impact
+
+    return result
+
 
 def what_if(
     data: Dataset,
@@ -369,7 +430,10 @@ def what_if(
     for alternative in budgets:
         if money(alternative) == money(budget):
             continue
-        plan = build_purchase_plan(data, alternative, decisions)
+        # The what-if summary reports none of the impact fields, so the
+        # extra allocator pass is skipped for these scenarios.
+        plan = build_purchase_plan(
+            data, alternative, decisions, include_impact=False)
         summaries.append({
             "budget": plan["budget"],
             "commitmentCost": plan["commitmentCost"],
