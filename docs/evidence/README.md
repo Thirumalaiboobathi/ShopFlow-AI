@@ -134,6 +134,7 @@ core ship-gate requirement, and what both AI scoring and human judges will hit.
 `POST /api/price-decisions`, `POST /api/purchase-plans`,
 `POST /api/shop-queries`, `GET /api/customers`,
 `GET /api/customers/{customerId}`, `POST /api/credit/check`,
+`POST /api/voice/transcribe`, `POST /api/whatsapp/send`,
 `GET /api/jobs/{jobId}`, `GET /api/demo`.
 
 **Also worth capturing** (`06b-apigw-throttle.png`): Stages → `$default` →
@@ -391,6 +392,53 @@ anywhere.
 
 ---
 
+## 7b. Amazon Transcribe — a real job
+
+**Open:** Amazon Transcribe → Transcription jobs, immediately after speaking
+on the live site (or while `scripts/smoke_test_voice_whatsapp.py` runs).
+
+**Must be visible:** a job named `shopflow-<32 hex>` with its status.
+
+**Why it matters:** proves the transcription is an AWS service call, not
+browser recognition relabelled. The `shopflow-` prefix is also what makes the
+IAM policy scopeable to this application's jobs.
+
+**Filename:** `7b-transcribe-job.png`
+
+---
+
+## 7c. Voice audio does not persist
+
+**Open:** S3 → `shopflow-uploads-<account>` → the `voice-audio/` prefix, a
+minute after a transcription has completed.
+
+**Must be visible:** the prefix **empty**, and the bucket's lifecycle rules
+showing `expire-voice-audio` at 1 day.
+
+**Why it matters:** recordings of a customer's voice are deleted as soon as
+the transcript is read; the lifecycle rule is only a backstop. Capture both
+the empty listing and the rule.
+
+**Filenames:** `7c-voice-audio-empty.png`, `7d-voice-lifecycle-rule.png`
+
+---
+
+## 7e. Transcribe IAM — scoped, not wildcard
+
+**Open:** IAM → the `shopflow-api` function's role → the inline policy.
+
+**Must be visible:** `transcribe:StartTranscriptionJob`,
+`GetTranscriptionJob`, `DeleteTranscriptionJob` on
+`transcription-job/shopflow-*`, and `s3:GetObject`/`s3:DeleteObject` scoped to
+`voice-audio/*`.
+
+**Why it matters:** no `transcribe:*` and no `s3:*`. The audio grant does not
+reach `price-lists/`, so the API still cannot read a supplier document.
+
+**Filename:** `7e-transcribe-iam.png`
+
+---
+
 ## 8b. Margin protection panel
 
 **Open:** the live site, run the price list, confirm the wire increase
@@ -466,6 +514,52 @@ cost and budget, and the line *"Draft only — no order has been placed."*
 so in its own text.
 
 **Filename:** `8f-whatsapp-plan-draft.png`
+
+---
+
+## 8g. WhatsApp — the fallback, told honestly
+
+**Open:** the live site, run an order with a customer selected, press
+**Send via WhatsApp**.
+
+**Must be visible:** *"WhatsApp API not configured — open the draft to send it
+yourself"* and the **Open WhatsApp draft** link.
+
+**Why it matters:** this is the honest state of the feature. The adapter is
+implemented; the credentials are not present; the product says so rather than
+claiming a send. **Do not stage a screenshot suggesting a message was
+delivered.**
+
+**Filename:** `8g-whatsapp-not-configured.png`
+
+---
+
+## 8h. The customer-facing message
+
+**Open:** the draft that opens in WhatsApp.
+
+**Must be visible:** the quotation total **₹22,306.48**, the wire line reading
+**3 coils**, and the credit status as a single word.
+
+**Why it matters:** the separation of internal and customer-facing data, shown
+rather than asserted. There is no supplier cost, no margin and no stock level
+anywhere in the message.
+
+**Filename:** `8h-whatsapp-customer-message.png`
+
+---
+
+## 8i. WhatsApp configuration is absent, by design
+
+**Open:** Lambda → `shopflow-api` → Configuration → Environment variables.
+
+**Must be visible:** `WHATSAPP_API_ENABLED` = `false`, and **no** token,
+phone-number id or secret ARN.
+
+**Why it matters:** the safe default is the deployed default, and no
+credential is present to leak.
+
+**Filename:** `8i-whatsapp-env.png`
 
 ---
 
@@ -624,6 +718,13 @@ Tick only when the file actually exists in this directory.
 - [ ] `14-cloudwatch-log-groups.png`
 - [ ] `14b-cloudwatch-worker-log-line.png`
 - [ ] `15-aws-budget.png`
+- [ ] `7b-transcribe-job.png`
+- [ ] `7c-voice-audio-empty.png`
+- [ ] `7d-voice-lifecycle-rule.png`
+- [ ] `7e-transcribe-iam.png`
+- [ ] `8g-whatsapp-not-configured.png`
+- [ ] `8h-whatsapp-customer-message.png`
+- [ ] `8i-whatsapp-env.png`
 - [ ] `8a1-uom-quote-line.png`
 - [ ] `8a2-uom-no-silent-conversion.png`
 - [ ] `8a3-khata-approved.png`

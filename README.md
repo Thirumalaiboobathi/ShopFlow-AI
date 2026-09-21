@@ -40,6 +40,16 @@ knows whether an order can go on a contractor's account before it is promised,
 and **units of measure**, so "3 coils" and "90 metres" are different requests
 rather than the same number.
 
+A fourth job carries the first three out of the shop:
+
+| | | |
+|---|---|---|
+| **COMMUNICATE** | voice and WhatsApp | → reach the customer |
+
+Speech becomes a transcript through Amazon Transcribe and enters the workflows
+above unchanged; a finished quotation goes to the customer over WhatsApp. Both
+are channels. Neither decides anything.
+
 The middle one is the link between the other two. A dealer's price rise is only
 half a fact; the half that matters is what it left of the profit, and what it
 costs the shop in restocking capacity this week.
@@ -400,6 +410,75 @@ it never re-denominates stock.
 
 ---
 
+## Voice input — Amazon Transcribe
+
+**Status: IMPLEMENTED.** Verified end to end against real AWS by
+`scripts/smoke_test_voice_whatsapp.py`, which uploads a clip, runs a real
+transcription job, parses the result and deletes everything it created.
+
+```
+microphone → MediaRecorder → POST /api/voice/transcribe
+                                      ↓
+                          private S3 (voice-audio/ prefix)
+                                      ↓
+                          Amazon Transcribe job
+                                      ↓
+              GET /api/jobs/{id}  ←  browser polls (the EXISTING route)
+                                      ↓
+                   transcript → engine.voice.normalize_transcript
+                                      ↓
+                            the workflows that already exist
+```
+
+**Transcribe produces text. That is all it is permitted to do.** It resolves
+no SKU, quotes no price, checks no stock and makes no decision. The endpoint's
+response contains exactly four fields — `transcript`, `provider`,
+`handledBy`, `detectedLanguage` — and a test asserts that set is not larger.
+From there the transcript takes the same path a browser-recognised one always
+has, through the same normaliser and the same intent layer.
+
+**Why batch, and why no new infrastructure.** Transcribe's streaming API needs
+either AWS credentials in the page — which this project does not do — or a
+WebSocket service. The batch API needs neither. The upload reuses the base64
+pattern the price-list flow already uses, and the browser polls
+`GET /api/jobs/{jobId}`, the route it already polls for orders and price
+lists. No new bucket, no new table, no Step Functions, no EventBridge, no
+worker invoke, and no Bedrock anywhere on this path.
+
+**Audio formats:** `audio/webm`, `audio/ogg`, `audio/mp4`, `audio/mpeg`,
+`audio/wav`, `audio/flac`. Chrome records webm, Firefox ogg, Safari mp4.
+
+**Limits:** 30 seconds of recording (enforced by a hard stop in the browser),
+2 MB of audio, 3 MB of request body, a 150-second job deadline, and the same
+1,000-character transcript ceiling every other path obeys. An oversized or
+unreadable clip is refused **before** anything is uploaded and before any job
+is started, so a bad request costs nothing.
+
+**Retention.** The recording is deleted the moment a transcript is read or the
+job fails — and on timeout, and on an AWS error during start. The Transcribe
+job is deleted with it. An S3 lifecycle rule expires the `voice-audio/` prefix
+after one day as a backstop. The job row keeps the transcript; it never holds
+the audio.
+
+### Language — and a limitation that is not papered over
+
+Transcribe is asked for `ta-IN` and `en-IN`, the two languages this shop
+speaks. On **Auto**, automatic identification is restricted to those two, so
+it cannot decide a Tanglish clip is Indonesian.
+
+> **Amazon Transcribe resolves a clip to ONE language.** Genuine Tanglish —
+> *"20 Anchor modular switch venum"* — is transcribed by whichever model wins,
+> and the other half of the sentence suffers. This is a real limitation of
+> batch transcription and no amount of configuration removes it.
+
+The UI says so, the owner can pin a language, the transcript is editable
+before anything is acted on, and **browser recognition remains available as an
+alternative** from a selector on the voice card. Both providers implement the
+same four-method interface and hand their transcript to the same function; no
+accuracy claim is made for either.
+
+---
+
 ## Sharing on WhatsApp
 
 Two buttons — **Send Quote on WhatsApp** under a quotation, and **Share
@@ -417,6 +496,103 @@ plan's spend and the budget are the engine's own figures, and the share layer
 only formats them. Tests pull those two builders out of `index.html`, run them
 in Node against real engine output, and assert that every rupee token in the
 draft exists in the response that produced it.
+
+### WhatsApp Business Cloud API
+
+**Status: CONFIGURATION REQUIRED.** The adapter is written against the real
+Cloud API and makes real HTTPS calls when it is configured. It is **not**
+configured here, no credentials exist in this repository, and
+`WHATSAPP_API_ENABLED` defaults to **false**.
+
+> **No claim is made that this connects to WhatsApp.** The Cloud API path has
+> never been executed against Meta's servers by the author. What is tested is
+> the adapter: the request it builds, every error it maps, that a token never
+> leaves it, and that the disabled path falls back correctly.
+
+```
+engine (quotation / credit — already calculated)
+        ↓
+engine.messages  — deterministic, customer-safe projection
+        ↓
+POST /api/whatsapp/send
+        ↓
+integrations.whatsapp  →  Graph API      [when configured]
+        ↓
+        └─────────────→  wa.me draft     [otherwise, and on any failure]
+```
+
+**Three message types and no more:** `QUOTATION`, `ORDER_CONFIRMATION`,
+`CREDIT_STATUS` / `CREDIT_REMINDER`. There is no marketing, no bulk send, no
+chatbot, no autonomous conversation and no support agent.
+
+**Sending is always a human action.** The route runs because somebody pressed
+**Send via WhatsApp**. Nothing schedules it, no webhook reaches it, and
+creating an order does not send anything.
+
+**A send changes nothing.** It does not price, re-check credit, move a
+balance, touch stock or write a row — message delivery is not an accounting
+transaction, and a test snapshots the table, the catalogue and every customer
+balance across a send to prove it. No message status is persisted at all.
+
+**Internal and customer-facing data are separated by an allow-list.** A
+quotation line carries what the shop pays its supplier, how fast the item
+sells, and what margin it earns. `customer_safe_line` names the four fields a
+customer may see — name, quantity, unit, line total — so a field added later
+is invisible to a customer message by default rather than leaking until
+somebody notices. A test renders real engine output and asserts the shop's own
+figures are absent.
+
+**Units survive.** A quotation that says `3 COIL` sends "3 coils". The adapter
+converts nothing and restates nothing.
+
+**Phone numbers are masked everywhere** — `+91******0001` — in logs, in traces
+and in every API response. The full number appears only in the request to
+Meta. Meta's own error text is never echoed back, because it can name the
+business account.
+
+#### Configuration
+
+Names only. No value for any of these exists anywhere in this repository.
+
+| Variable | Meaning |
+|---|---|
+| `WHATSAPP_API_ENABLED` | `true` to send; anything else uses the draft |
+| `WHATSAPP_PHONE_NUMBER_ID` | the sending number's id from Meta |
+| `WHATSAPP_TOKEN_SECRET_ARN` | **preferred** — a Secrets Manager ARN holding the token |
+| `WHATSAPP_ACCESS_TOKEN` | the token directly (local/dev only) |
+| `WHATSAPP_TEMPLATE_NAME` | an approved template, if one is used |
+| `WHATSAPP_TEMPLATE_LANGUAGE` | template language, default `en` |
+| `WHATSAPP_API_VERSION` | Graph version, default `v21.0` |
+
+Supplied to the stack as CDK context:
+
+```bash
+./scripts/deploy.sh -c whatsappEnabled=true \
+                    -c whatsappPhoneNumberId=... \
+                    -c whatsappTokenSecretArn=arn:aws:secretsmanager:...
+```
+
+With none of it supplied the stack adds one environment variable reading
+`false`, and **no IAM statement at all** — the Secrets Manager grant is
+created only when an ARN is given, and then only for that one secret.
+
+#### The 24-hour window
+
+Meta does not permit arbitrary outbound messages. A free-form text message is
+allowed only inside a 24-hour customer service window opened by the customer's
+own last message; outside it an **approved message template** is required,
+which means a Meta Business account, a registered number and template review.
+
+Both are supported — a template is sent when `WHATSAPP_TEMPLATE_NAME` is set,
+plain text otherwise — and a rejection is reported as `TEMPLATE_REJECTED`
+rather than as a generic failure. Neither can make an unapproved message
+deliverable.
+
+#### When a send fails
+
+Every failure — disabled, unconfigured, auth, rate limit, template rejection,
+bad recipient, network, timeout, API error — returns a reason code, a sentence
+safe to show, and the `wa.me` draft. **Delivery is never claimed silently.**
 
 ---
 
@@ -576,6 +752,8 @@ model. It runs offline, in a unit test, in milliseconds.
 | `GET /api/customers` | The shop's khata accounts (synthetic demo data) |
 | `GET /api/customers/{customerId}` | One khata account |
 | `POST /api/credit/check` | Deterministic credit decision, no model, no write |
+| `POST /api/voice/transcribe` | Audio in, transcript out. No business data in the response |
+| `POST /api/whatsapp/send` | Send a customer message, or return the draft |
 | `GET /api/demo` | Seeded examples, so the UI hard-codes nothing |
 
 An unknown `/api/` route returns a real JSON **404**, while frontend routes
@@ -612,7 +790,7 @@ distribution required care — see [Engineering lessons](#engineering-lessons).
 ## Testing
 
 ```bash
-python -m pytest            # 615 tests, ~4 seconds, no AWS account needed
+python -m pytest            # 710 tests, ~4 seconds, no AWS account needed
 ```
 
 The engine is pure, so the business rules are tested directly rather than
@@ -651,6 +829,8 @@ never negative**.
 python scripts/smoke_test_planner.py        # 36 checks against real DynamoDB
 python scripts/smoke_test_credit_uom.py     # 28 checks; writes nothing, and
                                             # fails if the table gains a row
+python scripts/smoke_test_voice_whatsapp.py # 21 checks; runs a REAL Transcribe
+                                            # job and deletes everything after
 ```
 
 Deliberately **not** part of the pytest suite — unit tests must stay fast and
@@ -708,11 +888,15 @@ owner agreed to pay is not something a web request should be able to do.
 ## Repository layout
 
 ```
-backend/engine/      pure business logic — no AWS, no model, 16 modules
+backend/integrations/ outbound adapters — network and credentials, no logic
+                     (whatsapp.py: Cloud API transport)
+backend/engine/      pure business logic — no AWS, no model, 18 modules
                      (includes voice.py: normalisation, intent, spoken replies;
                       margin.py: margin protection, read-only;
                       credit.py: khata decisions, read-only;
-                      uom.py: units and conversion, read-only)
+                      uom.py: units and conversion, read-only;
+                      speech.py: Transcribe limits and parsing, no AWS import;
+                      messages.py: customer-safe message rendering)
 backend/agent/       Bedrock tool loop, vision extraction, grounding validation
 backend/lambdas/     api · worker · health
 backend/seed_data/   generated synthetic dataset (147 SKUs)
@@ -861,6 +1045,28 @@ Stated plainly, because the system is only useful if its claims are reliable.
 - **Ambiguous supplier price-list lines are surfaced but not resolvable in the
   UI** — the owner can see them, not fix them.
 - **Clarification is single-round** in the interface.
+- **Tanglish is not reliably transcribed.** Amazon Transcribe resolves a clip
+  to one language, so a sentence that mixes Tamil and English will lose one of
+  them. Browser recognition remains available, the language can be pinned, and
+  the transcript is editable before anything is acted on. No accuracy figure
+  is claimed for either provider, because none has been measured.
+- **The Transcribe path has been verified for plumbing, not for accuracy.**
+  The smoke test runs a real job end to end with near-silent audio: it proves
+  the request, the parse and the cleanup, and deliberately proves nothing
+  about recognition quality.
+- **The voice recording UI has not been exercised in a browser by the author.**
+  MediaRecorder capture, the microphone permission and playback are
+  implemented and syntax-checked; nobody has spoken into it.
+- **WhatsApp Business is CONFIGURATION REQUIRED, not connected.** No
+  credentials exist in this repository and the Cloud API has never been called
+  against Meta's servers here. The adapter, its error mapping and the disabled
+  fallback are tested; the live connection is not.
+- **Outbound WhatsApp may need an approved template.** Outside the 24-hour
+  customer service window Meta requires one, which needs a Meta Business
+  account and template review. That is a configuration and approval problem
+  this repository cannot solve on its own.
+- **No message status is persisted.** ShopFlow does not record what was sent
+  or whether it was delivered; a send returns a result and nothing is written.
 - **The khata is a ledger card, not a ledger.** Balances are seeded and
   read-only: ShopFlow never moves an outstanding amount, records a payment or
   ages a debt. Confirming an order does not add it to the account.

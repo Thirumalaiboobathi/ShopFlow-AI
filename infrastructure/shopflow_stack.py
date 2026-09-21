@@ -40,6 +40,14 @@ class ShopFlowStack(Stack):
     def __init__(self, scope: Construct, construct_id: str,
                  *, alert_email: str | None = None, monthly_budget_usd: int = 25,
                  bedrock_model_id: str = "apac.amazon.nova-pro-v1:0",
+                 # WhatsApp Business Cloud API. Every one of these is optional
+                 # and the feature is OFF unless `whatsapp_enabled` is set, so
+                 # a deploy with no WhatsApp context adds no environment
+                 # variable of consequence and no IAM statement at all.
+                 whatsapp_enabled: bool = False,
+                 whatsapp_phone_number_id: str | None = None,
+                 whatsapp_token_secret_arn: str | None = None,
+                 whatsapp_template_name: str | None = None,
                  **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
@@ -89,7 +97,18 @@ class ShopFlowStack(Stack):
                     id="expire-demo-uploads",
                     expiration=Duration.days(30),
                     abort_incomplete_multipart_upload_after=Duration.days(1),
-                )
+                ),
+                # Voice recordings are transient. The API deletes each object
+                # as soon as its transcript is read or its job fails; this rule
+                # is the backstop for the case where that cleanup did not run.
+                # One day, not thirty: a recording of a customer's voice is not
+                # something to keep because nobody got round to deleting it.
+                s3.LifecycleRule(
+                    id="expire-voice-audio",
+                    prefix="voice-audio/",
+                    expiration=Duration.days(1),
+                    abort_incomplete_multipart_upload_after=Duration.days(1),
+                ),
             ],
         )
 
@@ -186,6 +205,18 @@ class ShopFlowStack(Stack):
                 "TABLE_NAME": table.table_name,
                 "WORKER_FUNCTION_NAME": worker_fn.function_name,
                 "UPLOADS_BUCKET": uploads.bucket_name,
+                # WhatsApp is off unless switched on deliberately. With no
+                # context supplied this is the only variable added, it reads
+                # "false", and the API falls back to the wa.me draft.
+                "WHATSAPP_API_ENABLED": "true" if whatsapp_enabled else "false",
+                **({"WHATSAPP_PHONE_NUMBER_ID": whatsapp_phone_number_id}
+                   if whatsapp_phone_number_id else {}),
+                # The ARN of a secret, never the token itself. No credential
+                # value is ever placed in a Lambda environment by this stack.
+                **({"WHATSAPP_TOKEN_SECRET_ARN": whatsapp_token_secret_arn}
+                   if whatsapp_token_secret_arn else {}),
+                **({"WHATSAPP_TEMPLATE_NAME": whatsapp_template_name}
+                   if whatsapp_template_name else {}),
             },
             log_group=logs.LogGroup(
                 self, "ApiLogs",
@@ -200,6 +231,46 @@ class ShopFlowStack(Stack):
         uploads.grant_put(api_fn)
         # The API may start the worker but has no Bedrock permission of its own.
         worker_fn.grant_invoke(api_fn)
+
+        # ---- Amazon Transcribe -------------------------------------------
+        #
+        # Three actions, and only on jobs this application named. The name
+        # prefix is what makes the scope possible: `engine.speech.job_name`
+        # prefixes every job "shopflow-", so a policy on
+        # transcription-job/shopflow-* cannot touch another project's job in
+        # this account. No transcribe:* anywhere.
+        api_fn.add_to_role_policy(iam.PolicyStatement(
+            actions=[
+                "transcribe:StartTranscriptionJob",
+                "transcribe:GetTranscriptionJob",
+                "transcribe:DeleteTranscriptionJob",
+            ],
+            resources=[
+                f"arn:aws:transcribe:{self.region}:{account}:"
+                f"transcription-job/{PREFIX}-*",
+            ],
+        ))
+        # Transcribe reads the recording using the caller's permissions, and
+        # the API deletes it afterwards. Both are scoped to the audio prefix
+        # ONLY - the API still cannot read a supplier price list, so the
+        # document-disclosure property that grant_put was chosen for survives.
+        api_fn.add_to_role_policy(iam.PolicyStatement(
+            actions=["s3:GetObject", "s3:DeleteObject"],
+            resources=[uploads.arn_for_objects("voice-audio/*")],
+        ))
+
+        # ---- WhatsApp credentials ----------------------------------------
+        #
+        # Conditional, and deliberately so: with no secret ARN configured this
+        # block adds NOTHING, so the default deployment carries no
+        # secretsmanager permission at all. When an ARN is given, the grant is
+        # to that one secret - never secretsmanager:* and never a wildcard
+        # resource.
+        if whatsapp_token_secret_arn:
+            api_fn.add_to_role_policy(iam.PolicyStatement(
+                actions=["secretsmanager:GetSecretValue"],
+                resources=[whatsapp_token_secret_arn],
+            ))
 
         http_api = apigw.HttpApi(
             self, "HttpApi",
@@ -228,6 +299,8 @@ class ShopFlowStack(Stack):
             ("/api/customers", apigw.HttpMethod.GET),
             ("/api/customers/{customerId}", apigw.HttpMethod.GET),
             ("/api/credit/check", apigw.HttpMethod.POST),
+            ("/api/voice/transcribe", apigw.HttpMethod.POST),
+            ("/api/whatsapp/send", apigw.HttpMethod.POST),
             ("/api/jobs/{jobId}", apigw.HttpMethod.GET),
             ("/api/demo", apigw.HttpMethod.GET),
         ):

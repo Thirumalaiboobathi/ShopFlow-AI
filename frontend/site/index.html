@@ -346,6 +346,14 @@
   .share .share-note{font-size:.83rem; color:var(--muted)}
 
   .vmargin{margin-top:12px}
+  .vaccuracy{margin:10px 0 0; font-size:.82rem}
+  /* WhatsApp send: the outcome of an explicit action, never a status that
+     appears on its own. */
+  .wasend{margin-top:12px; padding:11px 13px; border-radius:7px;
+    border:1px solid var(--line); background:var(--panel); font-size:.88rem}
+  .wasend.ok{border-left:3px solid var(--ok); color:var(--ok)}
+  .wasend.warn{border-left:3px solid var(--warn)}
+  .wasend .wa-draft{display:inline-block; margin-top:8px}
 
   /* Khata: the ledger card a shop keeps per contractor. Same panel language
      as margin protection - ruled rows, status carried by the left border. */
@@ -437,6 +445,13 @@
       </button>
       <span class="vstate" id="vstate" role="status" aria-live="polite">Ready.</span>
       <span class="vlang">
+        <label for="vengineSel">Transcription</label>
+        <select id="vengineSel">
+          <option value="aws" selected>AWS Transcribe</option>
+          <option value="browser">Browser recognition</option>
+        </select>
+      </span>
+      <span class="vlang">
         <label for="vlangSel">Reply in</label>
         <select id="vlangSel">
           <option value="auto" selected>Auto</option>
@@ -445,6 +460,13 @@
         </select>
       </span>
     </div>
+    <p class="hint vaccuracy" id="vaccuracy">
+      Voice transcription powered by AWS. Recognition quality may vary by
+      language, accent and device. Amazon Transcribe resolves a clip to one
+      language, so mixed Tamil and English in a single sentence may transcribe
+      poorly — pick a language, edit the text, or switch to browser
+      recognition. Recordings are deleted as soon as the transcript is read.
+    </p>
 
     <div class="vsaid" id="vsaid" hidden>
       <span class="vlab">You said</span>
@@ -667,6 +689,10 @@
 
   var demo = { exampleOrder: "", ambiguousExample: "" };
   var customerSel = el("customer");
+  // Which order produced the quotation currently on screen. Sent as an id so
+  // the server loads the engine's own result - the browser never transmits a
+  // price, a total or a line.
+  var lastJobId = null;
   var pendingClarifications = [];
   var polling = null;
 
@@ -883,6 +909,76 @@
 
   // <<< panel-builders
 
+  // --- WhatsApp Business send -------------------------------------------
+  //
+  // An explicit action, always. Nothing in this page sends a message because
+  // an order was created; this runs because somebody pressed the button.
+  //
+  // The request carries ids only. The server loads the quotation the engine
+  // produced, renders the customer-safe part of it, and either sends it or
+  // returns a draft. No total, no line and no credit figure is composed here.
+  function sendViaWhatsApp(messageType, box) {
+    if (!lastJobId) return;
+    box.className = "wasend";
+    box.textContent = "Sending\u2026";
+    show(box, true);
+
+    fetch("/api/whatsapp/send", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        messageType: messageType,
+        quoteId: lastJobId,
+        customerId: customerSel.value || ""
+      })
+    }).then(function (r) {
+      return r.json().then(function (b) { return { ok: r.ok, body: b }; });
+    }).then(function (res) {
+      var body = res.body || {};
+      if (!res.ok && !body.status) {
+        throw new Error(body.error || "That message could not be prepared.");
+      }
+      renderSendResult(body, box);
+    }).catch(function (e) {
+      box.className = "wasend warn";
+      box.textContent = e.message + " ";
+      box.appendChild(draftLink(null));
+    });
+  }
+
+  function draftLink(url) {
+    var link = document.createElement("a");
+    link.className = "wa-draft";
+    link.href = url || "#";
+    link.target = "_blank";
+    link.rel = "noopener";
+    link.textContent = "Open WhatsApp draft";
+    if (!url) {
+      link.addEventListener("click", function (ev) {
+        ev.preventDefault();
+        if (lastQuote) window.open(whatsappUrl(whatsappQuoteText(lastQuote)),
+                                   "_blank", "noopener");
+      });
+    }
+    return link;
+  }
+
+  function renderSendResult(body, box) {
+    box.innerHTML = "";
+    if (body.status === "SENT") {
+      box.className = "wasend ok";
+      box.textContent = "\u2713 Sent via WhatsApp" +
+        (body.recipient ? " to " + body.recipient : "") + ".";
+      return;
+    }
+    box.className = "wasend warn";
+    // Never a claim of delivery. The reason is a code the adapter chose; the
+    // sentence beside it is the adapter's own safe wording.
+    box.appendChild(document.createTextNode(
+      (body.notice || "The message was not sent.") + " "));
+    box.appendChild(draftLink(body.draftUrl));
+  }
+
   // >>> whatsapp-builders
   // ---- WhatsApp handoff -------------------------------------------------
   //
@@ -1044,6 +1140,7 @@
       if (!res.ok) throw new Error(res.body.error || "The order was rejected.");
       setSteps("match");
       statusText.textContent = "Matching products to the catalogue…";
+      lastJobId = res.body.jobId;
       poll(res.body.jobId, 0);
     }).catch(function (e) { fail(e.message); });
   }
@@ -1310,7 +1407,15 @@
     // Credit sits under the quotation, never in place of it.
     html += khataPanel(result.credit);
 
-    html += shareRow("waQuote", "Send Quote on WhatsApp");
+    // Two actions, deliberately distinct. "Send via WhatsApp" goes through
+    // the Business adapter when it is configured; the draft button is the
+    // path the product has always had and still works with the API off.
+    html += '<div class="share"><button class="ghost" type="button" ' +
+      'id="waSend">Send via WhatsApp</button>' +
+      '<button class="ghost" type="button" id="waQuote">Open WhatsApp draft' +
+      '</button><span class="share-note">Nothing is sent until you press ' +
+      'Send. ShopFlow never messages a customer on its own.</span></div>' +
+      '<div class="wasend" id="waSendResult" hidden></div>';
     html += tracePanel(result);
 
     html += '<p class="hint mono" style="opacity:.7">model: ' +
@@ -1321,6 +1426,12 @@
     show(resultBox, true);
     wireMarginPanels(resultBox);
     wireShare("waQuote", function () { return whatsappQuoteText(quote); });
+    var sendBtn = el("waSend");
+    if (sendBtn) {
+      sendBtn.addEventListener("click", function () {
+        sendViaWhatsApp("QUOTATION", el("waSendResult"));
+      });
+    }
     // Remembered only so a spoken "total evlo?" can read back the engine's
     // own figure. Nothing recomputes it.
     lastQuote = quote;
@@ -1948,7 +2059,192 @@
     };
   }
 
-  var speech = BrowserSpeechProvider();
+  // --- AWS Transcribe provider -------------------------------------------
+  //
+  // The same four-method interface as the browser provider, which is why this
+  // could be added without a single caller changing: start, stop,
+  // onTranscript, onError, isSupported. It records with MediaRecorder, posts
+  // the clip to /api/voice/transcribe, and polls the SAME /api/jobs/{id}
+  // endpoint the order and price-list flows already poll.
+  //
+  // It produces a transcript and nothing else. What happens to that
+  // transcript is decided by handleTranscript(), exactly as before.
+  var TRANSCRIBE_MAX_SECONDS = 30;
+  var TRANSCRIBE_POLL_MS = 1500;
+  var TRANSCRIBE_MAX_POLLS = 40;
+
+  function AwsTranscribeProvider() {
+    var recorder = null, chunks = [], micStream = null, autoStop = null;
+    var handlers = { transcript: function () {}, error: function () {} };
+    var cancelled = false;
+
+    function supportedMime() {
+      if (!window.MediaRecorder) return "";
+      var candidates = ["audio/webm", "audio/ogg", "audio/mp4"];
+      for (var i = 0; i < candidates.length; i++) {
+        try {
+          if (MediaRecorder.isTypeSupported(candidates[i])) return candidates[i];
+        } catch (e) { /* older implementations throw */ }
+      }
+      return "";
+    }
+
+    function release() {
+      if (autoStop) { clearTimeout(autoStop); autoStop = null; }
+      if (micStream) {
+        try {
+          micStream.getTracks().forEach(function (t) { t.stop(); });
+        } catch (e) {}
+        micStream = null;
+      }
+    }
+
+    function upload(blob, mime) {
+      if (!blob || blob.size < 256) { handlers.error("no-speech"); return; }
+      setVoiceState(VOICE_PROCESSING, "Transcribing with AWS\u2026");
+
+      var reader = new FileReader();
+      reader.onerror = function () { handlers.error("failed"); };
+      reader.onload = function () {
+        var base64 = String(reader.result || "").split(",")[1] || "";
+        fetch("/api/voice/transcribe", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            audioBase64: base64,
+            contentType: mime,
+            language: vlangSel.value
+          })
+        }).then(function (r) {
+          return r.json().then(function (b) { return { ok: r.ok, body: b }; });
+        }).then(function (res) {
+          if (!res.ok) throw new Error(res.body.error || "Transcription failed.");
+          poll(res.body.jobId, 0);
+        }).catch(function (e) { handlers.error("failed", e.message); });
+      };
+      reader.readAsDataURL(blob);
+    }
+
+    function poll(jobId, attempt) {
+      if (cancelled) return;
+      if (attempt > TRANSCRIBE_MAX_POLLS) {
+        handlers.error("failed", "Transcription timed out. Please try again.");
+        return;
+      }
+      setTimeout(function () {
+        fetch("/api/jobs/" + encodeURIComponent(jobId))
+          .then(function (r) { return r.json(); })
+          .then(function (job) {
+            if (cancelled) return;
+            if (job.status === "QUEUED" || job.status === "PROCESSING") {
+              poll(jobId, attempt + 1);
+              return;
+            }
+            if (job.status !== "DONE" || !job.result || !job.result.transcript) {
+              handlers.error("failed", job.error ||
+                "No speech was detected. Please try again, or type instead.");
+              return;
+            }
+            handlers.transcript(job.result.transcript);
+          })
+          .catch(function () { poll(jobId, attempt + 1); });
+      }, attempt === 0 ? 900 : TRANSCRIBE_POLL_MS);
+    }
+
+    return {
+      name: "amazon-transcribe",
+      isSupported: function () {
+        return !!(navigator.mediaDevices &&
+                  navigator.mediaDevices.getUserMedia &&
+                  window.MediaRecorder && supportedMime());
+      },
+      onTranscript: function (fn) { handlers.transcript = fn; },
+      onError: function (fn) { handlers.error = fn; },
+      start: function () {
+        var mime = supportedMime();
+        if (!this.isSupported()) { handlers.error("unsupported"); return; }
+        cancelled = false;
+        chunks = [];
+        navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+          micStream = stream;
+          try {
+            recorder = new MediaRecorder(stream, { mimeType: mime });
+          } catch (e) { release(); handlers.error("unsupported"); return; }
+
+          recorder.ondataavailable = function (ev) {
+            if (ev.data && ev.data.size) chunks.push(ev.data);
+          };
+          recorder.onerror = function () { release(); handlers.error("failed"); };
+          recorder.onstop = function () {
+            release();
+            if (cancelled) return;
+            upload(new Blob(chunks, { type: mime }), mime);
+          };
+          recorder.start();
+          // A hard stop, so a forgotten recording cannot become a long job.
+          autoStop = setTimeout(function () {
+            if (recorder && recorder.state === "recording") recorder.stop();
+          }, TRANSCRIBE_MAX_SECONDS * 1000);
+        }).catch(function (err) {
+          release();
+          var name = (err && err.name) || "";
+          handlers.error(
+            name === "NotAllowedError" ? "not-allowed"
+              : name === "NotFoundError" ? "audio-capture" : "failed");
+        });
+      },
+      stop: function () {
+        if (recorder && recorder.state === "recording") {
+          try { recorder.stop(); } catch (e) { release(); }
+        } else {
+          release();
+        }
+      },
+      cancel: function () { cancelled = true; this.stop(); }
+    };
+  }
+
+  // --- provider selection -------------------------------------------------
+  //
+  // AWS by default where the browser can record; the browser recogniser stays
+  // available and is selected automatically when it cannot. Both hand the
+  // same string to the same handleTranscript().
+  var vengineSel = el("vengineSel");
+  var providers = {
+    aws: AwsTranscribeProvider(),
+    browser: BrowserSpeechProvider()
+  };
+  var speech = providers.aws;
+
+  function wireProvider(provider) {
+    provider.onTranscript(onTranscriptReceived);
+    provider.onError(onSpeechError);
+  }
+  wireProvider(providers.aws);
+  wireProvider(providers.browser);
+
+  function selectProvider(which) {
+    var chosen = providers[which] || providers.aws;
+    if (!chosen.isSupported()) {
+      chosen = which === "aws" ? providers.browser : providers.aws;
+    }
+    speech = chosen;
+    vengineSel.value = (speech === providers.aws) ? "aws" : "browser";
+    return speech;
+  }
+
+  vengineSel.addEventListener("change", function () {
+    var wanted = vengineSel.value;
+    selectProvider(wanted);
+    if (speech.name !== (wanted === "aws" ? "amazon-transcribe" : "browser")) {
+      setVoiceState(VOICE_IDLE,
+        "That option is not available in this browser \u2014 using " +
+        (speech.name === "amazon-transcribe" ? "AWS Transcribe." :
+         "browser recognition."));
+    } else {
+      setVoiceState(VOICE_IDLE);
+    }
+  });
 
   var VOICE_ERRORS = {
     "not-allowed": "Microphone permission was denied. You can type the order instead.",
@@ -1993,27 +2289,42 @@
     vmargin.innerHTML = "";
   }
 
-  if (!speech.isSupported()) {
-    micBtn.disabled = true;
-    setVoiceState(VOICE_IDLE, "Speech input is not supported in this browser — type below instead.");
-  }
-
-  speech.onTranscript(function (text) {
+  // Whichever provider is active, a transcript arrives here and goes no
+  // further than handleTranscript(). There is one transcript path, not two.
+  function onTranscriptReceived(text) {
     setVoiceState(VOICE_IDLE);
     vtext.value = text;
     show(vsaid, true);
     vtext.focus();
     // Never auto-submit. The owner sees and can correct what was heard first.
     handleTranscript(text, false);
-  });
+  }
 
-  speech.onError(function (code) {
+  function onSpeechError(code, detail) {
     if (code === "aborted") { setVoiceState(VOICE_IDLE); return; }
-    voiceFail(VOICE_ERRORS[code] || "Speech recognition failed. Please type the order below.");
-  });
+    voiceFail(detail || VOICE_ERRORS[code] ||
+      "Speech recognition failed. Please type the order below.");
+  }
+
+  // Pick the best available provider now that both are wired.
+  selectProvider("aws");
+  if (!providers.aws.isSupported() && !providers.browser.isSupported()) {
+    micBtn.disabled = true;
+    setVoiceState(VOICE_IDLE,
+      "Speech input is not supported in this browser — type below instead.");
+  } else if (speech.name === "browser") {
+    setVoiceState(VOICE_IDLE,
+      "Recording is unavailable here — using browser recognition.");
+  }
 
   micBtn.addEventListener("click", function () {
-    if (voiceState === VOICE_LISTENING) { speech.stop(); setVoiceState(VOICE_IDLE); return; }
+    if (voiceState === VOICE_LISTENING) {
+      // AWS path: stopping is what STARTS the transcription, so the state is
+      // left to the provider rather than reset here.
+      speech.stop();
+      if (speech.name !== "amazon-transcribe") setVoiceState(VOICE_IDLE);
+      return;
+    }
     clearVoice();
     setVoiceState(VOICE_LISTENING);
     var pref = vlangSel.value;
@@ -2021,8 +2332,10 @@
   });
 
   vretry.addEventListener("click", function () {
+    if (speech.cancel) speech.cancel();
     clearVoice();
     show(vsaid, false);
+    setVoiceState(VOICE_IDLE);
     micBtn.click();
   });
 

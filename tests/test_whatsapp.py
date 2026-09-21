@@ -281,13 +281,55 @@ def test_22b_an_empty_draft_never_opens_whatsapp():
     assert "window.open" in wire
 
 
-def test_22c_the_handoff_is_frontend_only():
-    """No backend route, no stored message, no WhatsApp credential anywhere."""
-    page = INDEX.read_text(encoding="utf-8")
-    assert "https://wa.me/?text=" in page
+def test_22c_the_draft_handoff_still_needs_no_backend():
+    """The draft path remains entirely in the browser.
 
-    backend = ROOT / "backend"
-    for path in list(backend.rglob("*.py")) + [ROOT / "infrastructure" / "shopflow_stack.py"]:
+    This test used to assert that the string "whatsapp" appeared nowhere in
+    the backend at all. That was the right invariant when the draft link was
+    the only WhatsApp there was; a Business Cloud API adapter now exists
+    beside it, so asserting its absence would be asserting the feature away.
+
+    What still holds, and is what actually mattered, is that the DRAFT needs
+    no backend: the builders and the `wa.me` link live in the page, they work
+    with the API disabled, and nothing in the browser holds a credential.
+    """
+    page = INDEX.read_text(encoding="utf-8")
+    assert "https://wa.me/" in page
+    assert "whatsappQuoteText" in page and "whatsappPlanText" in page
+
+    # The draft builders call no API of their own.
+    block = _builders()
+    block = block[block.index("// >>> whatsapp-builders"):]
+    assert "fetch(" not in block
+    assert "/api/" not in block
+
+
+def test_22d_no_whatsapp_credential_exists_anywhere_in_the_repository():
+    """Configuration is named; no value for any of it is committed."""
+    searched = (
+        list((ROOT / "backend").rglob("*.py"))
+        + list((ROOT / "infrastructure").rglob("*.py"))
+        + [INDEX, ROOT / "README.md"]
+    )
+    # A Meta access token is a long opaque string beginning EAA.
+    token_like = re.compile(r"\bEAA[A-Za-z0-9]{20,}")
+    for path in searched:
         source = path.read_text(encoding="utf-8")
-        for token in ("wa.me", "whatsapp", "WhatsApp", "WHATSAPP"):
-            assert token not in source, f"{path.name} mentions {token}"
+        assert not token_like.search(source), f"possible token in {path.name}"
+        for assignment in ("WHATSAPP_ACCESS_TOKEN=", "WHATSAPP_PHONE_NUMBER_ID=",
+                           "WHATSAPP_TOKEN_SECRET_ARN="):
+            # The NAME may appear; a value assigned to it may not.
+            for line in source.splitlines():
+                if assignment in line and not line.lstrip().startswith(("#", "*", ">")):
+                    remainder = line.split(assignment, 1)[1].strip()
+                    assert remainder in ("", '"', "'", '""', "''"), (
+                        f"{path.name} assigns a value to {assignment}")
+
+
+def test_22e_the_browser_never_receives_a_credential():
+    """No AWS or Meta credential may reach the page, on any path."""
+    page = INDEX.read_text(encoding="utf-8")
+    for forbidden in ("aws_access_key", "AKIA", "secretAccessKey",
+                      "WHATSAPP_ACCESS_TOKEN", "authorization: `Bearer",
+                      "graph.facebook.com"):
+        assert forbidden not in page, forbidden

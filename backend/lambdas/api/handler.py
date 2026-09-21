@@ -10,6 +10,8 @@ Three routes, no more than the workflow needs:
     GET  /api/customers           the shop's khata accounts (synthetic demo data)
     GET  /api/customers/{id}      one khata account
     POST /api/credit/check        deterministic credit decision for an amount
+    POST /api/voice/transcribe    Amazon Transcribe: audio in, transcript out
+    POST /api/whatsapp/send       send a customer message, or return a draft
     GET  /api/jobs/{id}           poll a queued job
     GET  /api/demo                the seeded example, so the UI hard-codes nothing
 
@@ -54,6 +56,35 @@ from engine.credit import (
 )
 from engine.loader import cached_dataset
 from engine.margin import margin_alerts, margin_view
+from engine.messages import (
+    CREDIT_REMINDER,
+    CREDIT_STATUS,
+    MESSAGE_TYPES,
+    ORDER_CONFIRMATION,
+    QUOTATION,
+    InvalidMessageRequest,
+    build_credit_status_message,
+    build_order_confirmation_message,
+    build_quotation_message,
+    mask_phone,
+    normalize_phone,
+    wa_me_url,
+)
+from integrations import whatsapp
+from engine.speech import (
+    AUDIO_PREFIX,
+    MAX_AUDIO_BODY_BYTES,
+    POLL_INTERVAL_MS,
+    PROVIDER,
+    InvalidAudioError,
+    audio_key,
+    classify_job,
+    detected_language,
+    job_name,
+    resolve_language,
+    transcript_from_payload,
+    validate_audio,
+)
 from engine.purchasing import (
     InvalidBudgetError,
     build_purchase_plan,
@@ -81,6 +112,7 @@ IMAGE_EXTENSIONS = {"image/png": "png", "image/jpeg": "jpg",
 
 JOB_ORDER = "ORDER"
 JOB_PRICE_LIST = "PRICE_LIST"
+JOB_TRANSCRIPT = "TRANSCRIPT"
 
 JOB_TTL_SECONDS = int(os.environ.get("JOB_TTL_SECONDS", 60 * 60 * 24))
 
@@ -106,6 +138,13 @@ def s3_client():
     import boto3
 
     return boto3.client("s3")
+
+
+@lru_cache(maxsize=1)
+def transcribe_client():
+    import boto3
+
+    return boto3.client("transcribe")
 
 _CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
 
@@ -522,6 +561,233 @@ def _create_shop_query(event) -> dict:
         200, answer_shop_query(cached_dataset(), transcript, costs))
 
 
+def _create_transcription(event) -> dict:
+    """Accept a recording and start an Amazon Transcribe job.
+
+    Deliberately the SAME shape as the price-list upload that already exists:
+    base64 in the request body, a private S3 object, a job row, and the
+    browser polling `GET /api/jobs/{jobId}`. Reusing that contract means no
+    new polling mechanism, no WebSocket, and no second client implementation.
+
+    No worker invoke. The price-list flow needs one because reading a document
+    is a Bedrock call; transcription is a managed service doing the waiting
+    for us, so the poll simply asks Transcribe how it is getting on. Nothing
+    in this path touches Bedrock.
+
+    This route produces TEXT. It returns no SKU, no price, no stock figure and
+    no decision - the transcript goes to the existing voice workflow exactly
+    as a browser-recognised one does.
+    """
+    raw = event.get("body") or ""
+    if event.get("isBase64Encoded"):
+        try:
+            raw = base64.b64decode(raw).decode("utf-8")
+        except Exception:
+            return _response(400, {"error": "body could not be decoded"})
+
+    if len(raw.encode("utf-8")) > MAX_AUDIO_BODY_BYTES:
+        return _response(413, {"error": "that recording is too large"})
+
+    try:
+        payload = json.loads(raw) if raw else {}
+    except json.JSONDecodeError:
+        return _response(400, {"error": "body must be JSON"})
+
+    encoded = payload.get("audioBase64")
+    if not isinstance(encoded, str) or not encoded:
+        return _response(400, {"error": "audioBase64 is required"})
+    try:
+        audio_bytes = base64.b64decode(encoded, validate=True)
+    except Exception:
+        return _response(400, {"error": "audioBase64 is not valid base64"})
+
+    try:
+        audio = validate_audio(payload.get("contentType"), audio_bytes)
+    except InvalidAudioError as exc:
+        return _response(400, {"error": str(exc)})
+
+    language = resolve_language(payload.get("language"))
+
+    job_id = uuid.uuid4().hex
+    key = audio_key(job_id, audio["extension"])
+    name = job_name(job_id)
+
+    # Private bucket, server-side encrypted, and its own prefix so the audio
+    # lifecycle rule and IAM scope cannot reach a supplier document.
+    s3_client().put_object(
+        Bucket=os.environ["UPLOADS_BUCKET"],
+        Key=key,
+        Body=audio_bytes,
+        ContentType=audio["contentType"],
+        ServerSideEncryption="AES256",
+    )
+
+    params = {
+        "TranscriptionJobName": name,
+        "Media": {"MediaFileUri": f"s3://{os.environ['UPLOADS_BUCKET']}/{key}"},
+        "MediaFormat": audio["mediaFormat"],
+    }
+    if language["identifyLanguage"]:
+        params["IdentifyLanguage"] = True
+        params["LanguageOptions"] = language["languageOptions"]
+    else:
+        params["LanguageCode"] = language["languageCode"]
+
+    try:
+        transcribe_client().start_transcription_job(**params)
+    except Exception as exc:  # noqa: BLE001
+        # The audio is useless without a job, so it goes immediately rather
+        # than waiting for the lifecycle rule.
+        _delete_audio(key)
+        print(f"ERROR starting transcription: {type(exc).__name__}: {exc}")
+        return _response(502, {"error": "transcription could not be started"})
+
+    now = int(time.time())
+    table().put_item(Item={
+        **_job_key(job_id),
+        "jobId": job_id,
+        "jobType": JOB_TRANSCRIPT,
+        "status": "QUEUED",
+        # The KEY is recorded so the object can be deleted. The audio itself
+        # is never written into a business record.
+        "audioKey": key,
+        "audioBytes": audio["bytes"],
+        "transcribeJobName": name,
+        "language": language["requested"],
+        "createdAt": now,
+        "expiresAt": now + JOB_TTL_SECONDS,
+    })
+
+    return _response(202, {
+        "jobId": job_id,
+        "status": "QUEUED",
+        "jobType": JOB_TRANSCRIPT,
+        "provider": PROVIDER,
+        "pollIntervalMs": POLL_INTERVAL_MS,
+    })
+
+
+def _delete_audio(key: str) -> None:
+    """Remove a recording. Best effort - the lifecycle rule is the backstop."""
+    if not key or not str(key).startswith(AUDIO_PREFIX):
+        return
+    try:
+        s3_client().delete_object(Bucket=os.environ["UPLOADS_BUCKET"], Key=key)
+    except Exception as exc:  # noqa: BLE001
+        print(f"audio cleanup skipped: {type(exc).__name__}: {exc}")
+
+
+def _delete_transcription_job(name: str) -> None:
+    if not name:
+        return
+    try:
+        transcribe_client().delete_transcription_job(TranscriptionJobName=name)
+    except Exception as exc:  # noqa: BLE001
+        print(f"transcription job cleanup skipped: {type(exc).__name__}: {exc}")
+
+
+def _fetch_transcript(uri: str) -> dict:
+    """Read Transcribe's result document from the URL it gave us.
+
+    Transcribe stores the result in a service-managed bucket and returns a
+    short-lived URL for it. Using that rather than an output bucket of our own
+    means no second S3 object to create, permit and clean up.
+    """
+    import urllib.request
+
+    with urllib.request.urlopen(uri, timeout=8) as response:
+        return json.loads(response.read().decode("utf-8") or "{}")
+
+
+def _poll_transcription(item: dict, body: dict) -> dict:
+    """Ask Transcribe how the job is going, and finish it if it is done.
+
+    Called from `_get_job`, so the browser's existing polling loop drives it.
+    When the job reaches a terminal state the recording is deleted and the
+    Transcribe job with it - a transcript is kept, a recording is not.
+    """
+    name = item.get("transcribeJobName") or ""
+    key = item.get("audioKey") or ""
+    now = int(time.time())
+
+    try:
+        job = transcribe_client().get_transcription_job(
+            TranscriptionJobName=name)["TranscriptionJob"]
+        state = job.get("TranscriptionJobStatus")
+    except Exception as exc:  # noqa: BLE001
+        print(f"ERROR reading transcription job: {type(exc).__name__}: {exc}")
+        return {**body, "status": "FAILED",
+                "error": "Transcription could not be checked. Please try again."}
+
+    verdict = classify_job(state, int(item.get("createdAt") or 0), now)
+
+    if verdict["status"] not in ("DONE", "FAILED"):
+        return {**body, "status": verdict["status"]}
+
+    if verdict["status"] == "FAILED":
+        _delete_audio(key)
+        _delete_transcription_job(name)
+        message = verdict.get("error") or "That recording could not be transcribed."
+        _finish_transcript_job(item["jobId"], "FAILED", error=message)
+        return {**body, "status": "FAILED", "error": message}
+
+    try:
+        payload = _fetch_transcript(job["Transcript"]["TranscriptFileUri"])
+    except Exception as exc:  # noqa: BLE001
+        print(f"ERROR fetching transcript: {type(exc).__name__}: {exc}")
+        _delete_audio(key)
+        _delete_transcription_job(name)
+        message = "The transcript could not be read. Please try again."
+        _finish_transcript_job(item["jobId"], "FAILED", error=message)
+        return {**body, "status": "FAILED", "error": message}
+
+    transcript = transcript_from_payload(payload)
+    _delete_audio(key)
+    _delete_transcription_job(name)
+
+    if not transcript:
+        message = "No speech was detected. Please try again, or type instead."
+        _finish_transcript_job(item["jobId"], "FAILED", error=message)
+        return {**body, "status": "FAILED", "error": message}
+
+    result = {
+        "transcript": transcript,
+        "provider": PROVIDER,
+        # Said explicitly so nothing downstream mistakes this route for one
+        # that decided something. It produced text; the workflow that already
+        # exists does the rest.
+        "handledBy": "existing-workflow",
+        "detectedLanguage": detected_language(payload),
+    }
+    _finish_transcript_job(item["jobId"], "DONE", result=result)
+    return {**body, "status": "DONE", "result": result}
+
+
+def _finish_transcript_job(job_id: str, status: str, result=None,
+                           error: str = "") -> None:
+    """Record the outcome so a second poll costs nothing and says the same."""
+    fields = {"status": status, "finishedAt": int(time.time())}
+    if result is not None:
+        fields["result"] = json.dumps(result)
+    if error:
+        fields["error"] = error[:300]
+    # The audio key is cleared with the object, so nothing points at a
+    # recording that no longer exists.
+    fields["audioKey"] = ""
+
+    names = {f"#{k}": k for k in fields}
+    values = {f":{k}": v for k, v in fields.items()}
+    try:
+        table().update_item(
+            Key=_job_key(job_id),
+            UpdateExpression="SET " + ", ".join(f"#{k} = :{k}" for k in fields),
+            ExpressionAttributeNames=names,
+            ExpressionAttributeValues=values,
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"job update skipped: {type(exc).__name__}: {exc}")
+
+
 def _get_customers(event) -> dict:
     """Every khata account. Read-only, and synthetic to the last digit."""
     return _response(200, {
@@ -576,6 +842,145 @@ def _create_credit_check(event) -> dict:
     return _response(200, result)
 
 
+def _create_whatsapp_send(event) -> dict:
+    """Build a customer message from an existing result, and send or draft it.
+
+    What this route does NOT do is the point of it. It does not price
+    anything, re-run a credit check, touch stock, move a balance or write a
+    business record. It loads a result the engine already produced, renders
+    the customer-safe part of it, and either hands that to the WhatsApp
+    adapter or returns it as a draft for the owner to send themselves.
+
+    Nothing here sends on its own. This route runs because a person pressed a
+    button, and there is no scheduler, trigger or webhook anywhere in this
+    project that can reach it.
+    """
+    raw = event.get("body") or ""
+    if len(raw.encode("utf-8")) > MAX_BODY_BYTES:
+        return _response(413, {"error": "request body too large"})
+    try:
+        payload = json.loads(raw) if raw else {}
+    except json.JSONDecodeError:
+        return _response(400, {"error": "body must be JSON"})
+
+    message_type = str(payload.get("messageType") or "").upper().strip()
+    if message_type not in MESSAGE_TYPES:
+        return _response(400, {
+            "error": "messageType must be one of " + ", ".join(sorted(MESSAGE_TYPES))})
+
+    customer_id = _CONTROL.sub("", str(payload.get("customerId") or "")).strip()
+    if customer_id and not CUSTOMER_ID_PATTERN.match(customer_id):
+        return _response(400, {"error": "invalid customerId"})
+
+    data = cached_dataset()
+    customer = data.customer(customer_id) if customer_id else None
+    customer_view_safe = (
+        {"customerName": customer.customerName} if customer else None)
+
+    # ---- the structured business result, loaded, never recalculated -----
+    quote = credit = None
+    if message_type in (QUOTATION, ORDER_CONFIRMATION):
+        quote_id = str(payload.get("quoteId") or "")
+        if not re.fullmatch(r"[0-9a-f]{32}", quote_id):
+            return _response(400, {"error": "invalid quoteId"})
+        job = table().get_item(Key=_job_key(quote_id)).get("Item")
+        if not job or not job.get("result"):
+            return _response(404, {"error": "that quotation was not found"})
+        result = json.loads(job["result"])
+        quote = result.get("quote")
+        credit = result.get("credit")
+        if not quote:
+            return _response(400, {"error": "that job has no quotation"})
+        # The customer on the ORDER wins over one named in the request, so a
+        # message cannot be addressed to somebody the order was not for.
+        if job.get("customerId"):
+            customer = data.customer(job["customerId"]) or customer
+            customer_view_safe = (
+                {"customerName": customer.customerName} if customer else None)
+    else:
+        if not customer:
+            return _response(404, {"error": "no khata account for that customer"})
+        try:
+            credit = check_credit(data, customer.customerId,
+                                  payload.get("orderTotal") or 0)
+        except InvalidOrderTotalError as exc:
+            return _response(400, {"error": str(exc)})
+
+    # ---- render, from an allow-list of customer-safe fields -------------
+    try:
+        if message_type == QUOTATION:
+            message = build_quotation_message(quote, customer_view_safe, credit)
+        elif message_type == ORDER_CONFIRMATION:
+            message = build_order_confirmation_message(
+                quote, customer_view_safe,
+                reference=str(payload.get("quoteId") or "")[:12])
+        else:
+            message = build_credit_status_message(
+                credit, customer_view_safe,
+                reminder=(message_type == CREDIT_REMINDER))
+    except InvalidMessageRequest as exc:
+        return _response(400, {"error": str(exc)})
+
+    # ---- destination -----------------------------------------------------
+    phone = masked = None
+    if customer:
+        try:
+            phone = normalize_phone(customer.phone)
+            masked = mask_phone(phone)
+        except InvalidMessageRequest:
+            phone = masked = None
+
+    body = {
+        "messageType": message["messageType"],
+        "text": message["text"],
+        # Masked, always. The full number is never returned by this API.
+        "recipient": masked,
+        "customerId": customer.customerId if customer else None,
+        "whatsapp": whatsapp.configuration_status(),
+        # The draft is offered on every response, sent or not, so the owner
+        # always has a way to get the message to the customer.
+        "draftUrl": wa_me_url(message["text"], phone),
+    }
+
+    if not whatsapp.is_enabled():
+        return _response(200, {
+            **body,
+            "status": "DRAFT",
+            "sent": False,
+            "reason": whatsapp.DISABLED,
+            "notice": "WhatsApp API not configured \u2014 open the draft to send it "
+                      "yourself.",
+        })
+
+    if not phone:
+        return _response(400, {
+            **body, "status": "DRAFT", "sent": False,
+            "reason": whatsapp.INVALID_RECIPIENT,
+            "notice": "That customer has no usable phone number."})
+
+    try:
+        sent = whatsapp.send_text(phone, message["text"])
+    except whatsapp.WhatsAppError as exc:
+        # Never a silent claim of delivery, and never the provider's own error
+        # text - which can name the business account.
+        return _response(200, {
+            **body,
+            "status": "FAILED",
+            "sent": False,
+            "reason": exc.reason,
+            "notice": exc.safe_message + " You can still open the draft.",
+        })
+
+    return _response(200, {
+        **body,
+        "status": "SENT",
+        "sent": True,
+        "messageId": sent.get("messageId"),
+        "reason": None,
+        "notice": "Sent via WhatsApp.",
+    })
+
+
 def _get_job(event) -> dict:
     job_id = (event.get("pathParameters") or {}).get("jobId") or ""
     if not re.fullmatch(r"[0-9a-f]{32}", job_id):
@@ -597,6 +1002,11 @@ def _get_job(event) -> dict:
         body["result"] = json.loads(item["result"])
     if item.get("error"):
         body["error"] = item["error"]
+
+    if body["jobType"] == JOB_TRANSCRIPT and item["status"] in ("QUEUED", "PROCESSING"):
+        # Transcribe is doing the waiting. Each poll asks it once; there is no
+        # loop in a Lambda and no background process that can outlive a tab.
+        return _response(200, _poll_transcription(item, body))
 
     if body["jobType"] == JOB_PRICE_LIST:
         # Owner rulings live alongside the job so a reload shows what was
@@ -651,6 +1061,8 @@ ROUTES = {
     "GET /api/customers": _get_customers,
     "GET /api/customers/{customerId}": _get_customer,
     "POST /api/credit/check": _create_credit_check,
+    "POST /api/voice/transcribe": _create_transcription,
+    "POST /api/whatsapp/send": _create_whatsapp_send,
     "GET /api/jobs/{jobId}": _get_job,
     "GET /api/demo": _get_demo,
 }

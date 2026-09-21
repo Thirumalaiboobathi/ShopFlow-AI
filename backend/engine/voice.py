@@ -43,6 +43,7 @@ import unicodedata
 from typing import Dict, List, Optional, Tuple
 
 from .margin import margin_view
+from .messages import format_rupees
 from .matching import AMBIGUOUS, NOT_FOUND, RESOLVED, resolve_product
 from .models import Dataset, money
 
@@ -405,15 +406,13 @@ def extract_attributes(data: Dataset, text: str) -> dict:
 # ---------------------------------------------------------------------------
 
 def _rupees(value: float) -> str:
-    """Indian digit grouping, for a figure the engine produced."""
-    whole = f"{money(value):,.2f}"
-    integer, _, frac = whole.partition(".")
-    integer = integer.replace(",", "")
-    if len(integer) > 3:
-        head, tail = integer[:-3], integer[-3:]
-        head = re.sub(r"(\d)(?=(\d\d)+$)", r"\1,", head)
-        integer = f"{head},{tail}"
-    return f"₹{integer}.{frac}"
+    """Indian digit grouping, for a figure the engine produced.
+
+    Delegates to `engine.messages.format_rupees` so a rupee amount reads
+    identically whether it is spoken aloud, shown on screen or sent to a
+    customer. One implementation, three callers.
+    """
+    return format_rupees(money(value))
 
 
 def speak_stock(product, on_hand: int, tamil: bool) -> str:

@@ -452,6 +452,18 @@ C-Curve 5 piece irukku."*
 
 Expect a clarification, not a number — the shop stocks several Anchor switches.
 
+**V0 — which engine is transcribing.** Before speaking, point at the
+**Transcription** selector on the voice card. It reads **AWS Transcribe**.
+
+**Say:** *"Speech goes to Amazon Transcribe and comes back as text. That text
+then goes through exactly the same workflow a typed order does — Transcribe
+produces words, it does not produce prices."*
+
+> **Do not claim** Tanglish accuracy. The card itself says Transcribe resolves
+> a clip to one language, and the browser recogniser is one selector away if a
+> mixed sentence goes badly. If a transcript comes out wrong, **edit it in the
+> box and press Use this** — that is the designed path, not a failure.
+
 **V4 — a margin question.** *(run this after Step E, or the answer will
 correctly say no price change has been confirmed)*
 
@@ -471,6 +483,38 @@ Expect: *"Please confirm the supplier price on screen."* Nothing is changed.
 
 If the transcript comes out wrong, **edit it in the box and click Use this** —
 that is the designed path, not a failure.
+
+---
+
+## X. Send it to the customer *(30 seconds)*
+
+Run Step A3 first so a customer is selected and a quotation is on screen.
+Under the quotation there are two buttons: **Send via WhatsApp** and
+**Open WhatsApp draft**.
+
+Press **Send via WhatsApp**.
+
+**Expected, in this demo:** *"WhatsApp API not configured — open the draft to
+send it yourself"*, with an **Open WhatsApp draft** link beside it.
+
+**Say:** *"The WhatsApp Business adapter is built and the endpoint is live.
+It is not switched on here, because we have no Meta Business credentials — so
+it does what it is supposed to do when it cannot send: it tells you, and it
+gives you the draft. It never claims to have sent something it did not."*
+
+Press **Open WhatsApp draft** and show the message.
+
+**Expected:** the quotation at **₹22,306.48**, the wire line reading
+**3 coils**, and the customer's credit status as a single word.
+
+**Say:** *"Look at what is not in that message. No supplier cost. No margin.
+No stock level. The customer sees what they are buying and what it costs —
+the shop's own working stays in the shop."*
+
+> **Do not claim** a working WhatsApp Business connection, a sent message, or
+> a delivered message. The honest claim is: *the adapter is implemented and
+> tested, configuration is required, and the draft fallback is what runs
+> today.*
 
 ---
 
@@ -524,6 +568,11 @@ helps them decide what to do next — and shows exactly why."*
 | Customer selector is empty | `/api/customers` did not load | Cash sale still works; run the order without an account |
 | "Credit limit exceeded" on the demo | Expected for Ravi | That is the point of the step — do not switch accounts to hide it |
 | A unit request asks a question | The SKU is not sold in that unit | Correct — it refuses to convert silently |
+| Mic records but nothing comes back | Transcribe job still running | Wait — it polls for up to 150s, then reports a timeout |
+| "No speech was detected" | Clip too quiet or too short | Correct — speak again, or type it |
+| Tanglish transcribed badly | One language per clip | Expected; pin a language or switch to browser recognition |
+| Transcription unavailable | Browser cannot record | The selector falls back to browser recognition automatically |
+| "WhatsApp API not configured" | No Meta credentials in this demo | Expected — use the draft button, and say so |
 
 **If live AWS misbehaves during judging:** fall back to a recording, and say
 plainly that you are showing a recording. Do not narrate a recording as if it
@@ -542,6 +591,8 @@ Run after **any** deployment, before demoing.
 python -m pytest                            # expect: 336 passed
 python scripts/smoke_test_planner.py        # expect: 36 checks, SMOKE TEST PASSED
 python scripts/smoke_test_credit_uom.py     # expect: 28 checks, SMOKE TEST PASSED
+python scripts/smoke_test_voice_whatsapp.py # expect: 21 checks, SMOKE TEST PASSED
+                                            # (runs a real Transcribe job, ~10s)
 ```
 
 Then live:

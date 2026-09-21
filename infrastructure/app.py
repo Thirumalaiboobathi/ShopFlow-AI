@@ -5,6 +5,18 @@ One stack, one region. `alertEmail` is optional context: pass it to create the
 monthly cost budget, e.g.
 
     npx cdk deploy -c alertEmail=you@example.com
+
+WhatsApp Business Cloud API sending is off unless it is switched on, and no
+credential value is ever passed here - `whatsappTokenSecretArn` names a
+Secrets Manager secret, it does not contain one:
+
+    -c whatsappEnabled=true
+    -c whatsappPhoneNumberId=<id from Meta>
+    -c whatsappTokenSecretArn=<arn of a secret holding the access token>
+    -c whatsappTemplateName=<an approved template, if sending outside the
+                             24-hour customer service window>
+
+With none of these supplied the API returns the wa.me draft it always has.
 """
 
 from __future__ import annotations
@@ -21,6 +33,11 @@ stack = ShopFlowStack(
     app, "ShopFlowStack",
     alert_email=app.node.try_get_context("alertEmail"),
     monthly_budget_usd=int(app.node.try_get_context("monthlyBudgetUsd") or 25),
+    whatsapp_enabled=str(
+        app.node.try_get_context("whatsappEnabled") or "").lower() == "true",
+    whatsapp_phone_number_id=app.node.try_get_context("whatsappPhoneNumberId"),
+    whatsapp_token_secret_arn=app.node.try_get_context("whatsappTokenSecretArn"),
+    whatsapp_template_name=app.node.try_get_context("whatsappTemplateName"),
     env=cdk.Environment(
         account=os.environ.get("CDK_DEFAULT_ACCOUNT"),
         region=os.environ.get("CDK_DEFAULT_REGION", "ap-south-1"),
