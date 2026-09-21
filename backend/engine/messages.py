@@ -33,6 +33,19 @@ The unit comes from the quotation and is only lower-cased and pluralised.
 "3 COIL" becomes "3 coils". It is never converted, never restated in another
 unit, and never replaced by an equivalent - the customer is quoted for what
 they will receive.
+
+LANGUAGE
+--------
+Every builder takes a language and renders its words through
+`engine.language.translate`, which falls back to English key by key. What does
+NOT change with the language is everything that matters: the total is the same
+total, the unit is the same unit, the product name is the catalogue's own, and
+the allow-list is the same allow-list. A Tamil quotation and an English one
+carry identical figures, and a test compares them token by token.
+
+Rupee amounts stay in Latin digits with the Indian grouping, in every
+language. That is deliberate - a shop owner checking a WhatsApp message
+against a paper bill needs the number to look like the number.
 """
 
 from __future__ import annotations
@@ -166,6 +179,21 @@ def mask_phone(phone) -> str:
 # the customer-safe projection
 # ---------------------------------------------------------------------------
 
+def _t(language, key: str, fallback: str = "") -> str:
+    """One localized string, with English behind it.
+
+    Imported inside the function on purpose. `engine.language` reads this
+    module for `format_rupees`, so a module-level import here would be a
+    cycle; and a renderer that cannot load the language layer should still
+    render, in English, rather than fail to send a customer their quotation.
+    """
+    try:
+        from .language import translate
+    except ImportError:  # pragma: no cover - defensive
+        return fallback
+    return translate(language or "en", key) or fallback
+
+
 def customer_safe_line(line: Dict) -> dict:
     """One quotation line, reduced to what a customer may see.
 
@@ -209,12 +237,21 @@ _FOOTER = "Sent by the shop using ShopFlow AI."
 # What a customer is told about their credit position on a quotation: the
 # outcome, and nothing else. Their limit and balance appear only in a message
 # that is ABOUT their account, which they are entitled to see.
-_CREDIT_WORDS = {
-    "APPROVED": "Approved",
-    "LIMIT_EXCEEDED": "Over your current credit limit",
-    "BLOCKED": "On hold — please speak to the shop",
-    "NO_CREDIT_ACCOUNT": "Cash sale",
+# The engine's decision code maps to a translation KEY, not to a sentence, so
+# the same decision reads the same way wherever it is shown. A decision this
+# table does not know is passed through as its own code rather than guessed
+# at - an untranslated code is recognisable; an invented sentence is not.
+_CREDIT_KEYS = {
+    "APPROVED": ("credit.approved", "Approved"),
+    "LIMIT_EXCEEDED": ("credit.limitExceeded", "Over your current credit limit"),
+    "BLOCKED": ("credit.blocked", "On hold — please speak to the shop"),
+    "NO_CREDIT_ACCOUNT": ("credit.cashSale", "Cash sale"),
 }
+
+
+def _credit_word(decision: str, language) -> str:
+    key, english = _CREDIT_KEYS.get(decision, ("", decision))
+    return _t(language, key, english) if key else decision
 
 
 def _clean(text: str) -> str:
@@ -229,43 +266,55 @@ def _finish(lines: List[str]) -> str:
 
 
 def build_quotation_message(quote: Dict, customer: Optional[Dict] = None,
-                            credit: Optional[Dict] = None) -> dict:
+                            credit: Optional[Dict] = None,
+                            language: str = "en") -> dict:
     """The quotation, as the customer receives it.
 
     `quote` is the engine's own quotation dict and `credit` the engine's own
     credit decision. Neither is recomputed, and no total is derived here - the
     figure sent is the figure the engine calculated.
+
+    `language` changes the words around those figures and nothing else. The
+    total, the quantities, the units and the product names are identical in
+    every language, because they are read from the same dict.
     """
     safe = customer_safe_quote(quote)
 
-    out = ["ShopFlow AI — Quotation", ""]
+    out = [f"ShopFlow AI — {_t(language, 'quote.heading', 'Quotation')}", ""]
     if customer and customer.get("customerName"):
-        out += [f"Customer: {_clean(customer['customerName'])}", ""]
+        label = _t(language, "quote.customer", "Customer")
+        out += [f"{label}: {_clean(customer['customerName'])}", ""]
 
-    out.append("Items:")
+    out.append(_t(language, "quote.items", "Items") + ":")
     for line in safe["lines"]:
         out.append(f"• {_clean(line['name'])}")
         out.append(f"  {format_units(line['quantity'], line['uom'])}"
                    f" — {format_rupees(line['lineTotal'])}")
     if safe["truncated"]:
-        out.append("  (more items — ask the shop for the full list)")
+        out.append("  " + _t(language, "misc.moreItems",
+                             "(more items — ask the shop for the full list)"))
 
-    out += ["", f"Total: {format_rupees(safe['total'])}"]
+    out += ["", f"{_t(language, 'quote.total', 'Total')}: "
+                f"{format_rupees(safe['total'])}"]
 
     if credit and credit.get("decision"):
-        word = _CREDIT_WORDS.get(credit["decision"], credit["decision"])
-        out += ["", f"Credit status: {word}"]
+        word = _credit_word(credit["decision"], language)
+        out += ["", f"{_t(language, 'credit.quoteStatus', 'Credit status')}"
+                    f": {word}"]
 
     out += ["",
-            "This is a quotation, not an invoice. Prices are subject to "
-            "stock at the time of order.",
-            _FOOTER]
-    return {"messageType": QUOTATION, "text": _finish(out), "quote": safe}
+            _t(language, "quote.notInvoice",
+               "This is a quotation, not an invoice. Prices are subject to "
+               "stock at the time of order."),
+            _t(language, "footer.sentBy", _FOOTER)]
+    return {"messageType": QUOTATION, "text": _finish(out), "quote": safe,
+            "language": language or "en"}
 
 
 def build_order_confirmation_message(quote: Dict,
                                      customer: Optional[Dict] = None,
-                                     reference: str = "") -> dict:
+                                     reference: str = "",
+                                     language: str = "en") -> dict:
     """Confirmation that the shop has taken the order.
 
     Sending this does not place, record or fulfil anything - it tells a
@@ -274,26 +323,33 @@ def build_order_confirmation_message(quote: Dict,
     """
     safe = customer_safe_quote(quote)
 
-    out = ["ShopFlow AI — Order Confirmation", ""]
+    out = [f"ShopFlow AI — "
+           f"{_t(language, 'order.heading', 'Order Confirmation')}", ""]
     if customer and customer.get("customerName"):
-        out += [f"Customer: {_clean(customer['customerName'])}", ""]
+        label = _t(language, "quote.customer", "Customer")
+        out += [f"{label}: {_clean(customer['customerName'])}", ""]
     if reference:
-        out += [f"Reference: {_clean(reference)[:32]}", ""]
+        label = _t(language, "order.reference", "Reference")
+        out += [f"{label}: {_clean(reference)[:32]}", ""]
 
-    out.append("Confirmed:")
+    out.append(_t(language, "order.confirmed", "Confirmed") + ":")
     for line in safe["lines"]:
         out.append(f"• {_clean(line['name'])}")
         out.append(f"  {format_units(line['quantity'], line['uom'])}"
                    f" — {format_rupees(line['lineTotal'])}")
 
-    out += ["", f"Total: {format_rupees(safe['total'])}", "",
-            "The shop will contact you about delivery.", _FOOTER]
+    out += ["", f"{_t(language, 'quote.total', 'Total')}: "
+                f"{format_rupees(safe['total'])}", "",
+            _t(language, "order.delivery",
+               "The shop will contact you about delivery."),
+            _t(language, "footer.sentBy", _FOOTER)]
     return {"messageType": ORDER_CONFIRMATION, "text": _finish(out),
-            "quote": safe}
+            "quote": safe, "language": language or "en"}
 
 
 def build_credit_status_message(credit: Dict, customer: Optional[Dict] = None,
-                                reminder: bool = False) -> dict:
+                                reminder: bool = False,
+                                language: str = "en") -> dict:
     """Where the customer's khata account stands.
 
     Their own account, so their own balance and limit belong here - unlike on
@@ -306,35 +362,43 @@ def build_credit_status_message(credit: Dict, customer: Optional[Dict] = None,
     if not isinstance(credit, dict) or not credit.get("decision"):
         raise InvalidMessageRequest("no credit decision to report")
 
-    heading = ("ShopFlow AI — Account Reminder" if reminder
-               else "ShopFlow AI — Account Status")
-    out = [heading, ""]
+    heading = (_t(language, "credit.reminderHeading", "Account Reminder")
+               if reminder
+               else _t(language, "credit.heading", "Account Status"))
+    footer = _t(language, "footer.sentBy", _FOOTER)
+    out = [f"ShopFlow AI — {heading}", ""]
     name = (customer or {}).get("customerName") or credit.get("customerName")
     if name:
-        out += [f"Customer: {_clean(name)}", ""]
+        out += [f"{_t(language, 'quote.customer', 'Customer')}: {_clean(name)}",
+                ""]
 
     if credit.get("decision") == "NO_CREDIT_ACCOUNT":
-        out += ["You do not have a credit account with the shop.",
-                "Orders are on a cash basis.", "", _FOOTER]
+        out += [_t(language, "credit.noAccount",
+                   "You do not have a credit account with the shop."),
+                _t(language, "credit.cashSale", "Cash sale"), "", footer]
         return {"messageType": CREDIT_REMINDER if reminder else CREDIT_STATUS,
-                "text": _finish(out)}
+                "text": _finish(out), "language": language or "en"}
 
     if credit.get("currentOutstanding") is not None:
-        out.append(f"Outstanding: {format_rupees(credit['currentOutstanding'])}")
+        out.append(f"{_t(language, 'credit.outstanding', 'Outstanding')}: "
+                   f"{format_rupees(credit['currentOutstanding'])}")
     if credit.get("creditLimit") is not None:
-        out.append(f"Credit limit: {format_rupees(credit['creditLimit'])}")
+        out.append(f"{_t(language, 'credit.limit', 'Credit limit')}: "
+                   f"{format_rupees(credit['creditLimit'])}")
     if credit.get("paymentDueDays"):
+        # The label is translated; the term is a count of days.
         out.append(f"Payment terms: {int(credit['paymentDueDays'])} days")
 
-    word = _CREDIT_WORDS.get(credit["decision"], credit["decision"])
-    out += ["", f"Status: {word}"]
+    word = _credit_word(credit["decision"], language)
+    out += ["", f"{_t(language, 'credit.status', 'Status')}: {word}"]
 
     if reminder:
-        out += ["", "Please settle the outstanding amount when convenient."]
+        out += ["", _t(language, "credit.settle",
+                       "Please settle the outstanding amount when convenient.")]
 
-    out += ["", _FOOTER]
+    out += ["", footer]
     return {"messageType": CREDIT_REMINDER if reminder else CREDIT_STATUS,
-            "text": _finish(out)}
+            "text": _finish(out), "language": language or "en"}
 
 
 def wa_me_url(text: str, phone: Optional[str] = None) -> str:

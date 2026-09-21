@@ -1,0 +1,87 @@
+{
+  "_meta": {
+    "code": "mai",
+    "confidence": "moderate",
+    "reviewed": false,
+    "note": "Application-provided translation. No native speaker has reviewed it. Missing keys fall back to English."
+  },
+  "ui": {
+    "language": "भाषा",
+    "textSupport": "लिखल",
+    "voiceSupport": "अवाज",
+    "voiceUnavailable": "एहि भाषामे अवाज उपलब्ध नहि अछि — अहाँ टाइप क' सकैत छी",
+    "speak": "बाजू",
+    "send": "व्हाट्सऐप पर पठाउ",
+    "openDraft": "व्हाट्सऐप मसौदा खोलू",
+    "useThis": "एकरे प्रयोग करू",
+    "reviewNotice": "ई अनुवाद एप्लिकेशन द्वारा कएल गेल; प्रयोग सँ पहिने मातृभाषामे जाँच करएबाक सलाह अछि।"
+  },
+  "clarify": {
+    "heading": "दोकानकेँ आर एकटा विवरण चाही",
+    "colour": "अहाँकेँ कोन रंग चाही?",
+    "specification": "अहाँकेँ कोन स्पेसिफिकेशन चाही?",
+    "brand": "अहाँकेँ कोन ब्रांड चाही?",
+    "unit": "अहाँ कोन इकाईक बात क' रहल छी?",
+    "pickOne": "एहिमे सँ एकटा चुनू"
+  },
+  "quote": {
+    "heading": "कोटेशन",
+    "customer": "ग्राहक",
+    "items": "सामान",
+    "total": "कुल",
+    "notInvoice": "ई कोटेशन अछि, बिल नहि। ऑर्डरक समय उपलब्ध स्टॉकक अनुसार दाम लागत।"
+  },
+  "order": {
+    "heading": "ऑर्डरक पुष्टि",
+    "confirmed": "पक्का भेल",
+    "reference": "संदर्भ",
+    "delivery": "डिलीवरीक बारेमे दोकान अहाँसँ संपर्क करत।"
+  },
+  "stock": {
+    "inStock": "स्टॉकमे अछि",
+    "shortage": "स्टॉक कम अछि"
+  },
+  "credit": {
+    "heading": "खाताक स्थिति",
+    "reminderHeading": "खाताक सोझाँ",
+    "status": "स्थिति",
+    "limit": "उधारक सीमा",
+    "outstanding": "बकाया",
+    "projected": "एहि ऑर्डरक बाद बकाया",
+    "remaining": "बाँचल उधारक सीमा",
+    "approved": "मंजूर",
+    "limitExceeded": "अहाँक उधारक सीमा सँ बेसी",
+    "blocked": "रोकल गेल — कृपया दोकानसँ बात करू",
+    "noAccount": "दोकानमे अहाँक उधार खाता नहि अछि।",
+    "settle": "सुविधा भेला पर बकाया रकम दए दिअ।",
+    "cashSale": "नगद बिक्री",
+    "quoteStatus": "उधारक स्थिति"
+  },
+  "margin": {
+    "previous": "पहिनेक मुनाफा",
+    "current": "एखनुक मुनाफा",
+    "reduction": "कमी",
+    "healthy": "मुनाफा ठीक अछि",
+    "reduced": "मुनाफा घटि गेल अछि",
+    "low": "मुनाफा कम अछि",
+    "negative": "खरीद दाम सँ कममे बिका रहल अछि",
+    "unavailable": "मुनाफा देखाओल नहि जा सकैत अछि"
+  },
+  "plan": {
+    "heading": "खरीदक योजना",
+    "budget": "बजट",
+    "allocated": "तय कएल",
+    "leftOver": "बाँचल"
+  },
+  "error": {
+    "generic": "किछु गड़बड़ भेल। फेर प्रयास करू।",
+    "notFound": "दोकानकेँ ओ सामान नहि भेटल।",
+    "noSpeech": "कोनो अवाज नहि सुनल गेल। फेर प्रयास करू।"
+  },
+  "footer": {
+    "sentBy": "दोकान ShopFlow AI सँ पठौलक।"
+  },
+  "misc": {
+    "moreItems": "(आर सामान अछि — पूरा सूचीक लेल दोकानसँ पूछू)"
+  }
+}

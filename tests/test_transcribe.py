@@ -44,7 +44,7 @@ from engine.speech import (
     validate_audio,
 )
 from engine.voice import answer_shop_query, classify_intent, normalize_transcript
-from test_api import FakeLambda, FakeTable
+from test_api import FakeQueue, FakeTable
 
 AUDIO = b"\x1aE\xdf\xa3" + b"0" * 4000          # webm-ish, comfortably valid
 CANONICAL_SPOKEN = ("Anna, 20 Anchor modular switch 1-Way 10 amp, 3 coil "
@@ -103,16 +103,18 @@ class FakeTranscribe:
 
 @pytest.fixture
 def voice_env(monkeypatch):
-    table, lam, s3 = FakeTable(), FakeLambda(), FakeS3()
+    table, queue, s3 = FakeTable(), FakeQueue(), FakeS3()
     transcribe = FakeTranscribe()
     monkeypatch.setenv("TABLE_NAME", "shopflow-demo")
-    monkeypatch.setenv("WORKER_FUNCTION_NAME", "shopflow-order-worker")
+    monkeypatch.setenv(
+        "ORDERS_QUEUE_URL",
+        "https://sqs.ap-south-1.amazonaws.com/000000000000/shopflow-orders")
     monkeypatch.setenv("UPLOADS_BUCKET", "shopflow-uploads-test")
     monkeypatch.setattr(api, "table", lambda: table)
-    monkeypatch.setattr(api, "lambda_client", lambda: lam)
+    monkeypatch.setattr(api, "sqs_client", lambda: queue)
     monkeypatch.setattr(api, "s3_client", lambda: s3)
     monkeypatch.setattr(api, "transcribe_client", lambda: transcribe)
-    return table, s3, transcribe, lam
+    return table, s3, transcribe, queue
 
 
 def set_transcript(monkeypatch, text, language="en-IN"):
@@ -153,7 +155,7 @@ def start_and_finish(voice_env, monkeypatch, text, state="COMPLETED"):
 # ---------------------------------------------------------------------------
 
 def test_1_a_valid_recording_is_accepted_and_a_job_is_started(voice_env):
-    table, s3, transcribe, lam = voice_env
+    table, s3, transcribe, queue = voice_env
 
     response = api.handler(post_audio(), None)
     assert response["statusCode"] == 202
@@ -172,7 +174,7 @@ def test_1_a_valid_recording_is_accepted_and_a_job_is_started(voice_env):
     assert len(transcribe.started) == 1
     assert transcribe.started[0]["TranscriptionJobName"].startswith("shopflow-")
     # No worker, and therefore no Bedrock, anywhere on this path.
-    assert lam.invocations == []
+    assert queue.messages == []
 
 
 def test_1b_the_stored_job_holds_the_key_but_never_the_audio(voice_env):

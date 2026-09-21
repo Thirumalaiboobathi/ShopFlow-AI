@@ -1,0 +1,87 @@
+{
+  "_meta": {
+    "code": "hi",
+    "confidence": "high",
+    "reviewed": false,
+    "note": "Application-provided translation. No native speaker has reviewed it. Missing keys fall back to English."
+  },
+  "ui": {
+    "language": "भाषा",
+    "textSupport": "लिखित",
+    "voiceSupport": "आवाज़",
+    "voiceUnavailable": "इस भाषा में आवाज़ उपलब्ध नहीं है — आप टाइप कर सकते हैं",
+    "speak": "बोलिए",
+    "send": "व्हाट्सऐप पर भेजें",
+    "openDraft": "व्हाट्सऐप ड्राफ़्ट खोलें",
+    "useThis": "यही इस्तेमाल करें",
+    "reviewNotice": "यह अनुवाद ऐप्लिकेशन द्वारा किया गया है; उपयोग से पहले भाषा-विशेषज्ञ से जाँच कराना उचित होगा।"
+  },
+  "clarify": {
+    "heading": "दुकान को एक और जानकारी चाहिए",
+    "colour": "आपको कौन सा रंग चाहिए?",
+    "specification": "आपको कौन सा स्पेसिफ़िकेशन चाहिए?",
+    "brand": "आपको कौन सा ब्रांड चाहिए?",
+    "unit": "आप किस यूनिट की बात कर रहे हैं?",
+    "pickOne": "इनमें से एक चुनिए"
+  },
+  "quote": {
+    "heading": "कोटेशन",
+    "customer": "ग्राहक",
+    "items": "सामान",
+    "total": "कुल",
+    "notInvoice": "यह कोटेशन है, बिल नहीं। ऑर्डर के समय स्टॉक के अनुसार दाम लागू होंगे।"
+  },
+  "order": {
+    "heading": "ऑर्डर की पुष्टि",
+    "confirmed": "पक्का हुआ",
+    "reference": "संदर्भ",
+    "delivery": "डिलीवरी के बारे में दुकान आपसे संपर्क करेगी।"
+  },
+  "stock": {
+    "inStock": "स्टॉक में है",
+    "shortage": "स्टॉक कम है"
+  },
+  "credit": {
+    "heading": "खाता स्थिति",
+    "reminderHeading": "खाता अनुस्मारक",
+    "status": "स्थिति",
+    "limit": "उधार सीमा",
+    "outstanding": "बकाया",
+    "projected": "इस ऑर्डर के बाद बकाया",
+    "remaining": "बची हुई उधार सीमा",
+    "approved": "मंज़ूर",
+    "limitExceeded": "आपकी उधार सीमा से ज़्यादा",
+    "blocked": "रोका गया — कृपया दुकान से बात करें",
+    "noAccount": "दुकान में आपका उधार खाता नहीं है।",
+    "settle": "सुविधा होने पर बकाया रकम चुका दीजिए।",
+    "cashSale": "नकद बिक्री",
+    "quoteStatus": "उधार स्थिति"
+  },
+  "margin": {
+    "previous": "पहले का मुनाफ़ा",
+    "current": "अभी का मुनाफ़ा",
+    "reduction": "कमी",
+    "healthy": "मुनाफ़ा ठीक है",
+    "reduced": "मुनाफ़ा घट गया है",
+    "low": "मुनाफ़ा कम है",
+    "negative": "लागत से कम दाम पर बिक रहा है",
+    "unavailable": "मुनाफ़ा नहीं दिखाया जा सकता"
+  },
+  "plan": {
+    "heading": "खरीद योजना",
+    "budget": "बजट",
+    "allocated": "तय किया गया",
+    "leftOver": "बचा हुआ"
+  },
+  "error": {
+    "generic": "कुछ गड़बड़ हुई। फिर कोशिश कीजिए।",
+    "notFound": "दुकान को वह सामान नहीं मिला।",
+    "noSpeech": "कोई आवाज़ सुनाई नहीं दी। फिर कोशिश कीजिए।"
+  },
+  "footer": {
+    "sentBy": "दुकान ने ShopFlow AI से भेजा।"
+  },
+  "misc": {
+    "moreItems": "(और सामान है — पूरी सूची के लिए दुकान से पूछें)"
+  }
+}

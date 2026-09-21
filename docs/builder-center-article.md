@@ -306,6 +306,61 @@ Serving a single-page app and a JSON API from one CloudFront distribution is
 what makes the whole thing reachable at one URL with no CORS and no second
 domain.
 
+## 11a. Reliability: the defect we went looking for
+
+During an architecture review of our own system, we found a path where an
+order could disappear.
+
+The API handed each job to a worker Lambda with
+`InvocationType="Event"`, and the worker was configured with
+`retry_attempts=0`. If that asynchronous invoke failed, nothing retried it and
+nothing recorded it. The job row sat at `QUEUED` until its 24-hour TTL removed
+it, the browser polled a job that would never complete, and the shop owner
+watched a spinner. No alarm, no dead-letter queue, no trace.
+
+Nobody had reported it. We found it by reading our own architecture and asking
+what happens when each arrow fails.
+
+So we replaced the hand-rolled invocation:
+
+```
+before:  API Lambda ──async invoke──▶ Worker Lambda
+                            └── fails ──▶ nothing
+
+after:   API Lambda ──SendMessage──▶ SQS ──▶ Worker Lambda
+                                              └── 3 attempts ──▶ DLQ ──▶ alarm
+```
+
+Three details are worth more than the diagram:
+
+**The retry budget is derived, not picked.** Visibility timeout is 360 seconds
+because that is six times the worker's 60-second timeout. `maxReceiveCount` is
+3 because the retryable failures on this path are Bedrock throttles that clear
+in seconds — and because every retry is another full Bedrock tool loop, so more
+attempts on a genuinely broken request buy cost rather than recovery.
+
+**Concurrency is bounded at 5.** This account's total Lambda concurrency is 10,
+shared with every other project in it. Left unbounded, a burst of queued orders
+would scale the worker until the public API had no concurrency left and the
+site started failing. Five leaves five.
+
+**Duplicates cost nothing.** SQS delivers at least once, so the worker claims
+each job with a conditional DynamoDB update that only moves it to PROCESSING
+from QUEUED or PROCESSING. A job already finished fails that condition and the
+message is acknowledged without the agent running again — which is what stops a
+duplicate from making a second Bedrock call and writing a different quotation
+over the one the customer already saw.
+
+And one thing we did **not** do: a message that exhausts its three attempts
+leaves the job at PROCESSING, and nothing repairs it automatically. The alarm
+and the `jobId` in the message body are how a person finds it. Automatic
+redrive is a decision we have not made yet, so we have not implied it.
+
+The honest summary is not "we added SQS". It is: **an order that fails is now
+durable, bounded, visible and attributable — four things it was not before.**
+
+---
+
 ## 12. Security and least privilege
 
 - **No AWS credentials ever reach the browser.** Price-list images travel as

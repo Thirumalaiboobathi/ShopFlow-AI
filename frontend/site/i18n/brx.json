@@ -1,0 +1,37 @@
+{
+  "_meta": {
+    "code": "brx",
+    "confidence": "low",
+    "reviewed": false,
+    "note": "Application-provided translation. No native speaker has reviewed it. Missing keys fall back to English."
+  },
+  "ui": {
+    "language": "राव",
+    "textSupport": "लिरनाय",
+    "voiceSupport": "गोदान",
+    "speak": "बुं",
+    "useThis": "बेखौ बाहाय"
+  },
+  "clarify": {
+    "colour": "नोंथांङो बबे गाब नांगौ?",
+    "brand": "नोंथांङो बबे ब्राण्ड नांगौ?",
+    "pickOne": "बेफोरनिफ्राय मोनसे सायख"
+  },
+  "quote": {
+    "heading": "दामनि लाइजाम",
+    "customer": "बायग्रा",
+    "items": "बेसादफोर",
+    "total": "गासैबो"
+  },
+  "credit": {
+    "status": "थाखो",
+    "outstanding": "बाकी",
+    "approved": "एखाय जाबाय"
+  },
+  "plan": {
+    "budget": "बाजेट"
+  },
+  "error": {
+    "generic": "माबाबो गोरोन्थि जाबाय। फिन नाजा।"
+  }
+}

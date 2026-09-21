@@ -1,0 +1,87 @@
+{
+  "_meta": {
+    "code": "en",
+    "confidence": "high",
+    "reviewed": true,
+    "note": "The reference language. Every other file is measured against these keys."
+  },
+  "ui": {
+    "language": "Language",
+    "textSupport": "Text",
+    "voiceSupport": "Voice",
+    "voiceUnavailable": "Voice is not available in this language — you can type instead",
+    "speak": "Speak",
+    "send": "Send on WhatsApp",
+    "openDraft": "Open WhatsApp draft",
+    "useThis": "Use this",
+    "reviewNotice": "Application-provided translation; native-language review recommended before production deployment."
+  },
+  "clarify": {
+    "heading": "The shop needs one more detail",
+    "colour": "Which colour do you need?",
+    "specification": "Which specification do you need?",
+    "brand": "Which brand do you need?",
+    "unit": "Which unit do you mean?",
+    "pickOne": "Please choose one of these"
+  },
+  "quote": {
+    "heading": "Quotation",
+    "customer": "Customer",
+    "items": "Items",
+    "total": "Total",
+    "notInvoice": "This is a quotation, not an invoice. Prices are subject to stock at the time of order."
+  },
+  "order": {
+    "heading": "Order Confirmation",
+    "confirmed": "Confirmed",
+    "reference": "Reference",
+    "delivery": "The shop will contact you about delivery."
+  },
+  "stock": {
+    "inStock": "In stock",
+    "shortage": "Short of stock"
+  },
+  "credit": {
+    "heading": "Account Status",
+    "reminderHeading": "Account Reminder",
+    "status": "Status",
+    "limit": "Credit limit",
+    "outstanding": "Outstanding",
+    "projected": "Outstanding after this order",
+    "remaining": "Credit remaining",
+    "approved": "Approved",
+    "limitExceeded": "Over your current credit limit",
+    "blocked": "On hold — please speak to the shop",
+    "noAccount": "You do not have a credit account with the shop.",
+    "settle": "Please settle the outstanding amount when convenient.",
+    "cashSale": "Cash sale",
+    "quoteStatus": "Credit status"
+  },
+  "margin": {
+    "previous": "Previous margin",
+    "current": "Margin now",
+    "reduction": "Reduction",
+    "healthy": "Margin is healthy",
+    "reduced": "Margin has fallen",
+    "low": "Low margin",
+    "negative": "Selling below cost",
+    "unavailable": "Margin cannot be shown"
+  },
+  "plan": {
+    "heading": "Purchase plan",
+    "budget": "Budget",
+    "allocated": "Allocated",
+    "leftOver": "Left over"
+  },
+  "error": {
+    "generic": "Something went wrong. Please try again.",
+    "notFound": "The shop could not find that item.",
+    "noSpeech": "No speech was detected. Please try again."
+  },
+  "footer": {
+    "sentBy": "Sent by the shop using ShopFlow AI."
+  },
+  "misc": {
+    "moreItems": "(more items — ask the shop for the full list)"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "_meta": {
+    "code": "mni",
+    "confidence": "low",
+    "reviewed": false,
+    "note": "Application-provided translation. No native speaker has reviewed it. Missing keys fall back to English."
+  },
+  "ui": {
+    "language": "লোল",
+    "textSupport": "ইবা",
+    "voiceSupport": "খোঞ্জেল",
+    "speak": "ঙাংবিয়ু",
+    "useThis": "মসি শিজিন্নবিয়ু"
+  },
+  "clarify": {
+    "colour": "নহাক্না করম্বা মচু পাম্বগে?",
+    "brand": "নহাক্না করম্বা ব্রান্দ পাম্বগে?",
+    "pickOne": "মসিগী মরক্তগী অমা খনবিয়ু"
+  },
+  "quote": {
+    "heading": "মমল কোটেশন",
+    "customer": "লৈবা মী",
+    "items": "পোৎলম",
+    "total": "অপুনবা"
+  },
+  "credit": {
+    "status": "ফিভম",
+    "outstanding": "লৈহৌরিবা",
+    "approved": "অয়াবা পীরে"
+  },
+  "plan": {
+    "budget": "বজেট"
+  },
+  "error": {
+    "generic": "করিগুম্বা অরানবা থোকখ্রে। অমুক হন্না হোৎনবিয়ু।"
+  }
+}

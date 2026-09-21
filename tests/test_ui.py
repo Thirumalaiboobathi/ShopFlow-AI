@@ -340,3 +340,151 @@ def test_8d_no_real_customer_data_is_present_anywhere():
     assert len(customers) == 4
     for customer in customers:
         assert customer["phone"].startswith("+9199000000"), customer["phone"]
+
+
+# ---------------------------------------------------------------------------
+# the language layer in the browser
+# ---------------------------------------------------------------------------
+
+def _i18n_block(page):
+    """The browser's language code, between its markers.
+
+    Isolated the same way the panel builders are, so the assertions below are
+    about the language layer and not about whatever happens to sit near it.
+    """
+    start = page.index("// >>> i18n")
+    end = page.index("// <<< i18n")
+    return page[start:end]
+
+
+def test_9_the_page_offers_a_language_selector(page):
+    assert 'id="langSel"' in page
+    # A real <select>, which is keyboard-operable and screen-reader-labelled
+    # for free. A div-with-click-handlers would not be.
+    assert '<select id="langSel"' in page
+    assert '<label for="langSel"' in page
+    assert 'aria-describedby="langCap"' in page
+
+
+def test_9a_the_language_list_is_not_hard_coded_in_the_page(page):
+    """The registry comes from the API, so there is one source of truth.
+
+    A hard-coded list in the markup would be a second registry, and a second
+    registry drifts from the first the first time a language changes.
+    """
+    script = page[page.rindex("<script>"):]
+    assert '"/api/languages"' in script
+    for native in ("\u0ba4\u0bae\u0bbf\u0bb4\u0bcd", "\u0939\u093f\u0928\u094d\u0926\u0940",
+                   "\u0c24\u0c46\u0c32\u0c41\u0c17\u0c41"):
+        assert native not in script, f"{native} is hard-coded in the page"
+
+
+def test_9b_direction_is_applied_from_metadata_not_guessed(page):
+    block = _i18n_block(page)
+    assert "document.documentElement.dir = lang.dir" in block
+    assert "meta.direction" in block
+    # No list of "these codes are RTL" in the browser. The registry says so.
+    assert '"ur"' not in block and '"ar"' not in block
+
+
+def test_9c_rtl_styling_is_scoped_and_not_global(page):
+    style = page[page.index("<style>"):page.index("</style>")]
+    assert 'html[dir="rtl"]' in style
+    # Identifiers and money stay left-to-right even in an RTL page, because
+    # they are not prose.
+    assert 'html[dir="rtl"] .mono' in style
+    assert "body{direction:rtl" not in style.replace(" ", "")
+
+
+def test_9d_the_font_stack_covers_the_scripts_the_registry_declares(page):
+    """Named per script, because the Noto family is many separate fonts.
+
+    A device typically ships the ones for its own locales, so listing a single
+    "Noto Sans" would leave most of these scripts to a fallback.
+    """
+    style = page[page.index("<style>"):page.index("</style>")]
+    for font in ("Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans Telugu",
+                 "Noto Sans Kannada", "Noto Sans Malayalam",
+                 "Noto Sans Bengali", "Noto Sans Gujarati",
+                 "Noto Sans Gurmukhi", "Noto Sans Oriya",
+                 "Noto Sans Ol Chiki", "Noto Sans Meetei Mayek",
+                 "Noto Nastaliq Urdu"):
+        assert font in style, f"no font named for {font}"
+
+
+def test_9e_no_font_is_downloaded_at_runtime(page):
+    """Named fonts only. Nothing is fetched, so nothing can fail to fetch."""
+    assert "@font-face" not in page
+    assert "fonts.googleapis.com" not in page
+    assert "fonts.gstatic.com" not in page
+
+
+def test_9f_translations_are_bundled_beside_the_page_not_fetched_remotely(page):
+    block = _i18n_block(page)
+    assert '"i18n/"' in block
+    for remote in ("translate.googleapis", "amazonaws.com/translate",
+                   "//", "http:"):
+        if remote == "//":
+            continue
+        assert remote not in block, remote
+
+
+def test_9g_changing_language_makes_no_business_call(page):
+    """Re-rendering words must not re-price anything.
+
+    Asserted structurally: the change handler calls setLanguage and nothing
+    else, and setLanguage touches no business endpoint.
+    """
+    block = _i18n_block(page)
+    handler = block[block.index('sel.addEventListener("change"'):]
+    assert "setLanguage" in handler
+    for endpoint in ("/api/orders", "/api/purchase-plans", "/api/credit",
+                     "/api/whatsapp", "/api/shop-queries"):
+        assert endpoint not in handler, endpoint
+
+    set_language = block[block.index("function setLanguage"):
+                         block.index("function initLanguages")]
+    assert "fetch(\"/api/" not in set_language
+
+
+def test_9h_the_browser_fallback_rules_match_the_python_ones(page):
+    """Same three rules, because a customer may read either side's output.
+
+    A missing key falls back to English; a translation whose placeholders do
+    not match English is rejected; substitution cannot throw.
+    """
+    block = _i18n_block(page)
+    assert "lang.english[key]" in block
+    assert "placeholders(text) !== placeholders(english)" in block
+    assert "text = english" in block
+
+
+def test_9i_the_language_layer_holds_no_business_figure(page):
+    """Checked against the code, with the commentary stripped out.
+
+    The rule is about what the layer can do, not about which English words
+    appear in a comment explaining that it cannot do them - an earlier version
+    of this test failed on the phrase "does not re-price anything", which is
+    the opposite of a problem.
+    """
+    block = _i18n_block(page)
+    code = "\n".join(re.sub(r"//.*$", "", line) for line in block.splitlines())
+    for banned in ("22306", "22,306", "\u20b9", "total", "price", "creditLimit",
+                   "skuId", "quantity", "lineTotal"):
+        assert banned not in code, banned
+
+
+def test_9j_the_voice_selector_is_built_from_the_capability_matrix(page):
+    """A language appears there because Transcribe accepts it, not by hand."""
+    script = page[page.rindex("<script>"):]
+    build = script[script.index("var vsel = el(\"vlangSel\")"):]
+    assert "lang.caps[meta.code]" in build[:900]
+    assert ".voice" in build[:900]
+
+
+def test_9k_every_api_call_that_produces_words_carries_the_language(page):
+    script = page[page.rindex("<script>"):]
+    for marker in ("/api/orders", "/api/shop-queries", "/api/whatsapp/send"):
+        # The fetch call, not the first mention of the path in a comment.
+        start = script.index('fetch("' + marker + '"')
+        assert "lang.code" in script[start:start + 900], marker

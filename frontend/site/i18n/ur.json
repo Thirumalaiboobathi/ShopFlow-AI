@@ -1,0 +1,87 @@
+{
+  "_meta": {
+    "code": "ur",
+    "confidence": "high",
+    "reviewed": false,
+    "note": "Application-provided translation. No native speaker has reviewed it. Missing keys fall back to English."
+  },
+  "ui": {
+    "language": "زبان",
+    "textSupport": "تحریر",
+    "voiceSupport": "آواز",
+    "voiceUnavailable": "اس زبان میں آواز دستیاب نہیں ہے — آپ ٹائپ کر سکتے ہیں",
+    "speak": "بولیے",
+    "send": "واٹس ایپ پر بھیجیں",
+    "openDraft": "واٹس ایپ مسودہ کھولیں",
+    "useThis": "یہی استعمال کریں",
+    "reviewNotice": "یہ ترجمہ ایپلیکیشن نے کیا ہے؛ استعمال سے پہلے مادری زبان میں جائزہ لینے کی سفارش کی جاتی ہے۔"
+  },
+  "clarify": {
+    "heading": "دکان کو ایک اور تفصیل درکار ہے",
+    "colour": "آپ کو کون سا رنگ چاہیے؟",
+    "specification": "آپ کو کون سی تفصیل چاہیے؟",
+    "brand": "آپ کو کون سا برانڈ چاہیے؟",
+    "unit": "آپ کس اکائی کی بات کر رہے ہیں؟",
+    "pickOne": "ان میں سے ایک منتخب کریں"
+  },
+  "quote": {
+    "heading": "کوٹیشن",
+    "customer": "گاہک",
+    "items": "اشیاء",
+    "total": "کل",
+    "notInvoice": "یہ کوٹیشن ہے، بل نہیں۔ آرڈر کے وقت دستیاب اسٹاک کے مطابق قیمت ہوگی۔"
+  },
+  "order": {
+    "heading": "آرڈر کی تصدیق",
+    "confirmed": "تصدیق ہو گئی",
+    "reference": "حوالہ",
+    "delivery": "ڈیلیوری کے بارے میں دکان آپ سے رابطہ کرے گی۔"
+  },
+  "stock": {
+    "inStock": "اسٹاک میں ہے",
+    "shortage": "اسٹاک کم ہے"
+  },
+  "credit": {
+    "heading": "کھاتے کی حالت",
+    "reminderHeading": "کھاتے کی یاد دہانی",
+    "status": "حالت",
+    "limit": "ادھار کی حد",
+    "outstanding": "باقی",
+    "projected": "اس آرڈر کے بعد باقی",
+    "remaining": "بچی ہوئی ادھار کی حد",
+    "approved": "منظور",
+    "limitExceeded": "آپ کی ادھار کی حد سے زیادہ",
+    "blocked": "روک دیا گیا ہے — براہ کرم دکان سے بات کریں",
+    "noAccount": "دکان میں آپ کا ادھار کھاتہ نہیں ہے۔",
+    "settle": "سہولت کے مطابق باقی رقم ادا کر دیں۔",
+    "cashSale": "نقد فروخت",
+    "quoteStatus": "ادھار کی حالت"
+  },
+  "margin": {
+    "previous": "پہلے کا منافع",
+    "current": "اب کا منافع",
+    "reduction": "کمی",
+    "healthy": "منافع ٹھیک ہے",
+    "reduced": "منافع کم ہو گیا ہے",
+    "low": "منافع کم ہے",
+    "negative": "خرید قیمت سے کم پر فروخت ہو رہا ہے",
+    "unavailable": "منافع نہیں دکھایا جا سکتا"
+  },
+  "plan": {
+    "heading": "خریداری کا منصوبہ",
+    "budget": "بجٹ",
+    "allocated": "مختص",
+    "leftOver": "بچا ہوا"
+  },
+  "error": {
+    "generic": "کچھ گڑبڑ ہوئی۔ دوبارہ کوشش کریں۔",
+    "notFound": "دکان کو وہ چیز نہیں ملی۔",
+    "noSpeech": "کوئی آواز سنائی نہیں دی۔ دوبارہ کوشش کریں۔"
+  },
+  "footer": {
+    "sentBy": "دکان نے ShopFlow AI سے بھیجا۔"
+  },
+  "misc": {
+    "moreItems": "(مزید اشیاء ہیں — مکمل فہرست کے لیے دکان سے پوچھیں)"
+  }
+}

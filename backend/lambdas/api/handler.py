@@ -12,12 +12,25 @@ Three routes, no more than the workflow needs:
     POST /api/credit/check        deterministic credit decision for an amount
     POST /api/voice/transcribe    Amazon Transcribe: audio in, transcript out
     POST /api/whatsapp/send       send a customer message, or return a draft
+    GET  /api/languages           the language registry and capability matrix
     GET  /api/jobs/{id}           poll a queued job
     GET  /api/demo                the seeded example, so the UI hard-codes nothing
+
+Most routes accept an optional `language`. It selects the words in the
+response and nothing else: the SKU, the quantity, the unit, the total and the
+decision are produced by the same deterministic engines whatever language is
+asked for, and an unrecognised tag falls back to English rather than failing.
 
 Order and price-list processing are asynchronous. A Bedrock tool loop takes
 seconds, and a public demo that holds an HTTP connection open for that long is
 a reliability risk, so the API queues the work and the browser polls.
+
+That queue is Amazon SQS, and it used to be a direct asynchronous Lambda
+invoke. The difference matters: an `InvocationType="Event"` call that failed
+left the job row sitting at QUEUED until its TTL expired, with the browser
+polling something that would never finish and nothing anywhere recording the
+loss. SQS gives the work durability, bounded retries, a dead-letter queue that
+can be inspected, and an alarm when anything lands in it.
 
 Purchase planning is NOT queued. It calls no model at all - it is the
 deterministic allocator over an already-loaded dataset, measured at about 4 ms
@@ -54,7 +67,16 @@ from engine.credit import (
     customer_view,
     list_customers,
 )
+from engine.language import (
+    DEFAULT_LANGUAGE,
+    capability_matrix,
+    canonicalize_request,
+    language_directory,
+    localize_response,
+    normalize_language,
+)
 from engine.loader import cached_dataset
+from observability import metrics
 from engine.margin import margin_alerts, margin_view
 from engine.messages import (
     CREDIT_REMINDER,
@@ -114,6 +136,10 @@ JOB_ORDER = "ORDER"
 JOB_PRICE_LIST = "PRICE_LIST"
 JOB_TRANSCRIPT = "TRANSCRIPT"
 
+# The shape of the message this API puts on the queue. Carried so a consumer
+# reading an unfamiliar message can say so instead of guessing at it.
+QUEUE_MESSAGE_VERSION = 1
+
 JOB_TTL_SECONDS = int(os.environ.get("JOB_TTL_SECONDS", 60 * 60 * 24))
 
 
@@ -127,10 +153,10 @@ def table():
 
 
 @lru_cache(maxsize=1)
-def lambda_client():
+def sqs_client():
     import boto3
 
-    return boto3.client("lambda")
+    return boto3.client("sqs")
 
 
 @lru_cache(maxsize=1)
@@ -147,6 +173,18 @@ def transcribe_client():
     return boto3.client("transcribe")
 
 _CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
+
+
+def _language_of(payload) -> str:
+    """The language a request asked for, or English.
+
+    Never an error. A browser sending a locale ShopFlow does not know should
+    get an English answer, not a 400 - the language is presentation, and a
+    presentation preference must not be able to fail a business request.
+    """
+    if not isinstance(payload, dict):
+        return DEFAULT_LANGUAGE
+    return normalize_language(payload.get("language"))
 
 
 def _response(status: int, body: dict) -> dict:
@@ -229,9 +267,15 @@ def _create_order(event) -> dict:
             "skuId": sku_id,
         })
 
+    # The language the owner typed in. Stored with the job so the worker can
+    # localize the question it may come back with, and so a poll knows which
+    # language to answer in. It does not reach the matcher, the quote or the
+    # credit check - those see the same canonical input in every language.
+    language = _language_of(payload)
+
     job_id = uuid.uuid4().hex
     now = int(time.time())
-    table().put_item(Item={
+    failed = _queue_job(job_id, JOB_ORDER, {
         **_job_key(job_id),
         "jobId": job_id,
         "jobType": JOB_ORDER,
@@ -239,20 +283,84 @@ def _create_order(event) -> dict:
         "orderText": order_text,
         "customerId": customer_id,
         "clarifications": cleaned,
+        "language": language,
         "createdAt": now,
         "expiresAt": now + JOB_TTL_SECONDS,
     })
+    if failed:
+        return failed
 
-    _start_worker(job_id)
-    return _response(202, {"jobId": job_id, "status": "QUEUED"})
+    # 202 means what it has always meant here, and now means it more firmly:
+    # ShopFlow has accepted this order and placed it on a durable queue. It
+    # does NOT mean the order has been priced.
+    return _response(202, {"jobId": job_id, "status": "QUEUED",
+                           "language": language})
 
 
-def _start_worker(job_id: str) -> None:
-    lambda_client().invoke(
-        FunctionName=os.environ["WORKER_FUNCTION_NAME"],
-        InvocationType="Event",
-        Payload=json.dumps({"jobId": job_id}).encode("utf-8"),
+def _enqueue(job_id: str, job_type: str) -> None:
+    """Hand one job to the worker, durably.
+
+    The message carries an identifier and nothing else. The job record is
+    already in DynamoDB and the worker reads it from there, so no order text,
+    customer id or business value travels through the queue - which keeps SQS
+    exactly what it is here, transport, and means a message sitting in the
+    dead-letter queue discloses nothing.
+
+    `version` is present so a future change to the message shape can be
+    recognised rather than guessed at by a consumer reading an old message.
+    """
+    sqs_client().send_message(
+        QueueUrl=os.environ["ORDERS_QUEUE_URL"],
+        MessageBody=json.dumps({
+            "jobId": job_id,
+            "jobType": job_type,
+            "version": QUEUE_MESSAGE_VERSION,
+        }),
     )
+
+
+def _queue_job(job_id: str, job_type: str, item: dict):
+    """Persist the job, then queue it - and undo the first if the second fails.
+
+    There is no transaction across DynamoDB and SQS, so one of the two has to
+    happen first and the failure has to be handled deliberately.
+
+    Writing first is the safer order. A job row with no message is a row that
+    is visibly stuck and can be removed; a message with no row would reach the
+    worker as an unknown job id, and the worker would have nothing to work
+    from. So the row is written, the message is sent, and if the send fails
+    the row is deleted again - a compensating action, not a rollback, and the
+    difference is worth naming.
+
+    If the compensating delete ALSO fails, the row survives with its TTL and
+    expires on its own. The caller is told the truth either way: the job was
+    not queued.
+
+    Returns None on success, or a ready-to-send error response.
+    """
+    table().put_item(Item=item)
+
+    try:
+        _enqueue(job_id, job_type)
+    except Exception as exc:  # noqa: BLE001 - any send failure, not just one
+        print(f"ERROR queueing {job_type} {job_id}: {type(exc).__name__}: {exc}")
+        metrics.emit(metrics.QUEUE_SEND_FAILURES,
+                     dimensions={"JobType": job_type}, job_id=job_id)
+        try:
+            table().delete_item(Key=_job_key(job_id))
+        except Exception as cleanup:  # noqa: BLE001
+            # The row is left behind, but it carries a TTL and the response
+            # below still tells the caller their order was not accepted.
+            print(f"ERROR could not remove orphan job {job_id}: "
+                  f"{type(cleanup).__name__}: {cleanup}")
+        # 503, not 500: the request was fine and retrying is the right move.
+        return _response(503, {
+            "error": "that order could not be queued \u2014 please try again",
+        })
+
+    metrics.emit(metrics.ORDERS_QUEUED,
+                 dimensions={"JobType": job_type}, job_id=job_id)
+    return None
 
 
 def _create_price_list(event) -> dict:
@@ -309,7 +417,7 @@ def _create_price_list(event) -> dict:
     )
 
     now = int(time.time())
-    table().put_item(Item={
+    failed = _queue_job(job_id, JOB_PRICE_LIST, {
         **_job_key(job_id),
         "jobId": job_id,
         "jobType": JOB_PRICE_LIST,
@@ -320,8 +428,14 @@ def _create_price_list(event) -> dict:
         "createdAt": now,
         "expiresAt": now + JOB_TTL_SECONDS,
     })
+    if failed:
+        # The uploaded image is left in S3 rather than deleted here: the
+        # bucket's lifecycle rule already expires `price-lists/` after 30
+        # days, and the API's grant on that prefix is write-only by design.
+        # Widening it to delete would trade a real security property for a
+        # tidier failure path.
+        return failed
 
-    _start_worker(job_id)
     return _response(202, {"jobId": job_id, "status": "QUEUED",
                            "jobType": JOB_PRICE_LIST})
 
@@ -557,8 +671,31 @@ def _create_shop_query(event) -> dict:
     # A margin question needs the shop's confirmed costs. Read here rather
     # than in the voice layer, which owns no data access of its own.
     costs = {sku: entry["cost"] for sku, entry in _confirmed_costs().items()}
-    return _response(
-        200, answer_shop_query(cached_dataset(), transcript, costs))
+    language = _language_of(payload)
+    # The adapter normalises native-script digits and strips the language's
+    # own function words. What reaches `answer_shop_query` is the product
+    # description, which is what it has always received.
+    canonical = canonicalize_request(transcript, language)
+
+    # A request that reduced to numerals alone carries no product description
+    # the catalogue can read. Handing it to the matcher anyway is how "20
+    # switches" in another script became a 20mm conduit: a bare number scores
+    # a perfect match against a SKU code that ends in the same digits. Ask
+    # instead. A question is always a better answer than a confident wrong one.
+    if not canonical["hasProductVocabulary"]:
+        return _response(200, localize_response({
+            "status": "NEEDS_CLARIFICATION",
+            "language": language,
+            "canonicalInput": canonical,
+            "clarification": {"attribute": "product"},
+            "spoken": "",
+        }, language))
+
+    answer = answer_shop_query(
+        cached_dataset(), canonical["canonicalText"], costs)
+    return _response(200, localize_response(
+        {**answer, "language": language,
+         "canonicalInput": canonical}, language))
 
 
 def _create_transcription(event) -> dict:
@@ -839,7 +976,11 @@ def _create_credit_check(event) -> dict:
     except InvalidOrderTotalError as exc:
         return _response(400, {"error": str(exc)})
 
-    return _response(200, result)
+    # The decision, untouched, plus the words for it. Every figure below -
+    # limit, outstanding, projected, remaining - is the engine's own.
+    language = _language_of(payload)
+    return _response(200, localize_response(
+        {**result, "credit": result, "language": language}, language))
 
 
 def _create_whatsapp_send(event) -> dict:
@@ -907,17 +1048,25 @@ def _create_whatsapp_send(event) -> dict:
             return _response(400, {"error": str(exc)})
 
     # ---- render, from an allow-list of customer-safe fields -------------
+    # The customer's language. The builders translate the words around the
+    # figures; no total, quantity or unit is recalculated for any language,
+    # and the customer-safe allow-list is the same one in all of them.
+    language = _language_of(payload)
+
     try:
         if message_type == QUOTATION:
-            message = build_quotation_message(quote, customer_view_safe, credit)
+            message = build_quotation_message(quote, customer_view_safe, credit,
+                                              language=language)
         elif message_type == ORDER_CONFIRMATION:
             message = build_order_confirmation_message(
                 quote, customer_view_safe,
-                reference=str(payload.get("quoteId") or "")[:12])
+                reference=str(payload.get("quoteId") or "")[:12],
+                language=language)
         else:
             message = build_credit_status_message(
                 credit, customer_view_safe,
-                reminder=(message_type == CREDIT_REMINDER))
+                reminder=(message_type == CREDIT_REMINDER),
+                language=language)
     except InvalidMessageRequest as exc:
         return _response(400, {"error": str(exc)})
 
@@ -933,6 +1082,7 @@ def _create_whatsapp_send(event) -> dict:
     body = {
         "messageType": message["messageType"],
         "text": message["text"],
+        "language": language,
         # Masked, always. The full number is never returned by this API.
         "recipient": masked,
         "customerId": customer.customerId if customer else None,
@@ -990,16 +1140,24 @@ def _get_job(event) -> dict:
     if not item:
         return _response(404, {"error": "job not found"})
 
+    # The language the order was written in, carried on the job row rather
+    # than re-detected here. Re-detecting would risk answering a poll in a
+    # different language from the one the owner chose.
+    language = normalize_language(item.get("language"))
+
     body = {
         "jobId": item["jobId"],
         "jobType": item.get("jobType", JOB_ORDER),
         "status": item["status"],
         "orderText": item.get("orderText"),
         "customerId": item.get("customerId") or None,
+        "language": language,
         "createdAt": int(item.get("createdAt", 0)),
     }
     if item.get("result"):
-        body["result"] = json.loads(item["result"])
+        # Localized additively: the result's own fields are carried through
+        # untouched, and a `localized` block of words is attached beside them.
+        body["result"] = localize_response(json.loads(item["result"]), language)
     if item.get("error"):
         body["error"] = item["error"]
 
@@ -1019,6 +1177,24 @@ def _get_job(event) -> dict:
             for row in rows
         ]
     return _response(200, body)
+
+
+def _get_languages(event) -> dict:
+    """The registry and the capability matrix, so the browser hard-codes neither.
+
+    Read-only, model-free and free of business data. It reports what each
+    language can actually do here - whether a resource file exists, how much
+    of it is translated, and whether the configured speech provider accepts
+    the language - rather than a list of languages somebody hopes work.
+    """
+    return _response(200, {
+        "default": DEFAULT_LANGUAGE,
+        "languages": language_directory(),
+        "capabilities": capability_matrix(),
+        "note": "ShopFlow supports multilingual retail interaction across "
+                "India's 22 Scheduled Languages, with English as the default "
+                "fallback.",
+    })
 
 
 def _get_demo(event) -> dict:
@@ -1063,6 +1239,7 @@ ROUTES = {
     "POST /api/credit/check": _create_credit_check,
     "POST /api/voice/transcribe": _create_transcription,
     "POST /api/whatsapp/send": _create_whatsapp_send,
+    "GET /api/languages": _get_languages,
     "GET /api/jobs/{jobId}": _get_job,
     "GET /api/demo": _get_demo,
 }

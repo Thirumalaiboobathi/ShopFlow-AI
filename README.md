@@ -661,6 +661,198 @@ plain message and the typed order box remains fully usable.
 
 ---
 
+## Languages
+
+**ShopFlow supports multilingual retail interaction across India's 22
+Scheduled Languages, with English as the default fallback.**
+
+That sentence is the claim, and it is worth reading precisely. It is not
+"ShopFlow supports all Indian languages" — India has hundreds, and the 22 are
+a specific list in the Eighth Schedule to the Constitution. English is the
+application's default and its fallback; it is **not** one of the 22.
+
+### Different language. Same business truth.
+
+```
+        user input (any of 23)
+                ↓
+        language adapter        digits normalised, function words removed
+                ↓
+     canonical representation   the SAME string every language produces
+                ↓
+      EXISTING business engines matcher · quote · credit · uom · purchasing
+                ↓
+      structured business result
+                ↓
+        localized response      words only
+                ↓
+              user
+```
+
+The layer changes **how** the owner and the customer communicate. It cannot
+change **what** ShopFlow decides, and that is enforced rather than promised:
+
+- `backend/engine/language.py` imports **no** business engine. A test parses
+  the module and fails if `quote`, `credit`, `purchasing`, `margin`, `uom`,
+  `matching` or `pricing` ever appears in its imports.
+- Every `localize_*` function contains **no arithmetic and no comparison**
+  beyond a null check — asserted by walking the AST of each one.
+- Every localizer takes a **finished result**. There is no signature anywhere
+  that accepts the inputs needed to compute one.
+- `test_multilingual.py` runs the canonical order in all 23 languages and
+  asserts the same SKU, the same quantity, the same unit, the same
+  **₹22,306.48**, and the same credit decision.
+
+Not one of the nine protected business engines was modified for this work.
+
+### The registry
+
+One source of truth, in `language.py`: ISO code, English name, native name in
+its own script, text direction, and the script convention where a language has
+more than one. Direction is **read from metadata, never inferred from a code** —
+Urdu, Sindhi and Kashmiri are right-to-left here, and a test asserts RTL is
+applied to exactly those three and no others.
+
+Where a language is written in more than one living script, the choice is
+recorded and explained, and the selector label is in the same script as the
+resource file behind it:
+
+| Language | Script used here | Note |
+|---|---|---|
+| Kashmiri | Perso-Arabic | also written in Devanagari; RTL follows from this choice |
+| Sindhi | Perso-Arabic | also written in Devanagari; RTL follows from this choice |
+| Konkani | Devanagari | the official script in Goa |
+| Manipuri | Bengali | **Meitei Mayek is the official script** and is not used here |
+| Santali | Ol Chiki | the official script |
+| Bodo | Devanagari | the official script |
+
+### Capability — text, voice, and the difference between them
+
+A language is not "supported" as one undifferentiated thing. The matrix at
+`GET /api/languages` reports each capability separately, and every value in it
+is **derived, not declared**:
+
+| | |
+|---|---|
+| **Text** | all 23. Every supported language accepts typed input. |
+| **UI / messages** | all 23, at the coverage each resource file actually has |
+| **Voice** | **12** — English plus 11 Scheduled Languages |
+| **WhatsApp** | all 23, falling back to English key by key |
+
+`voice` is true only where the **configured** Amazon Transcribe API accepts the
+language. That list is not hand-waved: `scripts/smoke_test_multilingual.py`
+checks every code in the map against the `LanguageCode` enum that botocore
+builds from the service model on the account being deployed to.
+
+**Voice available:** English, Hindi, Tamil, Telugu, Bengali, Gujarati,
+Kannada, Malayalam, Marathi, Odia, Punjabi, Nepali *(as `ne-NP`, the only
+Nepali locale the service offers)*.
+
+**Text only, and said so plainly in the interface:** Assamese, Bodo, Dogri,
+Kashmiri, Konkani, Maithili, Manipuri, Sanskrit, Santali, Sindhi, Urdu.
+
+> Accepting a language code is **not** a claim about recognition quality. It
+> means Transcribe will take the job. How well it transcribes a Madurai
+> contractor saying "Anchor modular switch" has not been measured here, and
+> nothing in this repository claims otherwise.
+
+### Translation quality, stated honestly
+
+Every resource file is an **application-provided translation. None of it has
+been reviewed by a native speaker.** Each file says so in its own metadata,
+and the API carries the notice on every localized response:
+
+> *Application-provided translation; native-language review recommended before
+> production deployment.*
+
+Coverage is **measured from the files**, not asserted. Nineteen languages
+translate all 57 keys. Three are honestly partial, and the interface says the
+percentage rather than implying completeness:
+
+| Language | Coverage | Confidence |
+|---|---:|---|
+| Bodo | 30% | low |
+| Manipuri | 30% | low |
+| Santali | 21% | low |
+
+Those three fall back to English key by key — which is a **real** fallback
+path, exercised by real data rather than by a mock, and tested.
+
+Confidence marks the rest honestly too: `high` for the languages with the
+largest well-established retail vocabulary, `moderate` for Assamese, Sanskrit,
+Sindhi, Konkani and Maithili, `low` for Kashmiri and Dogri. None of them is
+reviewed. All of them need review before a real shop uses them.
+
+### Fallback, and why it is never "undefined"
+
+Three rules, implemented identically in Python and in the browser:
+
+1. **A missing key falls back to English.** Never `undefined`, never `null`,
+   never the key name — a test asserts that for every key in every language.
+2. **A translation whose placeholders do not match English is rejected** in
+   favour of English. A localized string that had lost `{total}` would send a
+   quotation with no amount in it, which is worse than sending it in English.
+3. **Substitution never raises.** A presentation string must not be able to
+   break a page that is showing somebody their money.
+
+An unknown key returns the empty string rather than leaking an internal name
+into a customer's WhatsApp message.
+
+### What is translated, and what deliberately is not
+
+**Translated:** clarification questions, quotation and order summaries, stock
+and shortage wording, khata status, margin wording *(shop-internal)*,
+purchasing labels, voice notices, user-facing errors, customer-facing WhatsApp
+messages, action labels, the selector itself.
+
+**Left in English, on purpose:** SKU ids, product and brand names, the
+execution trace, AWS metadata, API route names and internal field names. A
+customer must never be shown a diagnostic, and **Anchor, Finolex and Havells
+are those words in every one of these languages** — a test asserts all three
+survive the adapter in all 23.
+
+**Rupee amounts stay in Latin digits with Indian grouping in every language.**
+A shop owner checking a WhatsApp message against a paper bill needs the number
+to look like the number.
+
+### Where the language layer stops
+
+The adapter normalises native-script numerals — `२०`, `௨௦`, `౨౦` all become
+`20` — and removes the language's own function words, so what reaches the
+deterministic matcher is the product description it has always received. It
+maps nothing to a SKU.
+
+**A real defect found while testing this, and fixed.** Stripping Telugu
+function words from *"నాకు 20 ఆంకర్ స్విచ్ కావాలి"* leaves the digits alone,
+because the product noun is not catalogue vocabulary. `20` then matched
+`ACC-CONDUIT-20` **exactly, score 1.0** — a customer asking for twenty
+switches was one step from a quotation for 20mm conduit. The adapter now
+reports when no catalogue-readable wording survived, and the caller asks the
+owner instead of letting the matcher find something that merely scores well.
+
+A bare quantity is not a product description. It is a question waiting for its
+noun.
+
+That is the honest boundary: **free-text product matching reads catalogue
+vocabulary, and the catalogue is written in English.** Code-mixed input — the
+way Indian retail actually writes — works, and is tested for nine languages.
+A fully transliterated product noun produces a question, not a guess. Text and
+UI localization remain fully supported for every one of the 23 either way.
+
+### Resources
+
+`backend/i18n/*.json` is the source of truth; `frontend/site/i18n/*.json` is a
+copy, because the Lambda bundle and the site bundle cannot reach each other.
+`scripts/sync_i18n.py` makes the copy and **a test fails if they ever drift**.
+The browser fetches one small static file per language change — no translation
+service, no per-string request, and no network call at all for a language it
+has already loaded.
+
+**No new AWS service was added.** No Amazon Translate, no second model, no
+external translation API. The only infrastructure change is one more route.
+
+---
+
 ## Architecture
 
 ```
@@ -677,22 +869,139 @@ plain message and the typed order box remains fully usable.
                           ▼
               ┌───────────────────────┐
               │ API Lambda            │   NO BEDROCK PERMISSION
-              │ validate · queue      │
-              │ purchase plan (sync)  │
+              │ validate · queue      │   sqs:SendMessage only —
+              │ purchase plan (sync)  │   it cannot invoke the worker
               └───┬───────────────┬───┘
-                  │               │ async invoke
+                  │               │ SendMessage
                   ▼               ▼
          ┌────────────────┐   ┌──────────────────────┐
-         │ DynamoDB       │   │ Worker Lambda        │
-         │ single table   │   │ agent loop · vision  │──▶ Bedrock
-         │ + GSI1 + TTL   │   └──────────┬───────────┘    (Nova Pro,
-         └────────────────┘              │                 one model ARN)
-                                          ▼
-                                   ┌──────────────┐
-                                   │ S3 uploads   │
-                                   │ (private)    │
-                                   └──────────────┘
+         │ DynamoDB       │   │ SQS shopflow-orders  │
+         │ single table   │   │ visibility 360s      │
+         │ + GSI1 + TTL   │   │ maxReceiveCount 3    │
+         └────────────────┘   └──────────┬───────────┘
+                  ▲                      │ event source mapping
+                  │                      │ batch 1 · max 5 concurrent
+                  │                      ▼
+                  │           ┌──────────────────────┐
+                  └───────────│ Worker Lambda        │──▶ Bedrock
+                    jobId     │ agent loop · vision  │    (Nova Pro,
+                              └──────┬─────────┬─────┘     one model ARN)
+                                     │         │ 3 failed attempts
+                                     ▼         ▼
+                            ┌──────────────┐  ┌──────────────────────┐
+                            │ S3 uploads   │  │ SQS ...-orders-dlq   │
+                            │ (private)    │  │ 14-day retention     │
+                            └──────────────┘  └──────────┬───────────┘
+                                                         │ depth > 0
+                                                         ▼
+                                              ┌──────────────────────┐
+                                              │ CloudWatch alarm     │
+                                              │ (console only —      │
+                                              │  no SNS topic yet)   │
+                                              └──────────────────────┘
+
+  jobId is the correlation id the whole way across: the DynamoDB key, the SQS
+  message body, the value the browser polls, and a field in every log line.
 ```
+
+### Reliability: why there is a queue
+
+**Before.** The API handed each job to the worker with
+`lambda.invoke(InvocationType="Event")`, and the worker was configured with
+`retry_attempts=0`.
+
+```
+API Lambda ──async invoke──▶ Worker Lambda
+                 │
+                 └── invoke fails ──▶ nothing.
+```
+
+Nothing retried it, and nothing recorded it. The job row sat at `QUEUED` until
+its 24-hour TTL removed it, the browser polled a job that would never finish,
+and the shop owner watched a spinner. **An order could be lost silently, with
+no way to find out it had happened.**
+
+**After.**
+
+```
+API Lambda ──SendMessage──▶ SQS ──▶ Worker Lambda
+                                       │
+                            attempt 1, 2, 3 all fail
+                                       ▼
+                            dead-letter queue (14 days)
+                                       ▼
+                            CloudWatch alarm on depth > 0
+```
+
+**This is a reliability fix, not a service addition.** The defect was real and
+it was in the code; SQS is how it is fixed, and everything below follows from
+that rather than from wanting a queue.
+
+| Setting | Value | Why that value |
+|---|---|---|
+| Queue type | Standard | Nothing needs ordering — jobs are independent and keyed by id. FIFO would cap throughput per message group for no benefit |
+| Visibility timeout | **360s** | Six times the worker's 60s timeout, the figure AWS documents for a Lambda consumer. At 60s a message could reappear while the first attempt was still running |
+| maxReceiveCount | **3** | Bedrock throttles clear in seconds, so three attempts across ~12 minutes is ample. Higher is not safer — every retry is another full Bedrock loop, so five attempts on a broken request is five times the spend to reach the same failure |
+| Message retention | 4 days | Longer than the 24-hour job TTL, so the queue can never be the reason a job is lost |
+| DLQ retention | **14 days** | A dead-lettered order is evidence of a defect, and the point of it is that a person gets to read it. Four days can span a weekend |
+| Batch size | **1** | A batch would risk one visibility timeout against the slowest order in it, and a mid-batch failure re-runs messages that already succeeded |
+| Max concurrency | **5** | The account ceiling is 10, shared with every other project. Unbounded, a queue burst would scale the worker until the API had no concurrency left and the public site started failing. Five leaves five |
+
+#### At-least-once delivery, handled
+
+SQS can deliver the same message twice. The worker is written so that it does
+not matter: `_claim` is a **conditional DynamoDB update** that moves a job to
+PROCESSING only from QUEUED or PROCESSING. A job already at DONE or FAILED
+fails the condition and the message is acknowledged without the agent running
+again.
+
+That is what stops a duplicate from making a second Bedrock call and writing a
+second, possibly different, quotation over the one the customer was already
+shown. PROCESSING is deliberately **not** treated as terminal — a worker that
+timed out leaves a job there, and refusing to retry it would strand the job
+permanently, which is the exact failure this change exists to remove.
+
+#### Retryable and terminal are not the same thing
+
+| Failure | Treatment |
+|---|---|
+| Bedrock throttle, 5xx, connection dropped | Job left as-is, exception **re-raised** so SQS redelivers |
+| Order too long, document unreadable, invalid supplier line | Job marked `FAILED`, message acknowledged |
+| Anything unrecognised | Treated as terminal — the cheaper mistake |
+
+Marking a throttled order `FAILED` would turn a two-second AWS blip into a lost
+customer order.
+
+#### What happens at the dead-letter queue
+
+**Nothing automatic.** A message that exhausts its three attempts lands in the
+DLQ with the job still at `PROCESSING`, and an alarm goes into ALARM state.
+There is no recovery workflow in this phase and none is claimed: the message
+body carries the `jobId`, which is how a person finds the job. Building
+automatic redrive is a later decision, not an undocumented one.
+
+#### Two writes, no transaction
+
+There is no distributed transaction across DynamoDB and SQS, so the order is
+deliberate: **the job row is written first, then the message is sent.** If the
+send fails, the row is deleted again — a compensating action, not a rollback —
+and the API returns **503**, never a job id. A row with no message is visibly
+stuck and removable; a message with no row would reach a worker that has
+nothing to work from. If the compensating delete also fails, the row expires
+under its own TTL, and the caller was told the truth either way.
+
+#### Alarms, and what they do not do
+
+Three alarms: DLQ depth above zero (one datapoint — the correct number of
+dead-lettered orders is zero), sustained worker errors (3 in 5 minutes over two
+periods, so a single retryable failure does not page anyone), and queue age
+above five minutes (an order takes seconds; five minutes means the worker is
+not consuming).
+
+> **No alarm action is configured.** There is no SNS topic in this stack, so
+> these alarms change state and are visible in the console — **they do not
+> email anyone.** An alarm nobody is told about is a record, not a
+> notification. Wiring them to a topic is the next phase.
 
 ### The AI / deterministic boundary
 
@@ -754,6 +1063,7 @@ model. It runs offline, in a unit test, in milliseconds.
 | `POST /api/credit/check` | Deterministic credit decision, no model, no write |
 | `POST /api/voice/transcribe` | Audio in, transcript out. No business data in the response |
 | `POST /api/whatsapp/send` | Send a customer message, or return the draft |
+| `GET /api/languages` | The language registry and capability matrix. No business data |
 | `GET /api/demo` | Seeded examples, so the UI hard-codes nothing |
 
 An unknown `/api/` route returns a real JSON **404**, while frontend routes
@@ -790,7 +1100,8 @@ distribution required care — see [Engineering lessons](#engineering-lessons).
 ## Testing
 
 ```bash
-python -m pytest            # 710 tests, ~4 seconds, no AWS account needed
+python -m pytest            # 1414 tests, ~30 seconds, no AWS account needed
+                            # (the CDK template assertions dominate that time)
 ```
 
 The engine is pure, so the business rules are tested directly rather than
@@ -831,6 +1142,13 @@ python scripts/smoke_test_credit_uom.py     # 28 checks; writes nothing, and
                                             # fails if the table gains a row
 python scripts/smoke_test_voice_whatsapp.py # 21 checks; runs a REAL Transcribe
                                             # job and deletes everything after
+python scripts/smoke_test_queue.py          # one REAL order through the queue;
+                                            # reports PEND until deployed
+python scripts/smoke_test_multilingual.py   # 19 checks; verifies the voice
+                                            # language map against the real
+                                            # Transcribe service model. 3 of
+                                            # them need a deploy first and
+                                            # report PEND until then
 ```
 
 Deliberately **not** part of the pytest suite — unit tests must stay fast and
@@ -890,13 +1208,16 @@ owner agreed to pay is not something a web request should be able to do.
 ```
 backend/integrations/ outbound adapters — network and credentials, no logic
                      (whatsapp.py: Cloud API transport)
-backend/engine/      pure business logic — no AWS, no model, 18 modules
+backend/observability/ EMF metrics — no AWS SDK, no business value, no IAM
+backend/i18n/        translation resources, 23 files — the source of truth
+backend/engine/      pure business logic — no AWS, no model, 19 modules
                      (includes voice.py: normalisation, intent, spoken replies;
                       margin.py: margin protection, read-only;
                       credit.py: khata decisions, read-only;
                       uom.py: units and conversion, read-only;
                       speech.py: Transcribe limits and parsing, no AWS import;
-                      messages.py: customer-safe message rendering)
+                      messages.py: customer-safe message rendering;
+                      language.py: the 22 + English, words only, no engine)
 backend/agent/       Bedrock tool loop, vision extraction, grounding validation
 backend/lambdas/     api · worker · health
 backend/seed_data/   generated synthetic dataset (147 SKUs)
@@ -1045,6 +1366,20 @@ Stated plainly, because the system is only useful if its claims are reliable.
 - **Ambiguous supplier price-list lines are surfaced but not resolvable in the
   UI** — the owner can see them, not fix them.
 - **Clarification is single-round** in the interface.
+- **No translation here has been reviewed by a native speaker.** Every
+  resource file is application-provided and says so, in its own metadata and
+  on every localized API response. Bodo, Manipuri and Santali are partial —
+  30%, 30% and 21% — and fall back to English for the rest. Kashmiri and Dogri
+  are marked low confidence. All 23 need review before a real shop relies on
+  the wording.
+- **Voice is available in 12 of the 23 languages, not all of them.** The other
+  11 are text-only, because the configured Amazon Transcribe API does not
+  accept their language codes. The interface says which is which; nothing is
+  labelled "fully supported" on the strength of text localization alone.
+- **Free-text product matching reads catalogue vocabulary, which is English.**
+  Code-mixed input works and is tested. A fully transliterated product noun —
+  "ஆங்கர் சுவிட்ச்" — produces a clarification, not a match. That is the safe
+  outcome and it is deliberate: a guessed SKU is worse than a question.
 - **Tanglish is not reliably transcribed.** Amazon Transcribe resolves a clip
   to one language, so a sentence that mixes Tamil and English will lose one of
   them. Browser recognition remains available, the language can be pinned, and

@@ -11,6 +11,8 @@ distinguishable from the other projects in this account at a glance.
 
 from __future__ import annotations
 
+import pathlib
+
 from aws_cdk import (
     CfnOutput,
     Duration,
@@ -21,12 +23,15 @@ from aws_cdk import (
     aws_budgets as budgets,
     aws_cloudfront as cloudfront,
     aws_cloudfront_origins as origins,
+    aws_cloudwatch as cloudwatch,
     aws_dynamodb as dynamodb,
     aws_iam as iam,
     aws_lambda as lambda_,
+    aws_lambda_event_sources as lambda_events,
     aws_logs as logs,
     aws_s3 as s3,
     aws_s3_deployment as s3deploy,
+    aws_sqs as sqs,
 )
 from constructs import Construct
 
@@ -34,6 +39,17 @@ PREFIX = "shopflow"
 
 # Local-only files that must not travel into the Lambda bundle.
 BACKEND_EXCLUDES = ["**/__pycache__", "**/*.pyc", "**/.pytest_cache"]
+
+# Asset paths, resolved from this file rather than from the working directory.
+#
+# `Code.from_asset("../backend")` only worked when cdk was run from
+# infrastructure/, which is how the deploy script runs it - but it made the
+# stack impossible to synthesize from anywhere else, including from a test.
+# The content is identical either way, and an asset hash is computed from the
+# content, so this changes where the files are found and nothing else.
+_HERE = pathlib.Path(__file__).resolve().parent
+BACKEND_ASSET = str(_HERE.parent / "backend")
+SITE_ASSET = str(_HERE.parent / "frontend" / "site")
 
 
 class ShopFlowStack(Stack):
@@ -128,7 +144,7 @@ class ShopFlowStack(Stack):
             runtime=lambda_.Runtime.PYTHON_3_13,
             # The whole backend ships as one asset so the engine, the agent and
             # the generated seed travel together; handlers differ per function.
-            code=lambda_.Code.from_asset("../backend", exclude=BACKEND_EXCLUDES),
+            code=lambda_.Code.from_asset(BACKEND_ASSET, exclude=BACKEND_EXCLUDES),
             handler="lambdas/health/handler.handler",
             memory_size=256,
             timeout=Duration.seconds(10),
@@ -142,13 +158,76 @@ class ShopFlowStack(Stack):
         # Least privilege: read-only, and only this table.
         table.grant_read_data(health_fn)
 
+        # ---- the order queue ---------------------------------------------
+        #
+        # This replaced a direct `lambda.invoke(InvocationType="Event")`.
+        # That call had no durability: if the invoke failed, the job row sat
+        # at QUEUED until its TTL expired, the browser polled something that
+        # would never finish, and nothing recorded that an order had been
+        # lost. A queue makes the work durable, bounds the retries, and gives
+        # a dead-letter queue that a person can actually look inside.
+        #
+        # Standard, not FIFO. Nothing here needs ordering - each job is
+        # independent and keyed by its own id - and FIFO's exactly-once
+        # processing would be solving a problem the worker already solves
+        # with a conditional write. FIFO would also cap throughput per message
+        # group for no benefit.
+        orders_dlq = sqs.Queue(
+            self, "OrdersDeadLetterQueue",
+            queue_name=f"{PREFIX}-orders-dlq",
+            # 14 days, the maximum. A dead-lettered job is evidence of a
+            # defect and the point of it is that somebody gets to read it;
+            # the default four days can easily span a weekend and a holiday.
+            retention_period=Duration.days(14),
+            encryption=sqs.QueueEncryption.SQS_MANAGED,
+            enforce_ssl=True,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+
+        orders_queue = sqs.Queue(
+            self, "OrdersQueue",
+            queue_name=f"{PREFIX}-orders",
+            # Six times the worker's 60s timeout, which is the figure AWS
+            # documents for a Lambda consumer. It is derived from that
+            # timeout rather than picked: at 60s a message could come back
+            # into view while the first attempt was still running, and the
+            # job would be processed twice concurrently. The worker would
+            # survive that - `_claim` is a conditional write - but paying
+            # twice for Bedrock to reach the same answer is not a thing to
+            # design in on purpose.
+            visibility_timeout=Duration.seconds(360),
+            # Four days. Longer than the job records themselves, which carry a
+            # 24-hour TTL, so the queue can never be the reason a job is lost.
+            retention_period=Duration.days(4),
+            encryption=sqs.QueueEncryption.SQS_MANAGED,
+            enforce_ssl=True,
+            removal_policy=RemovalPolicy.DESTROY,
+            dead_letter_queue=sqs.DeadLetterQueue(
+                # Three attempts: the first, and two retries.
+                #
+                # Chosen from what actually fails here. The retryable failures
+                # on this path are Bedrock throttles and transient 5xx, and
+                # those clear in seconds. Three attempts spread over roughly
+                # twelve minutes of visibility timeout is more than enough
+                # room for that.
+                #
+                # Higher would be worse, not safer: every retry is another
+                # full Bedrock tool loop, so five attempts on a genuinely
+                # broken request is five times the spend to reach the same
+                # failure. Three is the point where more attempts stop buying
+                # recovery and start buying cost.
+                max_receive_count=3,
+                queue=orders_dlq,
+            ),
+        )
+
         # ---- order worker: the only function allowed to reach Bedrock ----
         worker_fn = lambda_.Function(
             self, "WorkerFunction",
             function_name=f"{PREFIX}-order-worker",
             runtime=lambda_.Runtime.PYTHON_3_13,
             handler="lambdas/worker/handler.handler",
-            code=lambda_.Code.from_asset("../backend", exclude=BACKEND_EXCLUDES),
+            code=lambda_.Code.from_asset(BACKEND_ASSET, exclude=BACKEND_EXCLUDES),
             memory_size=1024,
             # Comfortably above the observed ~4s agent loop, still bounded.
             timeout=Duration.seconds(60),
@@ -164,9 +243,12 @@ class ShopFlowStack(Stack):
                 retention=logs.RetentionDays.TWO_WEEKS,
                 removal_policy=RemovalPolicy.DESTROY,
             ),
-            # One retry on an async invoke is enough; more would multiply
-            # Bedrock spend on a request that is already failing.
-            retry_attempts=0,
+            # No async invoke configuration any more. SQS drives this
+            # function synchronously through an event source mapping, so
+            # retries come from the queue's redrive policy above - three
+            # attempts, then the dead-letter queue - and `retry_attempts`,
+            # which only applies to asynchronous invocation, would have no
+            # effect if it were still set here.
             # No reserved concurrency, for two reasons.
             #
             # It is not permitted: this account's total Lambda concurrency is
@@ -179,6 +261,37 @@ class ShopFlowStack(Stack):
             # tightly than a reservation would have - it is simply a shared
             # ceiling rather than a private one.
         )
+        # ---- the worker consumes the queue -------------------------------
+        #
+        # This mapping is also the IAM grant: CDK gives the worker's role
+        # ReceiveMessage, DeleteMessage, GetQueueAttributes and
+        # ChangeMessageVisibility on THIS queue only. No sqs:* and no
+        # wildcard resource.
+        worker_fn.add_event_source(lambda_events.SqsEventSource(
+            orders_queue,
+            # One message per invocation.
+            #
+            # A batch would risk the whole batch's visibility timeout against
+            # the slowest order in it, and a failure part-way through a batch
+            # re-runs the messages that already succeeded. With a batch of
+            # one, raising an exception means exactly one job is retried, and
+            # the meaning of a retry stays simple enough to reason about.
+            batch_size=1,
+            # THE IMPORTANT LINE.
+            #
+            # This account's total Lambda concurrency is 10, shared with every
+            # other project in it. Left unbounded, a burst of queued orders
+            # would scale this worker out until there was no concurrency left
+            # for the API function - and the public site would start failing
+            # while the queue drained. Five leaves five.
+            #
+            # Note this is the event source's own limit, not reserved
+            # concurrency: reserving is rejected outright on an account with a
+            # ceiling of 10, and would also take capacity away from other
+            # projects rather than just capping this one.
+            max_concurrency=5,
+        ))
+
         table.grant_read_write_data(worker_fn)
         # Read-only on uploads: the worker reads a price list, never writes one.
         uploads.grant_read(worker_fn)
@@ -198,12 +311,12 @@ class ShopFlowStack(Stack):
             function_name=f"{PREFIX}-api",
             runtime=lambda_.Runtime.PYTHON_3_13,
             handler="lambdas/api/handler.handler",
-            code=lambda_.Code.from_asset("../backend", exclude=BACKEND_EXCLUDES),
+            code=lambda_.Code.from_asset(BACKEND_ASSET, exclude=BACKEND_EXCLUDES),
             memory_size=512,
             timeout=Duration.seconds(15),
             environment={
                 "TABLE_NAME": table.table_name,
-                "WORKER_FUNCTION_NAME": worker_fn.function_name,
+                "ORDERS_QUEUE_URL": orders_queue.queue_url,
                 "UPLOADS_BUCKET": uploads.bucket_name,
                 # WhatsApp is off unless switched on deliberately. With no
                 # context supplied this is the only variable added, it reads
@@ -229,8 +342,15 @@ class ShopFlowStack(Stack):
         # Write-only on uploads: the API stores a price list and never reads
         # one back, so a bug here cannot turn into a document-disclosure path.
         uploads.grant_put(api_fn)
-        # The API may start the worker but has no Bedrock permission of its own.
-        worker_fn.grant_invoke(api_fn)
+        # Send only, to one queue. `grant_send_messages` produces
+        # sqs:SendMessage, sqs:GetQueueAttributes and sqs:GetQueueUrl on this
+        # queue's ARN - the API cannot receive, cannot delete, cannot purge,
+        # and cannot reach the dead-letter queue at all.
+        #
+        # The previous `worker_fn.grant_invoke(api_fn)` is GONE. The API can
+        # no longer invoke the worker by any route, which is what makes the
+        # queue the only path into it rather than merely the preferred one.
+        orders_queue.grant_send_messages(api_fn)
 
         # ---- Amazon Transcribe -------------------------------------------
         #
@@ -301,6 +421,7 @@ class ShopFlowStack(Stack):
             ("/api/credit/check", apigw.HttpMethod.POST),
             ("/api/voice/transcribe", apigw.HttpMethod.POST),
             ("/api/whatsapp/send", apigw.HttpMethod.POST),
+            ("/api/languages", apigw.HttpMethod.GET),
             ("/api/jobs/{jobId}", apigw.HttpMethod.GET),
             ("/api/demo", apigw.HttpMethod.GET),
         ):
@@ -423,11 +544,98 @@ class ShopFlowStack(Stack):
 
         s3deploy.BucketDeployment(
             self, "SiteDeployment",
-            sources=[s3deploy.Source.asset("../frontend/site")],
+            sources=[s3deploy.Source.asset(SITE_ASSET)],
             destination_bucket=site,
             distribution=distribution,
             distribution_paths=["/*"],
             prune=True,
+        )
+
+        # ------------------------------------------------------------------
+        # Alarms
+        # ------------------------------------------------------------------
+        # Three, and only three. Each answers a question somebody would
+        # actually ask, and each fires on a metric AWS already publishes, so
+        # none of them costs a custom metric.
+        #
+        # NO ALARM ACTIONS ARE CONFIGURED. There is no SNS topic in this stack
+        # yet, so these alarms change state and are visible in the console and
+        # on the CDK-created dashboard - they do not email anyone. Saying that
+        # plainly matters more than the alarm looking complete: an alarm that
+        # nobody is told about is a record, not a notification, and the README
+        # says so too.
+
+        # 1. Anything in the dead-letter queue.
+        #
+        # Threshold 0, because the correct number of dead-lettered orders is
+        # zero. This is not a rate to be tuned - a single message here means a
+        # customer's order failed three times and no automatic process will
+        # pick it up. One datapoint is enough; waiting for a second would mean
+        # waiting for a second lost order.
+        cloudwatch.Alarm(
+            self, "OrdersDlqNotEmpty",
+            alarm_name=f"{PREFIX}-orders-dlq-not-empty",
+            alarm_description=(
+                "An order reached the dead-letter queue after three failed "
+                "attempts. The job is still in DynamoDB at PROCESSING and "
+                "nothing will retry it automatically. The message body "
+                "carries the jobId."),
+            metric=orders_dlq.metric_approximate_number_of_messages_visible(
+                period=Duration.minutes(5), statistic="Maximum"),
+            threshold=0,
+            comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            evaluation_periods=1,
+            treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
+        )
+
+        # 2. The worker is failing repeatedly.
+        #
+        # Three errors in five minutes, over two consecutive periods. Not one
+        # error: a single retryable failure is the system working as designed,
+        # because the whole point of the queue is that one failure is
+        # survivable. Two periods filters the momentary Bedrock throttle that
+        # resolves itself. What this catches is a sustained fault - a bad
+        # deploy, a revoked permission, a model that has stopped answering.
+        cloudwatch.Alarm(
+            self, "WorkerErrorsSustained",
+            alarm_name=f"{PREFIX}-worker-errors-sustained",
+            alarm_description=(
+                "The order worker has failed repeatedly for ten minutes. "
+                "Individual retryable failures are expected and do not alarm; "
+                "this indicates a sustained fault."),
+            metric=worker_fn.metric_errors(
+                period=Duration.minutes(5), statistic="Sum"),
+            threshold=3,
+            comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            evaluation_periods=2,
+            datapoints_to_alarm=2,
+            treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
+        )
+
+        # 3. Work is sitting in the queue too long.
+        #
+        # 300 seconds of age. Derived from the workload, not picked: an order
+        # is a bounded 6-turn Bedrock loop measured at around four seconds,
+        # and the event source runs five of them at a time. A message that has
+        # been waiting five minutes is not waiting for a busy worker - it is
+        # waiting for one that is stuck, throttled or unable to start.
+        #
+        # This is the alarm that would have caught the original defect, if the
+        # original defect had been capable of leaving a message anywhere.
+        cloudwatch.Alarm(
+            self, "OrdersQueueBacklog",
+            alarm_name=f"{PREFIX}-orders-queue-backlog",
+            alarm_description=(
+                "The oldest order on the queue has been waiting over five "
+                "minutes. An order normally takes seconds, so this means the "
+                "worker is not consuming."),
+            metric=orders_queue.metric_approximate_age_of_oldest_message(
+                period=Duration.minutes(5), statistic="Maximum"),
+            threshold=300,
+            comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            evaluation_periods=2,
+            datapoints_to_alarm=2,
+            treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
         )
 
         # ------------------------------------------------------------------
@@ -465,6 +673,11 @@ class ShopFlowStack(Stack):
         # ------------------------------------------------------------------
         # Outputs
         # ------------------------------------------------------------------
+        CfnOutput(self, "OrdersQueueUrl", value=orders_queue.queue_url,
+                  description="Durable queue between the API and the worker")
+        CfnOutput(self, "OrdersDlqUrl", value=orders_dlq.queue_url,
+                  description="Dead-letter queue - should always be empty")
+
         CfnOutput(self, "SiteUrl", value=f"https://{distribution.domain_name}",
                   description="Public ShopFlow URL")
         CfnOutput(self, "HealthUrl",

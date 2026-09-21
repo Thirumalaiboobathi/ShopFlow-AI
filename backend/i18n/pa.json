@@ -1,0 +1,87 @@
+{
+  "_meta": {
+    "code": "pa",
+    "confidence": "high",
+    "reviewed": false,
+    "note": "Application-provided translation. No native speaker has reviewed it. Missing keys fall back to English."
+  },
+  "ui": {
+    "language": "ਭਾਸ਼ਾ",
+    "textSupport": "ਲਿਖਤ",
+    "voiceSupport": "ਆਵਾਜ਼",
+    "voiceUnavailable": "ਇਸ ਭਾਸ਼ਾ ਵਿੱਚ ਆਵਾਜ਼ ਉਪਲਬਧ ਨਹੀਂ ਹੈ — ਤੁਸੀਂ ਟਾਈਪ ਕਰ ਸਕਦੇ ਹੋ",
+    "speak": "ਬੋਲੋ",
+    "send": "ਵਟਸਐਪ 'ਤੇ ਭੇਜੋ",
+    "openDraft": "ਵਟਸਐਪ ਡਰਾਫਟ ਖੋਲ੍ਹੋ",
+    "useThis": "ਇਹੀ ਵਰਤੋ",
+    "reviewNotice": "ਇਹ ਅਨੁਵਾਦ ਐਪਲੀਕੇਸ਼ਨ ਨੇ ਕੀਤਾ ਹੈ; ਵਰਤੋਂ ਤੋਂ ਪਹਿਲਾਂ ਮਾਂ-ਬੋਲੀ ਵਿੱਚ ਜਾਂਚ ਕਰਵਾਉਣ ਦੀ ਸਲਾਹ ਹੈ।"
+  },
+  "clarify": {
+    "heading": "ਦੁਕਾਨ ਨੂੰ ਇੱਕ ਹੋਰ ਵੇਰਵਾ ਚਾਹੀਦਾ ਹੈ",
+    "colour": "ਤੁਹਾਨੂੰ ਕਿਹੜਾ ਰੰਗ ਚਾਹੀਦਾ ਹੈ?",
+    "specification": "ਤੁਹਾਨੂੰ ਕਿਹੜਾ ਸਪੈਸੀਫਿਕੇਸ਼ਨ ਚਾਹੀਦਾ ਹੈ?",
+    "brand": "ਤੁਹਾਨੂੰ ਕਿਹੜਾ ਬ੍ਰਾਂਡ ਚਾਹੀਦਾ ਹੈ?",
+    "unit": "ਤੁਸੀਂ ਕਿਹੜੀ ਇਕਾਈ ਦੀ ਗੱਲ ਕਰ ਰਹੇ ਹੋ?",
+    "pickOne": "ਇਹਨਾਂ ਵਿੱਚੋਂ ਇੱਕ ਚੁਣੋ"
+  },
+  "quote": {
+    "heading": "ਕੋਟੇਸ਼ਨ",
+    "customer": "ਗਾਹਕ",
+    "items": "ਸਾਮਾਨ",
+    "total": "ਕੁੱਲ",
+    "notInvoice": "ਇਹ ਕੋਟੇਸ਼ਨ ਹੈ, ਬਿੱਲ ਨਹੀਂ। ਆਰਡਰ ਵੇਲੇ ਮੌਜੂਦ ਸਟਾਕ ਮੁਤਾਬਕ ਭਾਅ ਲੱਗੇਗਾ।"
+  },
+  "order": {
+    "heading": "ਆਰਡਰ ਦੀ ਪੁਸ਼ਟੀ",
+    "confirmed": "ਪੱਕਾ ਹੋਇਆ",
+    "reference": "ਹਵਾਲਾ",
+    "delivery": "ਡਿਲੀਵਰੀ ਬਾਰੇ ਦੁਕਾਨ ਤੁਹਾਡੇ ਨਾਲ ਸੰਪਰਕ ਕਰੇਗੀ।"
+  },
+  "stock": {
+    "inStock": "ਸਟਾਕ ਵਿੱਚ ਹੈ",
+    "shortage": "ਸਟਾਕ ਘੱਟ ਹੈ"
+  },
+  "credit": {
+    "heading": "ਖਾਤੇ ਦੀ ਸਥਿਤੀ",
+    "reminderHeading": "ਖਾਤੇ ਦੀ ਯਾਦ ਦਿਹਾਨੀ",
+    "status": "ਸਥਿਤੀ",
+    "limit": "ਉਧਾਰ ਦੀ ਹੱਦ",
+    "outstanding": "ਬਕਾਇਆ",
+    "projected": "ਇਸ ਆਰਡਰ ਤੋਂ ਬਾਅਦ ਬਕਾਇਆ",
+    "remaining": "ਬਚੀ ਉਧਾਰ ਦੀ ਹੱਦ",
+    "approved": "ਮਨਜ਼ੂਰ",
+    "limitExceeded": "ਤੁਹਾਡੀ ਉਧਾਰ ਦੀ ਹੱਦ ਤੋਂ ਵੱਧ",
+    "blocked": "ਰੋਕਿਆ ਗਿਆ — ਕਿਰਪਾ ਕਰਕੇ ਦੁਕਾਨ ਨਾਲ ਗੱਲ ਕਰੋ",
+    "noAccount": "ਦੁਕਾਨ ਵਿੱਚ ਤੁਹਾਡਾ ਉਧਾਰ ਖਾਤਾ ਨਹੀਂ ਹੈ।",
+    "settle": "ਸਹੂਲਤ ਮੁਤਾਬਕ ਬਕਾਇਆ ਰਕਮ ਅਦਾ ਕਰ ਦਿਓ।",
+    "cashSale": "ਨਕਦ ਵਿਕਰੀ",
+    "quoteStatus": "ਉਧਾਰ ਦੀ ਸਥਿਤੀ"
+  },
+  "margin": {
+    "previous": "ਪਹਿਲਾਂ ਦਾ ਮੁਨਾਫ਼ਾ",
+    "current": "ਹੁਣ ਦਾ ਮੁਨਾਫ਼ਾ",
+    "reduction": "ਕਮੀ",
+    "healthy": "ਮੁਨਾਫ਼ਾ ਠੀਕ ਹੈ",
+    "reduced": "ਮੁਨਾਫ਼ਾ ਘਟ ਗਿਆ ਹੈ",
+    "low": "ਮੁਨਾਫ਼ਾ ਘੱਟ ਹੈ",
+    "negative": "ਖਰੀਦ ਭਾਅ ਤੋਂ ਘੱਟ 'ਤੇ ਵਿਕ ਰਿਹਾ ਹੈ",
+    "unavailable": "ਮੁਨਾਫ਼ਾ ਨਹੀਂ ਦਿਖਾਇਆ ਜਾ ਸਕਦਾ"
+  },
+  "plan": {
+    "heading": "ਖਰੀਦ ਯੋਜਨਾ",
+    "budget": "ਬਜਟ",
+    "allocated": "ਤੈਅ ਕੀਤਾ",
+    "leftOver": "ਬਚਿਆ"
+  },
+  "error": {
+    "generic": "ਕੁਝ ਗੜਬੜ ਹੋਈ। ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ।",
+    "notFound": "ਦੁਕਾਨ ਨੂੰ ਉਹ ਸਾਮਾਨ ਨਹੀਂ ਮਿਲਿਆ।",
+    "noSpeech": "ਕੋਈ ਆਵਾਜ਼ ਸੁਣਾਈ ਨਹੀਂ ਦਿੱਤੀ। ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ।"
+  },
+  "footer": {
+    "sentBy": "ਦੁਕਾਨ ਨੇ ShopFlow AI ਰਾਹੀਂ ਭੇਜਿਆ।"
+  },
+  "misc": {
+    "moreItems": "(ਹੋਰ ਸਾਮਾਨ ਹੈ — ਪੂਰੀ ਸੂਚੀ ਲਈ ਦੁਕਾਨ ਤੋਂ ਪੁੱਛੋ)"
+  }
+}

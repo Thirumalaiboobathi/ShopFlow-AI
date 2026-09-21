@@ -33,6 +33,13 @@ class FakeTable:
         item = self.items.get(self._key(Key))
         return {"Item": dict(item)} if item else {}
 
+    def delete_item(self, Key):
+        # Used by the API's compensating delete when a queue send fails. A
+        # delete of something that is not there is not an error in DynamoDB
+        # either, so it is not one here.
+        self.items.pop(self._key(Key), None)
+        return {}
+
     def update_item(self, Key, UpdateExpression, ExpressionAttributeNames,
                     ExpressionAttributeValues):
         item = self.items.setdefault(self._key(Key), dict(Key))
@@ -79,17 +86,28 @@ class FakeTable:
         return pk, prefix
 
 
-class FakeLambda:
-    def __init__(self):
-        self.invocations = []
+class FakeQueue:
+    """Stands in for SQS.
 
-    def invoke(self, FunctionName, InvocationType, Payload):
-        self.invocations.append({
-            "function": FunctionName,
-            "type": InvocationType,
-            "payload": json.loads(Payload.decode("utf-8")),
+    `fail_next` exists so the send-failure path can be exercised without
+    reaching AWS. That path matters more than it looks: it is the one where
+    the job row has already been written and the API has to decide what to
+    tell the caller.
+    """
+
+    def __init__(self):
+        self.messages = []
+        self.fail_next = False
+
+    def send_message(self, QueueUrl, MessageBody):
+        if self.fail_next:
+            self.fail_next = False
+            raise RuntimeError("SQS unavailable")
+        self.messages.append({
+            "queueUrl": QueueUrl,
+            "body": json.loads(MessageBody),
         })
-        return {"StatusCode": 202}
+        return {"MessageId": "fake-message-id"}
 
 
 class FakeS3:
@@ -103,14 +121,16 @@ class FakeS3:
 
 @pytest.fixture
 def api_env(monkeypatch):
-    table, lam, s3 = FakeTable(), FakeLambda(), FakeS3()
+    table, queue, s3 = FakeTable(), FakeQueue(), FakeS3()
     monkeypatch.setenv("TABLE_NAME", "shopflow-demo")
-    monkeypatch.setenv("WORKER_FUNCTION_NAME", "shopflow-order-worker")
+    monkeypatch.setenv(
+        "ORDERS_QUEUE_URL",
+        "https://sqs.ap-south-1.amazonaws.com/000000000000/shopflow-orders")
     monkeypatch.setenv("UPLOADS_BUCKET", "shopflow-uploads-test")
     monkeypatch.setattr(api, "table", lambda: table)
-    monkeypatch.setattr(api, "lambda_client", lambda: lam)
+    monkeypatch.setattr(api, "sqs_client", lambda: queue)
     monkeypatch.setattr(api, "s3_client", lambda: s3)
-    return table, lam, s3
+    return table, queue, s3
 
 
 def post_order(body: dict):
@@ -132,12 +152,12 @@ def test_submitting_an_order_returns_a_job_id_immediately(api_env):
 
 
 def test_submitting_an_order_queues_the_worker_asynchronously(api_env):
-    table, lam, _s3 = api_env
+    table, queue, _s3 = api_env
     job_id = body_of(api.handler(post_order({"orderText": "20 switches"}), None))["jobId"]
 
-    assert len(lam.invocations) == 1
-    assert lam.invocations[0]["type"] == "Event"
-    assert lam.invocations[0]["payload"] == {"jobId": job_id}
+    assert len(queue.messages) == 1
+    assert queue.messages[0]["body"] == {
+        "jobId": job_id, "jobType": "ORDER", "version": 1}
 
 
 def test_job_moves_from_queued_to_done_and_carries_the_result(api_env):
@@ -183,23 +203,23 @@ def test_malformed_job_id_is_rejected(api_env):
 # ---- request validation, before anything is queued ----
 
 def test_empty_order_is_rejected_without_queueing(api_env):
-    _t, lam, _s3 = api_env
+    _t, queue, _s3 = api_env
     assert api.handler(post_order({"orderText": "  "}), None)["statusCode"] == 400
-    assert lam.invocations == []
+    assert queue.messages == []
 
 
 def test_oversized_order_text_is_rejected(api_env):
-    _t, lam, _s3 = api_env
+    _t, queue, _s3 = api_env
     response = api.handler(post_order({"orderText": "x" * 1001}), None)
     assert response["statusCode"] == 400
-    assert lam.invocations == []
+    assert queue.messages == []
 
 
 def test_oversized_body_is_rejected(api_env):
-    _t, lam, _s3 = api_env
+    _t, queue, _s3 = api_env
     event = {"routeKey": "POST /api/orders", "body": "x" * 5000}
     assert api.handler(event, None)["statusCode"] == 413
-    assert lam.invocations == []
+    assert queue.messages == []
 
 
 def test_malformed_json_is_rejected(api_env):
@@ -210,14 +230,14 @@ def test_malformed_json_is_rejected(api_env):
 
 def test_clarification_with_an_invented_sku_is_rejected(api_env):
     """An invented SKU must not re-enter the flow through the clarification path."""
-    _t, lam, _s3 = api_env
+    _t, queue, _s3 = api_env
     response = api.handler(post_order({
         "orderText": "3 coils wire",
         "clarifications": [{"requestedText": "wire", "skuId": "MADE-UP"}],
     }), None)
     assert response["statusCode"] == 400
     assert "unknown skuId" in body_of(response)["error"]
-    assert lam.invocations == []
+    assert queue.messages == []
 
 
 def test_clarification_with_a_real_sku_is_accepted(api_env):
@@ -289,10 +309,10 @@ def test_uploaded_image_is_stored_privately_and_encrypted(api_env):
 
 
 def test_uploading_a_price_list_queues_the_worker(api_env):
-    _t, lam, _s3 = api_env
+    _t, queue, _s3 = api_env
     job_id = body_of(api.handler(post_price_list(), None))["jobId"]
-    assert lam.invocations[0]["type"] == "Event"
-    assert lam.invocations[0]["payload"] == {"jobId": job_id}
+    assert queue.messages[0]["body"] == {
+        "jobId": job_id, "jobType": "PRICE_LIST", "version": 1}
 
 
 def test_price_list_job_records_its_type(api_env):
@@ -305,26 +325,26 @@ def test_price_list_job_records_its_type(api_env):
 
 
 def test_disallowed_file_type_is_rejected_before_upload(api_env):
-    _t, lam, s3 = api_env
+    _t, queue, s3 = api_env
     response = api.handler(post_price_list(content_type="application/pdf"), None)
     assert response["statusCode"] == 400
-    assert s3.objects == [] and lam.invocations == []
+    assert s3.objects == [] and queue.messages == []
 
 
 def test_oversized_image_is_rejected(api_env):
-    _t, lam, s3 = api_env
+    _t, queue, s3 = api_env
     huge = b"\x89PNG\r\n\x1a\n" + b"x" * (api.MAX_IMAGE_BYTES + 1)
     response = api.handler(post_price_list(image=huge), None)
     assert response["statusCode"] == 413
-    assert s3.objects == [] and lam.invocations == []
+    assert s3.objects == [] and queue.messages == []
 
 
 def test_oversized_upload_body_is_rejected(api_env):
-    _t, lam, s3 = api_env
+    _t, queue, s3 = api_env
     event = {"routeKey": "POST /api/supplier-price-lists",
              "body": "x" * (api.MAX_UPLOAD_BODY_BYTES + 1)}
     assert api.handler(event, None)["statusCode"] == 413
-    assert s3.objects == [] and lam.invocations == []
+    assert s3.objects == [] and queue.messages == []
 
 
 def test_invalid_base64_is_rejected(api_env):
@@ -476,11 +496,11 @@ def post_plan(body: dict):
 def test_purchase_plan_is_answered_synchronously(api_env):
     """No job, no polling. The planner calls no model, so there is nothing
     to wait for - see the handler module docstring."""
-    _table, lam, _s3 = api_env
+    _table, queue, _s3 = api_env
     response = api.handler(post_plan({"budget": 25000}), None)
 
     assert response["statusCode"] == 200
-    assert lam.invocations == []  # no worker was queued
+    assert queue.messages == []  # no worker was queued
 
     plan = body_of(response)
     assert plan["budget"] == 25000.0
@@ -880,11 +900,11 @@ def post_query(body: dict):
 
 def test_shop_query_is_answered_synchronously_without_a_model(api_env):
     """No job, no worker, no Bedrock - catalogue lookup only."""
-    _table, lam, _s3 = api_env
+    _table, queue, _s3 = api_env
     response = api.handler(post_query({"transcript": "Havells MCB SP 32 amp irukka?"}), None)
 
     assert response["statusCode"] == 200
-    assert lam.invocations == []
+    assert queue.messages == []
 
     body = body_of(response)
     assert body["status"] == "RESOLVED"
@@ -1101,13 +1121,13 @@ def test_the_credit_check_reproduces_the_specified_example(api_env):
 
 
 def test_the_credit_check_calls_no_model_and_writes_nothing(api_env):
-    table, lam, _s3 = api_env
+    table, queue, _s3 = api_env
     before = dict(table.items)
 
     api.handler(post_credit({"customerId": "CUST-RAVI-001", "orderTotal": 4200}),
                 None)
 
-    assert lam.invocations == []
+    assert queue.messages == []
     assert table.items == before
 
 

@@ -46,7 +46,7 @@ from engine.messages import (
 )
 from engine.quote import calculate_quote
 from integrations import whatsapp
-from test_api import FakeLambda, FakeTable
+from test_api import FakeQueue, FakeTable
 
 RAVI = "CUST-RAVI-001"
 WIRE = "W-FIN-1.5-RED-90M"
@@ -451,12 +451,14 @@ def test_12b_no_secret_value_is_hardcoded_in_the_adapter():
 
 @pytest.fixture
 def wa_env(monkeypatch):
-    table, lam = FakeTable(), FakeLambda()
+    table, queue = FakeTable(), FakeQueue()
     monkeypatch.setenv("TABLE_NAME", "shopflow-demo")
-    monkeypatch.setenv("WORKER_FUNCTION_NAME", "shopflow-order-worker")
+    monkeypatch.setenv(
+        "ORDERS_QUEUE_URL",
+        "https://sqs.ap-south-1.amazonaws.com/000000000000/shopflow-orders")
     monkeypatch.setenv("UPLOADS_BUCKET", "shopflow-uploads-test")
     monkeypatch.setattr(api, "table", lambda: table)
-    monkeypatch.setattr(api, "lambda_client", lambda: lam)
+    monkeypatch.setattr(api, "sqs_client", lambda: queue)
     return table
 
 

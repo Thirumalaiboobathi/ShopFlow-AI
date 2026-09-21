@@ -1,0 +1,87 @@
+{
+  "_meta": {
+    "code": "kok",
+    "confidence": "moderate",
+    "reviewed": false,
+    "note": "Application-provided translation. No native speaker has reviewed it. Missing keys fall back to English."
+  },
+  "ui": {
+    "language": "भास",
+    "textSupport": "मजकूर",
+    "voiceSupport": "आवाज",
+    "voiceUnavailable": "ह्या भाशेंत आवाज उपलब्ध ना — तुमी टायप करूंक शकतात",
+    "speak": "उलयात",
+    "send": "व्हॉट्सअॅपाचेर धाडात",
+    "openDraft": "व्हॉट्सअॅप मसुदो उगडात",
+    "useThis": "हेंच वापरात",
+    "reviewNotice": "हो अणकार अॅप्लिकेशनान केला; वापरचे आदीं मायभाशेंत तपासणी करची अशी शिफारस."
+  },
+  "clarify": {
+    "heading": "दुकानाक आनीक एक तपशील जाय",
+    "colour": "तुमकां खंयचो रंग जाय?",
+    "specification": "तुमकां खंयचें स्पेसिफिकेशन जाय?",
+    "brand": "तुमकां खंयचो ब्रँड जाय?",
+    "unit": "तुमी खंयच्या एककाविशीं उलयतात?",
+    "pickOne": "हांतल्यान एक वेंचात"
+  },
+  "quote": {
+    "heading": "कोटेशन",
+    "customer": "गिरायक",
+    "items": "वस्तू",
+    "total": "एकूण",
+    "notInvoice": "हें कोटेशन, बील न्हय. ऑर्डराच्या वेळार आशिल्ल्या सांठ्याप्रमाण दर आसतले."
+  },
+  "order": {
+    "heading": "ऑर्डराची खात्री",
+    "confirmed": "खात्री जाली",
+    "reference": "संदर्भ",
+    "delivery": "डिलिवरीविशीं दुकान तुमकां संपर्क करतलें."
+  },
+  "stock": {
+    "inStock": "सांठ्यांत आसा",
+    "shortage": "सांठो उणो आसा"
+  },
+  "credit": {
+    "heading": "खात्याची स्थिती",
+    "reminderHeading": "खात्याची याद",
+    "status": "स्थिती",
+    "limit": "उदरीची मर्यादा",
+    "outstanding": "बाकी",
+    "projected": "ह्या ऑर्डराउपरांत बाकी",
+    "remaining": "उरिल्ली उदरीची मर्यादा",
+    "approved": "मान्य",
+    "limitExceeded": "तुमच्या उदरीच्या मर्यादेपरस चड",
+    "blocked": "थांबयलां — उपकार करून दुकानाकडेन उलयात",
+    "noAccount": "दुकानांत तुमचें उदरीचें खातें ना.",
+    "settle": "सोयीप्रमाण बाकी रक्कम दियात.",
+    "cashSale": "रोखीची विक्री",
+    "quoteStatus": "उदरीची स्थिती"
+  },
+  "margin": {
+    "previous": "आदलो फायदो",
+    "current": "आताचो फायदो",
+    "reduction": "उणाव",
+    "healthy": "फायदो बरो आसा",
+    "reduced": "फायदो उणो जाला",
+    "low": "फायदो उणो आसा",
+    "negative": "मोलाभावापरस उण्या दरान विक्री जाता",
+    "unavailable": "फायदो दाखोवंक येना"
+  },
+  "plan": {
+    "heading": "विकतें घेवपाची येवजण",
+    "budget": "बजेट",
+    "allocated": "थारायलां",
+    "leftOver": "उरिल्लें"
+  },
+  "error": {
+    "generic": "कितेंतरी चुकलें. परतून यत्न करात.",
+    "notFound": "दुकानाक ती वस्त मेळ्ळी ना.",
+    "noSpeech": "खंयचोच आवाज आयकुंक ना. परतून यत्न करात."
+  },
+  "footer": {
+    "sentBy": "दुकानान ShopFlow AI वरवीं धाडलां."
+  },
+  "misc": {
+    "moreItems": "(आनीक वस्तू आसात — सगळी वळेरी दुकानाकडेन विचारात)"
+  }
+}

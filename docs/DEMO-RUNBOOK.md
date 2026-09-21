@@ -518,6 +518,128 @@ the shop's own working stays in the shop."*
 
 ---
 
+## M. Different language. Same business truth. *(90 seconds — the strongest
+new moment)*
+
+Run this **after** Step A, so ₹22,306.48 is already on screen in English and
+the audience has seen where it came from.
+
+**M1 — switch to Tamil.** At the top of the page, change **Language** to
+**தமிழ்**.
+
+**Expected:** the headings, the khata wording and the clarification text change
+to Tamil. **The quotation does not move.** ₹22,306.48 stays exactly as it was,
+in Latin digits, and the wire line still reads **3 coils**.
+
+**Say:** *"Nothing was recalculated. The page did not call the API. The
+language layer owns words — it cannot reach the quotation, the credit check or
+the purchasing planner, and that is enforced by a test that reads the module
+and fails if it ever imports one of them."*
+
+**M2 — order in Tamil.** Paste into the order box:
+
+```
+எனக்கு 20 Anchor modular switch 1-Way 10A White வேண்டும்
+```
+
+**Expected:** the same SKU, the same quantity, the same line total.
+
+**M3 — Hindi, with Devanagari numerals.** Switch the language to **हिन्दी** and
+order:
+
+```
+मुझे २० Anchor modular switch 1-Way 10A White चाहिए
+```
+
+**Expected:** identical. Point at the `२०`.
+
+**Say:** *"That quantity was written in Devanagari numerals. The adapter
+normalises the numeral and strips the Hindi function words, and what reaches
+the matcher is the same string the English order produced. Different language,
+same canonical meaning, same SKU, same price."*
+
+**M4 — Telugu, then the registry.** Switch to **తెలుగు**, order once more, then
+open the language selector and scroll it.
+
+**Say:** *"Twenty-two Scheduled Languages, and English as the default fallback.
+Not 'all Indian languages' — the twenty-two in the Eighth Schedule. Same
+architecture for all of them; we are showing three because three is enough to
+see the point."*
+
+**M5 — the honest part. Do not skip this.** Scroll the selector to **اردو**.
+
+**Expected:** the page flips to right-to-left, and the capability line beside
+the selector reads **Voice — not available in this language**.
+
+**Say:** *"Urdu is text-only here. Amazon Transcribe does not accept an Urdu
+language code, so we do not offer Urdu voice — we say so on the screen instead
+of quietly failing. Twelve of the twenty-three have voice. The other eleven
+are typed, and the product distinguishes the two."*
+
+Then scroll to **ᱥᱟᱱᱛᱟᱲᱤ** (Santali).
+
+**Expected:** the capability line reads **21% translated — the rest is shown in
+English**.
+
+**Say:** *"That is a real number, measured from the file. Santali is partly
+translated and the product says so rather than pretending. And no translation
+here has been reviewed by a native speaker — that is on the screen too."*
+
+> **Do not claim** native-speaker validation, "perfect translation", or support
+> for all Indian languages. The honest claim is on the page: *multilingual
+> retail interaction across India's 22 Scheduled Languages, with English as the
+> default fallback.*
+
+---
+
+## R. What happens when it breaks *(60 seconds — for a technical audience)*
+
+Run this after Step A, while the finished quotation is still on screen. It is
+an architecture moment, not a feature moment, and it is the one a judge with an
+operations background will care about most.
+
+**R1 — name the defect first.** Open the AWS console at SQS and show the two
+queues: `shopflow-orders` and `shopflow-orders-dlq`.
+
+**Say:** *"During our own architecture review we found a real defect. The API
+used to hand each order to the worker with an asynchronous Lambda invoke, with
+retries turned off. If that invoke failed, nothing retried it and nothing
+recorded it — the order sat at QUEUED until its TTL removed it, and the browser
+polled something that was never going to finish. An order could be lost
+silently."*
+
+**R2 — show the fix.** Open `shopflow-orders` → **Dead-letter queue** and show
+the redrive policy: maxReceiveCount **3**, target `shopflow-orders-dlq`.
+
+**Say:** *"Now it goes on a durable queue. Three attempts, then a dead-letter
+queue we can actually open, and an alarm on it. We did not add SQS to use SQS —
+we added it because we found the order could disappear."*
+
+**R3 — the account constraint.** Open Lambda → `shopflow-order-worker` →
+**Configuration → Triggers**, and show the SQS trigger's maximum concurrency of
+**5**.
+
+**Say:** *"This account has a total Lambda concurrency of ten, shared with
+every other project in it. Left unbounded, a burst of queued orders would scale
+this worker until the API had none left and the public site started failing.
+Five leaves five."*
+
+**R4 — the DLQ should be empty.** Show `shopflow-orders-dlq` with zero messages
+available.
+
+**Say:** *"Empty is the expected state, and the alarm fires on a single
+message — because the right number of dead-lettered customer orders is zero."*
+
+> **Do not claim** automatic recovery. A message that reaches the dead-letter
+> queue leaves the job at PROCESSING, and **nothing repairs it automatically**.
+> The honest claim is: *the failure is now durable, bounded, visible and
+> attributable to a jobId* — which is four things it was not before.
+>
+> **Do not claim** the alarms notify anyone. There is no SNS topic in this
+> stack yet. They change state in the console. Say that.
+
+---
+
 ## I. "Why?" — the evidence
 
 Expand **Why?** on any deferred restock. Example (`SW-ANC-BELL`):
@@ -573,6 +695,15 @@ helps them decide what to do next — and shows exactly why."*
 | Tanglish transcribed badly | One language per clip | Expected; pin a language or switch to browser recognition |
 | Transcription unavailable | Browser cannot record | The selector falls back to browser recognition automatically |
 | "WhatsApp API not configured" | No Meta credentials in this demo | Expected — use the draft button, and say so |
+| The selector shows only English | `/api/languages` did not answer | The page still works; reload — never claim the others are missing |
+| Some text stays English after switching | That language is partly translated | Correct — the capability line says the percentage |
+| Boxes instead of letters | The device has no font for that script | Try another language; do not present it as a product failure |
+| "Voice — not available" | Transcribe does not accept that language | Correct and deliberate — type instead |
+| A native-script product name asks a question | The catalogue is in English | Correct — it refuses to guess a SKU |
+| An order sticks at QUEUED | The worker is not consuming | Check the SQS trigger is Enabled; the backlog alarm covers this |
+| "that order could not be queued" | SQS send failed | Correct — no job was created, and retrying is the right move |
+| A message is in the DLQ | Three attempts failed | Read the jobId from the message body. Nothing repairs it automatically |
+| An order completes twice in the logs | SQS delivered twice | Expected — the second is logged as `duplicate_delivery_ignored` and does nothing |
 
 **If live AWS misbehaves during judging:** fall back to a recording, and say
 plainly that you are showing a recording. Do not narrate a recording as if it
@@ -593,6 +724,12 @@ python scripts/smoke_test_planner.py        # expect: 36 checks, SMOKE TEST PASS
 python scripts/smoke_test_credit_uom.py     # expect: 28 checks, SMOKE TEST PASSED
 python scripts/smoke_test_voice_whatsapp.py # expect: 21 checks, SMOKE TEST PASSED
                                             # (runs a real Transcribe job, ~10s)
+python scripts/smoke_test_queue.py          # expect: SMOKE TEST PASSED
+                                            # (one REAL order through SQS;
+                                            #  PEND until this build deploys)
+python scripts/smoke_test_multilingual.py   # expect: SMOKE TEST PASSED
+                                            # 3 site checks report PEND until
+                                            # this build is deployed
 ```
 
 Then live:

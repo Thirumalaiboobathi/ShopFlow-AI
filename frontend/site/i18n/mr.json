@@ -1,0 +1,87 @@
+{
+  "_meta": {
+    "code": "mr",
+    "confidence": "high",
+    "reviewed": false,
+    "note": "Application-provided translation. No native speaker has reviewed it. Missing keys fall back to English."
+  },
+  "ui": {
+    "language": "भाषा",
+    "textSupport": "मजकूर",
+    "voiceSupport": "आवाज",
+    "voiceUnavailable": "या भाषेत आवाज उपलब्ध नाही — तुम्ही टाइप करू शकता",
+    "speak": "बोला",
+    "send": "व्हॉट्सअॅपवर पाठवा",
+    "openDraft": "व्हॉट्सअॅप मसुदा उघडा",
+    "useThis": "हेच वापरा",
+    "reviewNotice": "हा अनुवाद अॅप्लिकेशनने केला आहे; वापरण्यापूर्वी मातृभाषेतील तपासणी सुचवली जाते."
+  },
+  "clarify": {
+    "heading": "दुकानाला आणखी एक तपशील हवा आहे",
+    "colour": "तुम्हाला कोणता रंग हवा आहे?",
+    "specification": "तुम्हाला कोणते स्पेसिफिकेशन हवे आहे?",
+    "brand": "तुम्हाला कोणता ब्रँड हवा आहे?",
+    "unit": "तुम्ही कोणत्या युनिटबद्दल बोलत आहात?",
+    "pickOne": "यापैकी एक निवडा"
+  },
+  "quote": {
+    "heading": "कोटेशन",
+    "customer": "ग्राहक",
+    "items": "वस्तू",
+    "total": "एकूण",
+    "notInvoice": "हे कोटेशन आहे, बिल नाही. ऑर्डरच्या वेळी उपलब्ध साठ्यानुसार किंमत ठरेल."
+  },
+  "order": {
+    "heading": "ऑर्डरची पुष्टी",
+    "confirmed": "निश्चित झाले",
+    "reference": "संदर्भ",
+    "delivery": "डिलिव्हरीबाबत दुकान तुमच्याशी संपर्क साधेल."
+  },
+  "stock": {
+    "inStock": "साठ्यात आहे",
+    "shortage": "साठा कमी आहे"
+  },
+  "credit": {
+    "heading": "खाते स्थिती",
+    "reminderHeading": "खाते स्मरणपत्र",
+    "status": "स्थिती",
+    "limit": "उधार मर्यादा",
+    "outstanding": "थकबाकी",
+    "projected": "या ऑर्डरनंतरची थकबाकी",
+    "remaining": "उरलेली उधार मर्यादा",
+    "approved": "मंजूर",
+    "limitExceeded": "तुमची उधार मर्यादा ओलांडली आहे",
+    "blocked": "थांबवले आहे — कृपया दुकानाशी बोला",
+    "noAccount": "दुकानात तुमचे उधार खाते नाही.",
+    "settle": "सोयीनुसार थकबाकीची रक्कम भरा.",
+    "cashSale": "रोख विक्री",
+    "quoteStatus": "उधार स्थिती"
+  },
+  "margin": {
+    "previous": "आधीचा नफा",
+    "current": "आताचा नफा",
+    "reduction": "घट",
+    "healthy": "नफा ठीक आहे",
+    "reduced": "नफा कमी झाला आहे",
+    "low": "नफा कमी आहे",
+    "negative": "खरेदी किमतीपेक्षा कमी दराने विकले जात आहे",
+    "unavailable": "नफा दाखवता येत नाही"
+  },
+  "plan": {
+    "heading": "खरेदी योजना",
+    "budget": "बजेट",
+    "allocated": "ठरवलेले",
+    "leftOver": "शिल्लक"
+  },
+  "error": {
+    "generic": "काहीतरी चूक झाली. पुन्हा प्रयत्न करा.",
+    "notFound": "ती वस्तू दुकानात सापडली नाही.",
+    "noSpeech": "आवाज ऐकू आला नाही. पुन्हा प्रयत्न करा."
+  },
+  "footer": {
+    "sentBy": "दुकानाने ShopFlow AI द्वारे पाठवले."
+  },
+  "misc": {
+    "moreItems": "(आणखी वस्तू आहेत — पूर्ण यादीसाठी दुकानाला विचारा)"
+  }
+}

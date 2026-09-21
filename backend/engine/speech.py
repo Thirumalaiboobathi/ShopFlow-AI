@@ -99,16 +99,43 @@ TRANSCRIBE_TIMEOUT_SECONDS = 150
 POLL_INTERVAL_MS = 1500
 MAX_POLL_ATTEMPTS = 40
 
-# Languages this shop actually speaks, mapped to Transcribe language codes.
-# Nothing else is offered: a language the owner does not use is a worse guess
-# than asking them which of the two they want.
-LANGUAGES: Dict[str, str] = {
-    "ta": "ta-IN",
+# ShopFlow language codes mapped to Amazon Transcribe language codes.
+#
+# THIS LIST IS VERIFIED, NOT ASSUMED. Every code below is one the configured
+# Transcribe API declares in its own `LanguageCode` enum, which
+# `scripts/smoke_test_multilingual.py` re-checks against botocore's service
+# model on the account being deployed to. A language is absent from this map
+# because the service does not accept it, not because nobody got to it - and
+# the capability matrix reads `voice: false` straight from that absence.
+#
+# Accepting a code is NOT a claim about recognition quality. It says the
+# service will take the job. How well it transcribes a Madurai contractor
+# saying "Anchor modular switch" is not something this repository has
+# measured, and nothing here claims otherwise.
+TRANSCRIBE_LANGUAGES: Dict[str, str] = {
     "en": "en-IN",
+    "hi": "hi-IN",
+    "ta": "ta-IN",
+    "te": "te-IN",
+    "bn": "bn-IN",
+    "gu": "gu-IN",
+    "kn": "kn-IN",
+    "ml": "ml-IN",
+    "mr": "mr-IN",
+    "or": "or-IN",
+    "pa": "pa-IN",
+    # The only Nepali locale Transcribe offers is the Nepal one. It is the
+    # same language; the locale is named here rather than implied.
+    "ne": "ne-NP",
 }
+
+# The original two-language name, kept because callers and tests use it.
+LANGUAGES: Dict[str, str] = TRANSCRIBE_LANGUAGES
 # What automatic identification is allowed to choose between. Restricting it
 # is the point - left open, Transcribe will happily decide a Tanglish clip is
-# Indonesian.
+# Indonesian. This stays at the two languages the Madurai shop speaks: "Auto"
+# is for that shop, and any owner wanting another language selects it, which
+# pins the job to a single code instead of guessing.
 IDENTIFY_LANGUAGE_OPTIONS = ("ta-IN", "en-IN")
 
 DEFAULT_LANGUAGE = "auto"
@@ -197,11 +224,14 @@ def resolve_language(requested) -> dict:
     the owner their recording.
     """
     choice = str(requested or DEFAULT_LANGUAGE).lower().strip()
-    if choice in LANGUAGES:
+    # "ta-IN" and "ta" mean the same thing to a caller; only the primary
+    # subtag is meaningful to this map.
+    choice = choice.split("-")[0] if choice != DEFAULT_LANGUAGE else choice
+    if choice in TRANSCRIBE_LANGUAGES:
         return {
             "requested": choice,
             "identifyLanguage": False,
-            "languageCode": LANGUAGES[choice],
+            "languageCode": TRANSCRIBE_LANGUAGES[choice],
             "languageOptions": None,
         }
     return {

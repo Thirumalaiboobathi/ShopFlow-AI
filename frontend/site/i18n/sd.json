@@ -1,0 +1,87 @@
+{
+  "_meta": {
+    "code": "sd",
+    "confidence": "moderate",
+    "reviewed": false,
+    "note": "Application-provided translation. No native speaker has reviewed it. Missing keys fall back to English."
+  },
+  "ui": {
+    "language": "ٻولي",
+    "textSupport": "لکت",
+    "voiceSupport": "آواز",
+    "voiceUnavailable": "هن ٻوليءَ ۾ آواز موجود ناهي — توهان ٽائيپ ڪري سگهو ٿا",
+    "speak": "ڳالهايو",
+    "send": "واٽس ايپ تي موڪليو",
+    "openDraft": "واٽس ايپ مسودو کوليو",
+    "useThis": "اهو ئي استعمال ڪريو",
+    "reviewNotice": "هي ترجمو ايپليڪيشن پاران ڪيو ويو آهي؛ استعمال کان اڳ مادري ٻوليءَ ۾ جائزو وٺڻ جي صلاح ڏجي ٿي."
+  },
+  "clarify": {
+    "heading": "دڪان کي هڪ ٻي ڳالهه گهرجي",
+    "colour": "توهان کي ڪهڙو رنگ گهرجي؟",
+    "specification": "توهان کي ڪهڙي تفصيل گهرجي؟",
+    "brand": "توهان کي ڪهڙو برانڊ گهرجي؟",
+    "unit": "توهان ڪهڙي ايڪي جي ڳالهه ڪري رهيا آهيو؟",
+    "pickOne": "انهن مان هڪ چونڊيو"
+  },
+  "quote": {
+    "heading": "ڪوٽيشن",
+    "customer": "گراهڪ",
+    "items": "شيون",
+    "total": "ڪل",
+    "notInvoice": "هي ڪوٽيشن آهي، بل ناهي. آرڊر وقت موجود اسٽاڪ مطابق قيمت هوندي."
+  },
+  "order": {
+    "heading": "آرڊر جي تصديق",
+    "confirmed": "تصديق ٿي وئي",
+    "reference": "حوالو",
+    "delivery": "ڊليوري بابت دڪان توهان سان رابطو ڪندو."
+  },
+  "stock": {
+    "inStock": "اسٽاڪ ۾ آهي",
+    "shortage": "اسٽاڪ گهٽ آهي"
+  },
+  "credit": {
+    "heading": "کاتي جي حالت",
+    "reminderHeading": "کاتي جي ياد ڏياري",
+    "status": "حالت",
+    "limit": "اوڌر جي حد",
+    "outstanding": "باقي",
+    "projected": "هن آرڊر کان پوءِ باقي",
+    "remaining": "بچيل اوڌر جي حد",
+    "approved": "منظور",
+    "limitExceeded": "توهان جي اوڌر جي حد کان وڌيڪ",
+    "blocked": "روڪيو ويو آهي — مهرباني ڪري دڪان سان ڳالهايو",
+    "noAccount": "دڪان ۾ توهان جو اوڌر کاتو ناهي.",
+    "settle": "سهولت مطابق باقي رقم ادا ڪريو.",
+    "cashSale": "نقد وڪرو",
+    "quoteStatus": "اوڌر جي حالت"
+  },
+  "margin": {
+    "previous": "اڳوڻو نفعو",
+    "current": "هاڻوڪو نفعو",
+    "reduction": "گهٽتائي",
+    "healthy": "نفعو ٺيڪ آهي",
+    "reduced": "نفعو گهٽجي ويو آهي",
+    "low": "نفعو گهٽ آهي",
+    "negative": "خريد قيمت کان گهٽ تي وڪرو ٿي رهيو آهي",
+    "unavailable": "نفعو ڏيکاري نٿو سگهجي"
+  },
+  "plan": {
+    "heading": "خريداري جو منصوبو",
+    "budget": "بجيٽ",
+    "allocated": "مختص",
+    "leftOver": "بچيل"
+  },
+  "error": {
+    "generic": "ڪجهه غلط ٿيو. ٻيهر ڪوشش ڪريو.",
+    "notFound": "دڪان کي اها شيءِ نه ملي.",
+    "noSpeech": "ڪو آواز نه ٻڌو ويو. ٻيهر ڪوشش ڪريو."
+  },
+  "footer": {
+    "sentBy": "دڪان ShopFlow AI ذريعي موڪليو."
+  },
+  "misc": {
+    "moreItems": "(وڌيڪ شيون آهن — مڪمل فهرست لاءِ دڪان کان پڇو)"
+  }
+}

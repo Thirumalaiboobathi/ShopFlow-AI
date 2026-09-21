@@ -31,9 +31,49 @@
     --ok:#4fd1ac; --ok-soft:#12251f; --code:#1c2127;
   }
   *{box-sizing:border-box}
+  /* The font stack has to carry twelve writing systems. Nothing is fetched
+     at runtime: these are names of fonts the device may already have, and the
+     browser walks the list until one covers the character. Where a device has
+     none of them the final generic keyword still renders - the text may look
+     plain, but it is never boxes.
+
+     Named per script rather than relying on one "Noto Sans" entry, because
+     the Noto family is many separate fonts and a device typically ships the
+     ones for its own locales. */
   body{margin:0; background:var(--bg); color:var(--ink);
-    font:16px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font:16px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,
+      Helvetica,Arial,
+      "Noto Sans","Noto Sans Devanagari","Nirmala UI","Mangal",
+      "Noto Sans Tamil","Latha","Noto Sans Telugu","Gautami",
+      "Noto Sans Kannada","Tunga","Noto Sans Malayalam","Kartika",
+      "Noto Sans Bengali","Vrinda","Noto Sans Gujarati","Shruti",
+      "Noto Sans Gurmukhi","Raavi","Noto Sans Oriya","Kalinga",
+      "Noto Sans Ol Chiki","Noto Sans Meetei Mayek",
+      "Noto Nastaliq Urdu","Noto Sans Arabic","Jameel Noori Nastaleeq",
+      sans-serif;
     -webkit-font-smoothing:antialiased}
+
+  /* Direction comes from the language registry, never from a guess, and is
+     applied to the document element. Only the parts that hold localized text
+     flip; the evidence trail and the code samples stay left-to-right because
+     they are identifiers, not prose. */
+  html[dir="rtl"] .langbar,
+  html[dir="rtl"] .localized{direction:rtl; text-align:right}
+  html[dir="rtl"] .mono, html[dir="rtl"] code,
+  html[dir="rtl"] .evidence dd{direction:ltr; text-align:left}
+
+  .langbar{display:flex; flex-wrap:wrap; align-items:center; gap:10px;
+    padding:10px 0 0; margin-top:18px; border-top:1px solid var(--line)}
+  .langbar label{font-size:13px; color:var(--muted)}
+  .langbar select{font:inherit; font-size:14px; padding:6px 10px;
+    border:1px solid var(--line); border-radius:8px;
+    background:var(--panel); color:var(--ink); max-width:230px}
+  .langbar select:focus-visible{outline:2px solid var(--accent);
+    outline-offset:2px}
+  .langcap{font-size:12px; color:var(--muted)}
+  .langcap b{font-weight:600; color:var(--ink)}
+  .langcap .no{color:var(--warn)}
+  .langnote{font-size:12px; color:var(--muted); margin:6px 0 0; max-width:60ch}
   .wrap{max-width:860px; margin:0 auto; padding:0 20px}
   code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 
@@ -421,6 +461,18 @@
       <span class="jv">Limited cash &rarr; prioritised purchasing plan</span></div>
   </div>
 
+  <div class="langbar">
+    <label for="langSel">Language</label>
+    <select id="langSel" aria-describedby="langCap"></select>
+    <span class="langcap" id="langCap" role="status" aria-live="polite"></span>
+  </div>
+  <p class="langnote" id="langNote">
+    ShopFlow supports multilingual retail interaction across India&rsquo;s 22
+    Scheduled Languages, with English as the default fallback. The language
+    changes the words, never the figures — the same order produces the same
+    quotation in every one of them.
+  </p>
+
   <div class="chips">
     <span class="chip">Category&nbsp;<strong>Commercial Potential</strong></span>
     <span class="chip">Lane&nbsp;<strong>Startup</strong></span>
@@ -454,7 +506,7 @@
       <span class="vlang">
         <label for="vlangSel">Reply in</label>
         <select id="vlangSel">
-          <option value="auto" selected>Auto</option>
+          <option value="auto" selected>Auto (Tamil / English)</option>
           <option value="ta">Tamil</option>
           <option value="en">English</option>
         </select>
@@ -682,6 +734,196 @@
   "use strict";
 
   var el = function (id) { return document.getElementById(id); };
+
+  // >>> i18n
+  // The language layer, in the browser.
+  //
+  // It owns words. It owns no figure, no SKU, no unit and no decision - those
+  // arrive from the API already calculated, and changing language re-renders
+  // labels without re-running a single business call. Switching from Tamil to
+  // Hindi does not re-price anything, because there is nothing here that
+  // could.
+  //
+  // Resources are bundled beside this page and fetched once per language,
+  // then cached for the session. One small static file per language change is
+  // not "a network request per string" - it is the same file the Lambda
+  // reads, copied at build time by scripts/sync_i18n.py so there is exactly
+  // one source of truth.
+  var LANG_KEY = "shopflow.language";
+  var lang = {
+    code: "en",
+    dir: "ltr",
+    strings: {},          // flattened key -> text for the current language
+    english: {},          // the fallback, loaded once and kept
+    cache: {},
+    registry: [],
+    caps: {}
+  };
+
+  function flatten(tree, prefix, out) {
+    out = out || {};
+    Object.keys(tree || {}).forEach(function (k) {
+      if (k.charAt(0) === "_") return;
+      var v = tree[k], path = (prefix || "") + k;
+      if (v && typeof v === "object") flatten(v, path + ".", out);
+      else if (typeof v === "string" && v.trim()) out[path] = v;
+    });
+    return out;
+  }
+
+  // The same three rules the Python side enforces, for the same reasons: a
+  // missing key falls back to English; a translation whose placeholders do
+  // not match English is rejected in favour of English; and nothing here can
+  // throw, because a presentation string must not be able to break a page
+  // that is showing somebody their money.
+  function placeholders(text) {
+    return (String(text || "").match(/\{[a-zA-Z][a-zA-Z0-9_]*\}/g) || [])
+      .sort().join(",");
+  }
+
+  function t(key, fallback) {
+    var english = lang.english[key];
+    var text = lang.strings[key];
+    if (text === undefined) text = english;
+    else if (english !== undefined && placeholders(text) !== placeholders(english)) {
+      text = english;
+    }
+    if (text === undefined) text = fallback;
+    return text === undefined ? "" : text;
+  }
+
+  function applyStrings() {
+    var nodes = document.querySelectorAll("[data-i18n]");
+    Array.prototype.forEach.call(nodes, function (node) {
+      var key = node.getAttribute("data-i18n");
+      // The markup's own text is the last fallback, so a key that exists in
+      // no file at all still leaves a readable English page.
+      if (!node.hasAttribute("data-i18n-en")) {
+        node.setAttribute("data-i18n-en", node.textContent);
+      }
+      node.textContent = t(key, node.getAttribute("data-i18n-en"));
+    });
+  }
+
+  function fetchResource(code) {
+    if (lang.cache[code]) return Promise.resolve(lang.cache[code]);
+    return fetch("i18n/" + encodeURIComponent(code) + ".json")
+      .then(function (r) { return r.ok ? r.json() : {}; })
+      .catch(function () { return {}; })   // offline -> English, never broken
+      .then(function (tree) {
+        lang.cache[code] = flatten(tree);
+        return lang.cache[code];
+      });
+  }
+
+  function describeCapability(code) {
+    var cap = lang.caps[code] || {};
+    var meta = null;
+    lang.registry.forEach(function (r) { if (r.code === code) meta = r; });
+    var bits = [];
+    bits.push("<b>" + t("ui.textSupport", "Text") + "</b> \u2713");
+    if (cap.voice) {
+      bits.push("<b>" + t("ui.voiceSupport", "Voice") + "</b> \u2713");
+    } else {
+      bits.push("<span class=\"no\"><b>" + t("ui.voiceSupport", "Voice") +
+                "</b> \u2014 " + t("ui.voiceUnavailable",
+                "not available in this language") + "</span>");
+    }
+    // Said plainly when a language is only partly translated, rather than
+    // letting English sentences appear with no explanation.
+    if (meta && typeof cap.coverage === "number" && cap.coverage < 1 &&
+        code !== "en") {
+      bits.push("<span class=\"no\">" + Math.round(cap.coverage * 100) +
+                "% translated \u2014 the rest is shown in English</span>");
+    }
+    el("langCap").innerHTML = bits.join(" \u00b7 ");
+  }
+
+  function setLanguage(code, remember) {
+    code = code || "en";
+    var meta = null;
+    lang.registry.forEach(function (r) { if (r.code === code) meta = r; });
+    return fetchResource(code).then(function (strings) {
+      lang.code = code;
+      lang.strings = code === "en" ? lang.english : strings;
+      lang.dir = (meta && meta.direction) || "ltr";
+      document.documentElement.lang = code;
+      document.documentElement.dir = lang.dir;
+      applyStrings();
+      describeCapability(code);
+      if (remember) {
+        try { localStorage.setItem(LANG_KEY, code); } catch (e) { /* private mode */ }
+      }
+      return code;
+    });
+  }
+
+  // The registry comes from the API so the browser hard-codes no language
+  // list, no native name and no capability. If the API cannot be reached the
+  // selector still offers English and the page still works.
+  function initLanguages() {
+    var sel = el("langSel");
+    if (!sel) return;
+    fetchResource("en").then(function (english) {
+      lang.english = english;
+      lang.cache.en = english;
+      return fetch("/api/languages").then(function (r) { return r.json(); });
+    }).then(function (data) {
+      lang.registry = (data && data.languages) || [];
+      lang.caps = (data && data.capabilities) || {};
+      sel.innerHTML = "";
+      lang.registry.forEach(function (meta) {
+        var opt = document.createElement("option");
+        opt.value = meta.code;
+        // The native name is the label, with the English name beside it so an
+        // owner can find their language in a list of scripts they cannot all
+        // read.
+        opt.textContent = meta.nativeName +
+          (meta.nativeName === meta.name ? "" : " \u2014 " + meta.name);
+        sel.appendChild(opt);
+      });
+      // The voice selector offers exactly the languages the configured
+      // speech provider accepts, read from the capability matrix. A language
+      // is absent because Amazon Transcribe does not take it, not because it
+      // was forgotten - and a language absent here still works by typing.
+      var vsel = el("vlangSel");
+      if (vsel) {
+        var keep = vsel.value;
+        vsel.innerHTML = "";
+        var auto = document.createElement("option");
+        auto.value = "auto";
+        auto.textContent = "Auto (Tamil / English)";
+        vsel.appendChild(auto);
+        lang.registry.forEach(function (meta) {
+          if (!(lang.caps[meta.code] || {}).voice) return;
+          var opt = document.createElement("option");
+          opt.value = meta.code;
+          opt.textContent = meta.nativeName +
+            (meta.nativeName === meta.name ? "" : " — " + meta.name);
+          vsel.appendChild(opt);
+        });
+        vsel.value = keep;
+        if (!vsel.value) vsel.value = "auto";
+      }
+
+      var stored = null;
+      try { stored = localStorage.getItem(LANG_KEY); } catch (e) { stored = null; }
+      var start = "en";
+      lang.registry.forEach(function (m) { if (m.code === stored) start = stored; });
+      sel.value = start;
+      return setLanguage(start, false);
+    }).catch(function () {
+      sel.innerHTML = "<option value=\"en\">English</option>";
+    });
+
+    sel.addEventListener("change", function () {
+      // Words only. No business call is made, and nothing on screen is
+      // recalculated - the figures already shown are the engine's and stay
+      // exactly as they are.
+      setLanguage(sel.value, true);
+    });
+  }
+  // <<< i18n
   var orderBox = el("order"), goBtn = el("go"), ambigBtn = el("useAmbiguous"),
       resetBtn = el("reset"), statusBox = el("status"), statusText = el("statusText"),
       stepsBox = el("steps"), resultBox = el("result"), clarifyBox = el("clarify"),
@@ -929,7 +1171,10 @@
       body: JSON.stringify({
         messageType: messageType,
         quoteId: lastJobId,
-        customerId: customerSel.value || ""
+        customerId: customerSel.value || "",
+        // The customer's message is rendered server-side in this language.
+        // No total, quantity or unit is recalculated for it.
+        language: lang.code
       })
     }).then(function (r) {
       return r.json().then(function (b) { return { ok: r.ok, body: b }; });
@@ -1077,6 +1322,10 @@
   }
   // <<< whatsapp-builders
 
+  // The language registry, before anything else, so the first paint is in
+  // the owner's own language rather than flashing English at them.
+  initLanguages();
+
   // Khata accounts, so the selector is never hard-coded. Every account is
   // synthetic demo data and the API says so on the response.
   fetch("/api/customers").then(function (r) { return r.json(); }).then(function (d) {
@@ -1132,7 +1381,10 @@
         // Empty means a cash sale, and the backend then runs no credit check
         // at all - the anonymous flow is unchanged in every respect.
         customerId: customerSel.value || "",
-        clarifications: pendingClarifications
+        clarifications: pendingClarifications,
+        // Presentation only. The matcher, the quotation and the credit check
+        // behave identically whatever this says.
+        language: lang.code
       })
     }).then(function (r) {
       return r.json().then(function (body) { return { ok: r.ok, body: body }; });
@@ -2353,7 +2605,7 @@
     fetch("/api/shop-queries", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ transcript: transcript })
+      body: JSON.stringify({ transcript: transcript, language: lang.code })
     }).then(function (r) {
       return r.json().then(function (b) { return { ok: r.ok, body: b }; });
     }).then(function (res) {

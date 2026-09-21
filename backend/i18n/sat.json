@@ -1,0 +1,30 @@
+{
+  "_meta": {
+    "code": "sat",
+    "confidence": "low",
+    "reviewed": false,
+    "note": "Application-provided translation. No native speaker has reviewed it. Missing keys fall back to English."
+  },
+  "ui": {
+    "language": "ᱯᱟᱹᱨᱥᱤ",
+    "textSupport": "ᱚᱞ",
+    "voiceSupport": "ᱥᱟᱰᱮ",
+    "speak": "ᱠᱟᱛᱷᱟᱢᱮ",
+    "useThis": "ᱱᱚᱶᱟ ᱵᱮᱵᱷᱟᱨᱢᱮ"
+  },
+  "clarify": {
+    "pickOne": "ᱱᱚᱶᱟ ᱠᱷᱚᱱ ᱢᱤᱫ ᱵᱟᱪᱷᱟᱣᱢᱮ"
+  },
+  "quote": {
+    "heading": "ᱜᱚᱱᱚᱝ ᱪᱤᱛᱷᱤ",
+    "customer": "ᱠᱤᱨᱤᱧ ᱦᱚᱲ",
+    "items": "ᱡᱤᱱᱤᱥ",
+    "total": "ᱡᱚᱛᱚ"
+  },
+  "credit": {
+    "outstanding": "ᱵᱟᱠᱤ"
+  },
+  "plan": {
+    "budget": "ᱵᱟᱡᱮᱴ"
+  }
+}

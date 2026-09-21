@@ -1,0 +1,87 @@
+{
+  "_meta": {
+    "code": "as",
+    "confidence": "moderate",
+    "reviewed": false,
+    "note": "Application-provided translation. No native speaker has reviewed it. Missing keys fall back to English."
+  },
+  "ui": {
+    "language": "ভাষা",
+    "textSupport": "লিখা",
+    "voiceSupport": "মাত",
+    "voiceUnavailable": "এই ভাষাত মাতৰ সুবিধা নাই — আপুনি টাইপ কৰিব পাৰে",
+    "speak": "কওক",
+    "send": "হোৱাটচএপত পঠিয়াওক",
+    "openDraft": "হোৱাটচএপ খচৰা খোলক",
+    "useThis": "এইটোৱেই ব্যৱহাৰ কৰক",
+    "reviewNotice": "এইটো এপ্লিকেচনে কৰা অনুবাদ; ব্যৱহাৰৰ আগতে মাতৃভাষাত পৰীক্ষা কৰাটো পৰামৰ্শ দিয়া হৈছে।"
+  },
+  "clarify": {
+    "heading": "দোকানক আৰু এটা তথ্যৰ প্ৰয়োজন",
+    "colour": "আপোনাক কোনটো ৰং লাগে?",
+    "specification": "আপোনাক কোনটো স্পেচিফিকেচন লাগে?",
+    "brand": "আপোনাক কোনটো ব্ৰেণ্ড লাগে?",
+    "unit": "আপুনি কোনটো এককৰ কথা কৈছে?",
+    "pickOne": "ইয়াৰ ভিতৰত এটা বাছি লওক"
+  },
+  "quote": {
+    "heading": "কোটেচন",
+    "customer": "গ্ৰাহক",
+    "items": "সামগ্ৰী",
+    "total": "মুঠ",
+    "notInvoice": "এইটো কোটেচন, বিল নহয়। অৰ্ডাৰৰ সময়ত থকা ষ্টক অনুসৰি দাম হ'ব।"
+  },
+  "order": {
+    "heading": "অৰ্ডাৰ নিশ্চিতকৰণ",
+    "confirmed": "নিশ্চিত হ'ল",
+    "reference": "প্ৰসংগ",
+    "delivery": "ডেলিভাৰীৰ বিষয়ে দোকানে আপোনাৰ সৈতে যোগাযোগ কৰিব।"
+  },
+  "stock": {
+    "inStock": "ষ্টকত আছে",
+    "shortage": "ষ্টক কম আছে"
+  },
+  "credit": {
+    "heading": "হিচাপৰ অৱস্থা",
+    "reminderHeading": "হিচাপৰ সোঁৱৰণি",
+    "status": "অৱস্থা",
+    "limit": "ধাৰৰ সীমা",
+    "outstanding": "বাকী",
+    "projected": "এই অৰ্ডাৰৰ পিছত বাকী",
+    "remaining": "অৱশিষ্ট ধাৰৰ সীমা",
+    "approved": "অনুমোদিত",
+    "limitExceeded": "আপোনাৰ ধাৰৰ সীমা অতিক্ৰম কৰিছে",
+    "blocked": "বন্ধ কৰা হৈছে — অনুগ্ৰহ কৰি দোকানৰ সৈতে কথা পাতক",
+    "noAccount": "দোকানত আপোনাৰ ধাৰৰ হিচাপ নাই।",
+    "settle": "সুবিধা অনুসৰি বাকী ধন পৰিশোধ কৰক।",
+    "cashSale": "নগদ বিক্ৰী",
+    "quoteStatus": "ধাৰৰ অৱস্থা"
+  },
+  "margin": {
+    "previous": "আগৰ লাভ",
+    "current": "এতিয়াৰ লাভ",
+    "reduction": "হ্ৰাস",
+    "healthy": "লাভ ঠিকেই আছে",
+    "reduced": "লাভ কমি গৈছে",
+    "low": "লাভ কম",
+    "negative": "কিনা দামতকৈ কমকৈ বিক্ৰী হৈ আছে",
+    "unavailable": "লাভ দেখুৱাব নোৱাৰি"
+  },
+  "plan": {
+    "heading": "ক্ৰয় পৰিকল্পনা",
+    "budget": "বাজেট",
+    "allocated": "আবণ্টিত",
+    "leftOver": "অৱশিষ্ট"
+  },
+  "error": {
+    "generic": "কিবা এটা ভুল হ'ল। পুনৰ চেষ্টা কৰক।",
+    "notFound": "দোকানে সেই সামগ্ৰী বিচাৰি নাপালে।",
+    "noSpeech": "কোনো মাত শুনা নগ'ল। পুনৰ চেষ্টা কৰক।"
+  },
+  "footer": {
+    "sentBy": "দোকানে ShopFlow AI ৰ জৰিয়তে পঠিয়াইছে।"
+  },
+  "misc": {
+    "moreItems": "(আৰু সামগ্ৰী আছে — সম্পূৰ্ণ তালিকাৰ বাবে দোকানক সুধিব)"
+  }
+}

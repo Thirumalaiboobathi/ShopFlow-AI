@@ -135,7 +135,7 @@ core ship-gate requirement, and what both AI scoring and human judges will hit.
 `POST /api/shop-queries`, `GET /api/customers`,
 `GET /api/customers/{customerId}`, `POST /api/credit/check`,
 `POST /api/voice/transcribe`, `POST /api/whatsapp/send`,
-`GET /api/jobs/{jobId}`, `GET /api/demo`.
+`GET /api/languages`, `GET /api/jobs/{jobId}`, `GET /api/demo`.
 
 **Also worth capturing** (`06b-apigw-throttle.png`): Stages → `$default` →
 throttling showing **20 rps / 40 burst**.
@@ -563,6 +563,142 @@ credential is present to leak.
 
 ---
 
+## 0a. The order queue exists
+
+**Open:** SQS → Queues, filtered to `shopflow-`.
+
+**Must be visible:** both `shopflow-orders` and `shopflow-orders-dlq`.
+
+**Why it matters:** this is the durable path that replaced a direct
+asynchronous Lambda invoke. Two queues, not one — the dead-letter queue is the
+half that makes a failure inspectable.
+
+**Filename:** `0a-sqs-queues.png`
+
+---
+
+## 0b. The redrive policy
+
+**Open:** SQS → `shopflow-orders` → **Dead-letter queue** panel.
+
+**Must be visible:** the DLQ set to `shopflow-orders-dlq` and **Maximum
+receives: 3**. Capture the **Visibility timeout: 6 minutes** from the
+Configuration panel in the same shot if it fits.
+
+**Why it matters:** the retry budget is explicit and derived — three attempts
+because a Bedrock throttle clears in seconds, and 360 seconds because that is
+six times the worker's timeout.
+
+**Filename:** `0b-redrive-policy.png`
+
+---
+
+## 0c. Bounded worker concurrency
+
+**Open:** Lambda → `shopflow-order-worker` → Configuration → **Triggers**.
+
+**Must be visible:** the SQS trigger, **Enabled**, with **Maximum concurrency
+5** and batch size 1.
+
+**Why it matters:** the account ceiling is 10 concurrent executions across
+every project. This is the line that stops a queue burst from starving the
+public API. It is the least obvious and most important setting in the change.
+
+**Filename:** `0c-worker-concurrency.png`
+
+---
+
+## 0d. The DLQ is empty, and alarmed
+
+**Open:** CloudWatch → Alarms, filtered to `shopflow-`.
+
+**Must be visible:** three alarms — `shopflow-orders-dlq-not-empty`,
+`shopflow-worker-errors-sustained`, `shopflow-orders-queue-backlog` — all in
+**OK**, and the DLQ showing 0 messages available.
+
+**Why it matters:** empty is the expected state and the alarm fires on a single
+message.
+
+**Caveat to keep with the screenshot:** these alarms have **no actions**. There
+is no SNS topic in this stack, so they change state in the console and notify
+nobody. Do not present them as a paging setup.
+
+**Filenames:** `0d-alarms.png`, `0e-dlq-empty.png`
+
+---
+
+## 0f. The API cannot invoke the worker
+
+**Open:** IAM → the `shopflow-api` function's role → the inline policy.
+
+**Must be visible:** `sqs:SendMessage` on the `shopflow-orders` ARN, and **no
+`lambda:InvokeFunction` anywhere**.
+
+**Why it matters:** removing the call site is a decision; removing the
+permission is a guarantee. The queue is the only route into the worker.
+
+**Filename:** `0f-api-iam-sqs-only.png`
+
+---
+
+## 9a. The language selector, and what it admits
+
+**Open:** the live site, top of the page.
+
+**Must be visible:** the selector showing native names, and the capability
+line beside it.
+
+**Why it matters:** the list is not hard-coded in the page — it comes from
+`GET /api/languages`, which reports what each language can actually do. Capture
+one language with voice and one without, so both states are on record.
+
+**Filenames:** `9a-language-selector.png`, `9b-language-voice-unavailable.png`
+
+---
+
+## 9c. Same order, three languages, one total
+
+**Open:** run the canonical order in Tamil, then Hindi, then Telugu.
+
+**Must be visible:** **₹22,306.48** in all three, and **3 coils** in all three.
+
+**Why it matters:** this is the whole claim in one image. Capture the three
+screenshots at the same scroll position so the total lines up across them.
+
+**Filenames:** `9c-quote-tamil.png`, `9d-quote-hindi.png`, `9e-quote-telugu.png`
+
+---
+
+## 9f. Right-to-left
+
+**Open:** switch the language to **اردو**.
+
+**Must be visible:** the page right-aligned, and the rupee figures still
+left-to-right and still reading ₹22,306.48.
+
+**Why it matters:** direction comes from the language registry, not from a
+guess, and identifiers and money stay LTR because they are not prose.
+
+**Filename:** `9f-urdu-rtl.png`
+
+---
+
+## 9g. Partial translation, stated
+
+**Open:** switch the language to **ᱥᱟᱱᱛᱟᱲᱤ** (Santali).
+
+**Must be visible:** the capability line reading **21% translated — the rest is
+shown in English**, and a page that is part Santali and part English with no
+broken text anywhere.
+
+**Why it matters:** this is the fallback working, and the product being honest
+about an incomplete translation instead of implying a finished one. **Do not
+stage a screenshot suggesting Santali is complete.**
+
+**Filename:** `9g-santali-partial.png`
+
+---
+
 ## 15b. Voice assistant — microphone UI
 
 **Open:** the live site in Chrome, scroll to **Voice assistant**.
@@ -718,6 +854,19 @@ Tick only when the file actually exists in this directory.
 - [ ] `14-cloudwatch-log-groups.png`
 - [ ] `14b-cloudwatch-worker-log-line.png`
 - [ ] `15-aws-budget.png`
+- [ ] `0a-sqs-queues.png`
+- [ ] `0b-redrive-policy.png`
+- [ ] `0c-worker-concurrency.png`
+- [ ] `0d-alarms.png`
+- [ ] `0e-dlq-empty.png`
+- [ ] `0f-api-iam-sqs-only.png`
+- [ ] `9a-language-selector.png`
+- [ ] `9b-language-voice-unavailable.png`
+- [ ] `9c-quote-tamil.png`
+- [ ] `9d-quote-hindi.png`
+- [ ] `9e-quote-telugu.png`
+- [ ] `9f-urdu-rtl.png`
+- [ ] `9g-santali-partial.png`
 - [ ] `7b-transcribe-job.png`
 - [ ] `7c-voice-audio-empty.png`
 - [ ] `7d-voice-lifecycle-rule.png`

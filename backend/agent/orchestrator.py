@@ -17,7 +17,8 @@ from typing import Dict, List, Optional
 
 from engine.models import Dataset
 
-from .grounding import deterministic_quote_summary, validate_summary
+from .grounding import (deterministic_quote_summary, unsatisfied_lines,
+                        validate_summary)
 from .tools import (
     CALCULATE_QUOTE,
     REQUEST_CLARIFICATION,
@@ -102,8 +103,17 @@ def run_order_agent(
     *,
     client=None,
     model_id: str = DEFAULT_MODEL_ID,
+    language: str = "en",
 ) -> AgentResult:
-    """Turn one customer order into a quotation or a clarification request."""
+    """Turn one customer order into a quotation or a clarification request.
+
+    `language` is a hint about what the customer wrote in, and nothing more.
+    It is appended to the user turn so the model reads the sentence in the
+    right language; it does not reach a tool, and it cannot influence which
+    SKU is chosen, what a quantity is, or what anything costs - those come
+    from `search_catalog` and `calculate_quote`, which have never seen it.
+    Second AI pipeline avoided: this is the same loop, told the language.
+    """
     order_text = (order_text or "").strip()
     if not order_text:
         raise ValueError("order text is empty")
@@ -114,8 +124,18 @@ def run_order_agent(
     client = client or _bedrock_client()
     started = time.perf_counter()
 
+    prompt = f"Customer order: {order_text}"
+    if language and language != "en":
+        # Brand and product vocabulary in Indian retail is written in Latin
+        # script whatever the surrounding language is. Saying so stops the
+        # model helpfully "translating" Anchor or Finolex into something the
+        # catalogue has never heard of.
+        prompt += (f"\n\nThe customer wrote in language '{language}'. Product"
+                   " and brand names are written as-is and must be passed to"
+                   " search_catalog exactly as written.")
+
     messages: List[Dict] = [
-        {"role": "user", "content": [{"text": f"Customer order: {order_text}"}]}
+        {"role": "user", "content": [{"text": prompt}]}
     ]
     trace: List[dict] = []
     matches: List[dict] = []
@@ -198,6 +218,8 @@ def run_order_agent(
         result.message = f"The agent did not finish within {MAX_TURNS} turns."
 
     result.matches = matches
+    if result.status == STATUS_QUOTED:
+        result = _require_complete_quote(result)
     result.trace = trace
     result.elapsedMs = (time.perf_counter() - started) * 1000
     result.modelId = model_id
@@ -217,6 +239,51 @@ def _finalise(result: AgentResult, tool_name: str, payload: dict) -> AgentResult
         result.status = STATUS_NEEDS_CLARIFICATION
         result.clarification = clarification
         result.summary = clarification["question"]
+    return result
+
+
+def _require_complete_quote(result: AgentResult) -> AgentResult:
+    """A quotation may only stand if it covers every product that was asked for.
+
+    The deterministic invariant at the agent/result boundary. `search_catalog`
+    records what the customer was understood to have asked for and how each
+    line resolved; the quote records what was priced. If a line was searched
+    for and is not in the quote, the request was only partly understood, and a
+    partly understood request is not a quotation.
+
+    The partial quote is dropped rather than returned alongside the question.
+    A total the customer never asked for is worse than no total - it gets read
+    as the price, and it is the number that would have gone out on WhatsApp.
+
+    No SKU is chosen here and no price is recalculated. The outcome is the
+    clarification path ShopFlow already has, carrying the options the matcher
+    itself offered for the unresolved line.
+    """
+    missing = unsatisfied_lines(result.matches, result.quote)
+    if not missing:
+        return result
+
+    match = missing[0]
+    requested = match.get("requestedText") or ""
+    options = match.get("options") or []
+    if options:
+        question = f'Please confirm which product is wanted for "{requested}".'
+    else:
+        question = (f'"{requested}" is not in the catalogue, so it has not '
+                    f"been quoted. Please confirm what is wanted.")
+
+    log.warning("incomplete quotation withheld: %d requested line(s) not "
+                "covered by the quote", len(missing))
+
+    result.status = STATUS_NEEDS_CLARIFICATION
+    result.quote = None
+    result.clarification = {
+        "requestedText": requested,
+        "clarifyingAttribute": match.get("clarifyingAttribute") or "",
+        "question": question,
+        "options": options,
+    }
+    result.summary = question
     return result
 
 

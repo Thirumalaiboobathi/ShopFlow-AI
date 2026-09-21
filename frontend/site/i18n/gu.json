@@ -1,0 +1,87 @@
+{
+  "_meta": {
+    "code": "gu",
+    "confidence": "high",
+    "reviewed": false,
+    "note": "Application-provided translation. No native speaker has reviewed it. Missing keys fall back to English."
+  },
+  "ui": {
+    "language": "ભાષા",
+    "textSupport": "લખાણ",
+    "voiceSupport": "અવાજ",
+    "voiceUnavailable": "આ ભાષામાં અવાજ ઉપલબ્ધ નથી — તમે ટાઇપ કરી શકો છો",
+    "speak": "બોલો",
+    "send": "વોટ્સએપ પર મોકલો",
+    "openDraft": "વોટ્સએપ ડ્રાફ્ટ ખોલો",
+    "useThis": "આ જ વાપરો",
+    "reviewNotice": "આ અનુવાદ એપ્લિકેશને કર્યો છે; ઉપયોગ પહેલાં માતૃભાષામાં સમીક્ષા કરાવવાની ભલામણ છે."
+  },
+  "clarify": {
+    "heading": "દુકાનને હજુ એક વિગત જોઈએ છે",
+    "colour": "તમને કયો રંગ જોઈએ છે?",
+    "specification": "તમને કયું સ્પેસિફિકેશન જોઈએ છે?",
+    "brand": "તમને કઈ બ્રાન્ડ જોઈએ છે?",
+    "unit": "તમે કયા એકમની વાત કરો છો?",
+    "pickOne": "આમાંથી એક પસંદ કરો"
+  },
+  "quote": {
+    "heading": "કોટેશન",
+    "customer": "ગ્રાહક",
+    "items": "માલ",
+    "total": "કુલ",
+    "notInvoice": "આ કોટેશન છે, બિલ નથી. ઓર્ડર વખતે ઉપલબ્ધ સ્ટોક પ્રમાણે ભાવ રહેશે."
+  },
+  "order": {
+    "heading": "ઓર્ડરની પુષ્ટિ",
+    "confirmed": "નક્કી થયું",
+    "reference": "સંદર્ભ",
+    "delivery": "ડિલિવરી અંગે દુકાન તમારો સંપર્ક કરશે."
+  },
+  "stock": {
+    "inStock": "સ્ટોકમાં છે",
+    "shortage": "સ્ટોક ઓછો છે"
+  },
+  "credit": {
+    "heading": "ખાતાની સ્થિતિ",
+    "reminderHeading": "ખાતાની યાદ",
+    "status": "સ્થિતિ",
+    "limit": "ઉધાર મર્યાદા",
+    "outstanding": "બાકી",
+    "projected": "આ ઓર્ડર પછી બાકી",
+    "remaining": "બચેલી ઉધાર મર્યાદા",
+    "approved": "મંજૂર",
+    "limitExceeded": "તમારી ઉધાર મર્યાદાથી વધારે",
+    "blocked": "રોકી રાખ્યું છે — કૃપા કરી દુકાન સાથે વાત કરો",
+    "noAccount": "દુકાનમાં તમારું ઉધાર ખાતું નથી.",
+    "settle": "અનુકૂળતાએ બાકી રકમ ચૂકવી દો.",
+    "cashSale": "રોકડ વેચાણ",
+    "quoteStatus": "ઉધાર સ્થિતિ"
+  },
+  "margin": {
+    "previous": "પહેલાંનો નફો",
+    "current": "અત્યારનો નફો",
+    "reduction": "ઘટાડો",
+    "healthy": "નફો બરાબર છે",
+    "reduced": "નફો ઘટ્યો છે",
+    "low": "નફો ઓછો છે",
+    "negative": "ખરીદ ભાવથી ઓછા ભાવે વેચાય છે",
+    "unavailable": "નફો બતાવી શકાતો નથી"
+  },
+  "plan": {
+    "heading": "ખરીદી યોજના",
+    "budget": "બજેટ",
+    "allocated": "ફાળવેલું",
+    "leftOver": "બાકી રહેલું"
+  },
+  "error": {
+    "generic": "કંઈક ખોટું થયું. ફરી પ્રયાસ કરો.",
+    "notFound": "દુકાનને તે માલ મળ્યો નહીં.",
+    "noSpeech": "કોઈ અવાજ સંભળાયો નહીં. ફરી પ્રયાસ કરો."
+  },
+  "footer": {
+    "sentBy": "દુકાને ShopFlow AI થી મોકલ્યું."
+  },
+  "misc": {
+    "moreItems": "(વધુ માલ છે — પૂરી યાદી માટે દુકાનને પૂછો)"
+  }
+}

@@ -1,0 +1,87 @@
+{
+  "_meta": {
+    "code": "doi",
+    "confidence": "low",
+    "reviewed": false,
+    "note": "Application-provided translation. No native speaker has reviewed it. Missing keys fall back to English."
+  },
+  "ui": {
+    "language": "भाशा",
+    "textSupport": "लिखत",
+    "voiceSupport": "अवाज़",
+    "voiceUnavailable": "इस भाशा च अवाज़ उपलब्ध नेईं ऐ — तुस टाइप करी सकदे ओ",
+    "speak": "बोलो",
+    "send": "व्हाट्सऐप पर भेजो",
+    "openDraft": "व्हाट्सऐप मसौदा खोलो",
+    "useThis": "एह्दा गै इस्तेमाल करो",
+    "reviewNotice": "एह् अनुवाद एप्लिकेशन कीता ऐ; इस्तेमाल थमां पैह्ले मातृभाशा च जांच करोआना ठीक रौह्ग।"
+  },
+  "clarify": {
+    "heading": "दुकान गी इक होर ब्यौरा चाहिदा ऐ",
+    "colour": "तुसें गी कुस रंग दी लोड़ ऐ?",
+    "specification": "तुसें गी कुस स्पेसिफिकेशन दी लोड़ ऐ?",
+    "brand": "तुसें गी कुस ब्रांड दी लोड़ ऐ?",
+    "unit": "तुस कुस इकाई दी गल्ल करा दे ओ?",
+    "pickOne": "इंदे चा इक चुनो"
+  },
+  "quote": {
+    "heading": "कोटेशन",
+    "customer": "ग्राहक",
+    "items": "सामान",
+    "total": "कुल",
+    "notInvoice": "एह् कोटेशन ऐ, बिल नेईं। ऑर्डर दे बेल्लै मौजूद स्टॉक मताबक दाम लगग।"
+  },
+  "order": {
+    "heading": "ऑर्डर दी पुश्टी",
+    "confirmed": "पक्का होई गेआ",
+    "reference": "हवाला",
+    "delivery": "डिलीवरी दे बारे च दुकान तुंदे कन्नै संपर्क करग।"
+  },
+  "stock": {
+    "inStock": "स्टॉक च ऐ",
+    "shortage": "स्टॉक घट्ट ऐ"
+  },
+  "credit": {
+    "heading": "खाते दी हालत",
+    "reminderHeading": "खाते दी याद",
+    "status": "हालत",
+    "limit": "उधार दी हद्द",
+    "outstanding": "बकाया",
+    "projected": "इस ऑर्डर दे बाद बकाया",
+    "remaining": "बची दी उधार दी हद्द",
+    "approved": "मंजूर",
+    "limitExceeded": "तुंदी उधार दी हद्द कोला मता",
+    "blocked": "रोकेआ गेआ — किरपा करियै दुकान कन्नै गल्ल करो",
+    "noAccount": "दुकान च तुंदा उधार खाता नेईं ऐ।",
+    "settle": "सुविधा मताबक बकाया रकम देई देओ।",
+    "cashSale": "नगद बिक्री",
+    "quoteStatus": "उधार दी हालत"
+  },
+  "margin": {
+    "previous": "पैह्लै दा मुनाफा",
+    "current": "हुनै दा मुनाफा",
+    "reduction": "कमी",
+    "healthy": "मुनाफा ठीक ऐ",
+    "reduced": "मुनाफा घट्ट होई गेआ ऐ",
+    "low": "मुनाफा घट्ट ऐ",
+    "negative": "खरीद दाम कोला घट्ट पर बिकदा पेआ ऐ",
+    "unavailable": "मुनाफा नेईं दस्सेआ जाई सकदा"
+  },
+  "plan": {
+    "heading": "खरीद दी योजना",
+    "budget": "बजट",
+    "allocated": "तय कीता",
+    "leftOver": "बचे दा"
+  },
+  "error": {
+    "generic": "कुसै चीज़ च गड़बड़ होई। फिरी कोशिश करो।",
+    "notFound": "दुकान गी ओह् सामान नेईं मिल्या।",
+    "noSpeech": "कोई अवाज़ नेईं सुनोई। फिरी कोशिश करो।"
+  },
+  "footer": {
+    "sentBy": "दुकान ShopFlow AI कन्नै भेजेआ।"
+  },
+  "misc": {
+    "moreItems": "(होर सामान ऐ — पूरी सूची आस्तै दुकान कोला पुच्छो)"
+  }
+}
