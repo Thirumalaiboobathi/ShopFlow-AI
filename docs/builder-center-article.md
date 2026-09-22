@@ -384,8 +384,8 @@ durable, bounded, visible and attributable — four things it was not before.**
 
 ## 13. Testing and engineering lessons
 
-**336 tests run in about two seconds with no AWS account**, because the engine
-is pure. Plus **25 real-DynamoDB smoke checks**, run explicitly before a deploy.
+**1,490 tests run with no AWS account**, because the engine is pure. Plus
+real-DynamoDB smoke checks, run explicitly before a deploy.
 
 The most valuable lesson of the project:
 

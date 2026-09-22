@@ -1,7 +1,26 @@
 # AWS-native architecture review
 
-**Status: review only. Nothing in this document has been implemented.**
-**Date: 2026-09-21 · Region: ap-south-1 · Account: 675613597178**
+**Written 2026-09-21 as a review. Region: ap-south-1 · Account: 675613597178**
+
+> ### What is deployed, and what is not
+>
+> This document was written before any of it was built, and its analysis is
+> left as written. Since then **Phase 1 has shipped and nothing else has.**
+>
+> **DEPLOYED NOW** — Amazon Bedrock (Nova Pro), AWS Lambda, Amazon SQS with a
+> dead-letter queue, a Lambda event source mapping, Amazon DynamoDB, Amazon
+> S3, Amazon CloudFront, Amazon API Gateway, Amazon CloudWatch (logs, EMF
+> metrics and three alarms), Amazon Transcribe, AWS CDK, AWS Budgets.
+>
+> **EVALUATED, NOT DEPLOYED** — Amazon Textract, AWS Step Functions, AWS
+> X-Ray, Amazon SNS, Amazon Translate, Amazon Polly, Amazon OpenSearch,
+> Bedrock Agents, AWS WAF, Amazon Cognito. Everything this document says about
+> them is a proposal or a reasoned rejection, never a claim about the running
+> system. Sections 2–8 below discuss them in that spirit; the phase numbers
+> there refer to work that has not been done.
+>
+> The alarms that are deployed **alert only** — there is no SNS topic in the
+> stack, so they change state in the console and notify nobody.
 
 The question this review answers is not *"how many AWS services can ShopFlow
 use?"* It is *"at which layers is ShopFlow currently doing something by hand
@@ -605,7 +624,7 @@ KMS CMK ~$1–2 plus complexity.
 | Criterion | What moves it | Phase |
 |---|---|---|
 | **Technical Innovation & Originality** | Textract + Bedrock chosen per layer with a stated reason; Step Functions human-in-the-loop callback; **the documented decision to reject Bedrock Agents** | 3, 4 |
-| **Implementation Quality** | DLQ, alarms, X-Ray, least privilege, budget guard, 1,355 tests | 1 |
+| **Implementation Quality** | DLQ, alarms, X-Ray, least privilege, budget guard, the test suite | 1 |
 | **Community / Market Impact** | SNS alerts reach a shop owner who is not at a screen; the multilingual layer already shipped | 2 |
 | **Creativity & Storytelling** | A service map, a dashboard, and a one-line reason for every service on it | 1, 3 |
 

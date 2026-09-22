@@ -1072,6 +1072,37 @@ distribution required care — see [Engineering lessons](#engineering-lessons).
 
 ---
 
+## Who may see what the shop pays
+
+ShopFlow has two audiences, and only one of them may see supplier cost.
+
+| | Sees | Routes |
+|---|---|---|
+| **Owner** | supplier cost, margin, purchasing, stock | `POST /api/shop-queries`, `/api/purchase-plans`, `/api/supplier-price-lists`, `/api/price-decisions` |
+| **Customer** | quotation, selling prices, credit status | `POST /api/orders`, `GET /api/jobs/{id}`, `POST /api/whatsapp/send`, `POST /api/credit/check` |
+
+The split is declared in `handler.OWNER_ROUTES` / `CUSTOMER_FACING_ROUTES`,
+marked on every response as `x-shopflow-audience`, and asserted in
+`tests/test_audience_boundary.py`.
+
+**On the customer side it is enforced.** A quotation, the payload the browser
+polls, and every WhatsApp message are built through an allow-list
+(`engine.messages.customer_safe_quote`), and tests fail if a cost field ever
+appears in one.
+
+**On the owner side it is a declaration, not an access control.** *This public
+demo has no login*, so anyone who knows the URL can call the owner routes and
+read the margin on a SKU. That is a deliberate trade for a demo whose data is
+entirely synthetic — 147 invented SKUs and six months of generated sales — so
+no real shop's cost base is exposed by it. In a real deployment these routes
+sit behind the shop's own authentication. We would rather write that down than
+have it found.
+
+The alternative was to delete supplier cost from the margin answer, which would
+have removed the feature instead of securing it: "your margin fell from ₹708 to
+₹308" is the product, and it cannot be said without the cost it is derived
+from.
+
 ## Security and least privilege
 
 - **The API Lambda has no Bedrock permission.** Verified against the deployed
@@ -1100,7 +1131,7 @@ distribution required care — see [Engineering lessons](#engineering-lessons).
 ## Testing
 
 ```bash
-python -m pytest            # 1414 tests, ~30 seconds, no AWS account needed
+python -m pytest            # 1490 tests, well under a minute, no AWS account
                             # (the CDK template assertions dominate that time)
 ```
 
@@ -1225,7 +1256,7 @@ data/                seed generator, demo scenario, sample price-list image
 infrastructure/      CDK stack (one stack, Python)
 frontend/site/       single HTML file, vanilla JS, no build step
 scripts/             deploy · smoke test · demo reset
-tests/               336 tests
+tests/               1490 tests
 docs/                development log · demo runbook · evidence · article draft
 ```
 

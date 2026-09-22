@@ -709,13 +709,36 @@
 
 <section>
   <h2>Built on</h2>
+  <p class="lede">
+    Every service below is deployed in this account, in <code>ap-south-1</code>,
+    and does the job described. Nothing here is aspirational — the stack is one
+    CDK stack you can read in the repository.
+  </p>
   <div class="split">
     <div class="card"><h3>Amazon Bedrock</h3>
-      <p>Amazon Nova Pro, called through the Converse API with four strict tools and a bounded loop.</p></div>
+      <p>Amazon Nova Pro, called through the Converse API with four strict tools and a bounded loop. It reads the order and asks for clarification. It writes no business number.</p></div>
     <div class="card"><h3>Deterministic engine</h3>
-      <p>Pure Python owning matching, inventory, pricing, quotation and budget allocation.</p></div>
-    <div class="card"><h3>AWS</h3>
-      <p>CloudFront over private S3, API Gateway, Lambda and DynamoDB in the Mumbai region, deployed with CDK.</p></div>
+      <p>Pure Python owning matching, inventory, pricing, quotation, margin, credit and budget allocation. Not an AWS service — the point of the architecture.</p></div>
+    <div class="card"><h3>AWS Lambda</h3>
+      <p>Three functions: the API, the order worker, and a health check.</p></div>
+    <div class="card"><h3>Amazon SQS + dead-letter queue</h3>
+      <p>Durable hand-off from API to worker. Three attempts, then the message lands in a dead-letter queue a person can open. Worker concurrency is capped at 5 so a burst cannot starve the API.</p></div>
+    <div class="card"><h3>Amazon DynamoDB</h3>
+      <p>One table: jobs, owner price decisions, and confirmed supplier costs. A conditional write is what makes a duplicate SQS delivery harmless.</p></div>
+    <div class="card"><h3>Amazon S3</h3>
+      <p>Two private buckets — the site behind CloudFront, and uploads. Voice audio expires after a day.</p></div>
+    <div class="card"><h3>Amazon CloudFront</h3>
+      <p>Public delivery of the app and the API from one origin, over a private S3 bucket.</p></div>
+    <div class="card"><h3>Amazon API Gateway</h3>
+      <p>The HTTP API boundary, throttled, in front of the Lambda functions.</p></div>
+    <div class="card"><h3>Amazon CloudWatch</h3>
+      <p>Logs, metrics, and three alarms: dead-letter depth, sustained worker errors, queue age. They <strong>alert only</strong> — nothing self-heals, and no topic is wired to them yet.</p></div>
+    <div class="card"><h3>Amazon Transcribe</h3>
+      <p>Speech to text for spoken orders, in the languages Transcribe actually supports. Quality varies by accent and device.</p></div>
+    <div class="card"><h3>AWS CDK</h3>
+      <p>The whole stack as Python. One <code>cdk deploy</code>, and a script that refuses any diff removing the budget.</p></div>
+    <div class="card"><h3>AWS Budgets</h3>
+      <p>A $25/month cost guard with alerts at 50, 80 and 100 per cent.</p></div>
   </div>
 </section>
 
@@ -1542,12 +1565,23 @@
     var html = '<div class="clarify"><h3>ShopFlow needs one detail</h3>' +
       '<p>' + (differing.length ? esc(question) : question) + '</p>';
     if (c.requestedText) {
-      var differsBy = differing.length
-        ? 'they differ by ' + esc(joinWords(differing))
-        : 'several catalogue products match';
-      html += '<p class="hint">Asked for: \u201c' + esc(c.requestedText) + '\u201d. ' +
-        'More than one catalogue product fits and ' + differsBy +
-        ', so ShopFlow is asking rather than guessing.</p>';
+      // Two different situations arrive here and they need different words.
+      // With options, several catalogue products fit and the owner picks one.
+      // With none, nothing matched at all - and telling someone that "more
+      // than one product fits" when none does is simply wrong.
+      var why;
+      if (!(c.options && c.options.length)) {
+        why = 'No catalogue product matches that. Check the product name, ' +
+              'brand or specification \u2014 ShopFlow will not guess a SKU.';
+      } else {
+        why = 'More than one catalogue product fits and ' +
+              (differing.length
+                ? 'they differ by ' + esc(joinWords(differing))
+                : 'several catalogue products match') +
+              ', so ShopFlow is asking rather than guessing.';
+      }
+      html += '<p class="hint">Asked for: \u201c' + esc(c.requestedText) +
+        '\u201d. ' + why + '</p>';
     }
     if (c.options && c.options.length) {
       html += '<div class="options">';

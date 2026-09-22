@@ -232,7 +232,16 @@ def _create_order(event) -> dict:
     except json.JSONDecodeError:
         return _response(400, {"error": "body must be JSON"})
 
-    order_text = _CONTROL.sub("", str(payload.get("orderText") or "")).strip()
+    # An order is text. `str()` on whatever arrived used to turn {"a": 1} into
+    # the literal "{'a': 1}" and send it to the model, which is not a customer
+    # order and not worth a Bedrock call. Reject the type instead of coercing
+    # it. `None` and a missing key stay "required" rather than becoming a type
+    # error, because that is what the caller actually did wrong.
+    raw_order = payload.get("orderText")
+    if raw_order is not None and not isinstance(raw_order, str):
+        return _response(400, {"error": "orderText must be a string"})
+
+    order_text = _CONTROL.sub("", raw_order or "").strip()
     if not order_text:
         return _response(400, {"error": "orderText is required"})
     if len(order_text) > MAX_ORDER_CHARS:
@@ -661,7 +670,12 @@ def _create_shop_query(event) -> dict:
     except json.JSONDecodeError:
         return _response(400, {"error": "body must be JSON"})
 
-    transcript = _CONTROL.sub("", str(payload.get("transcript") or "")).strip()
+    # Same contract as orderText: a transcript is text, not a coerced object.
+    raw_transcript = payload.get("transcript")
+    if raw_transcript is not None and not isinstance(raw_transcript, str):
+        return _response(400, {"error": "transcript must be a string"})
+
+    transcript = _CONTROL.sub("", raw_transcript or "").strip()
     if not transcript:
         return _response(400, {"error": "transcript is required"})
     if len(transcript) > MAX_TRANSCRIPT_CHARS:
@@ -1228,6 +1242,39 @@ def _get_demo(event) -> dict:
     })
 
 
+# Which routes answer the shop owner about their own business, and which
+# produce something a customer may see.
+#
+# ShopFlow has two audiences and only one of them may be shown what the shop
+# pays its suppliers. The owner console asks "what is my margin on this SKU?"
+# and "what can I afford to restock?"; those answers necessarily carry
+# supplier cost, and removing it would delete the feature rather than secure
+# it. A customer sees a quotation and a WhatsApp message, and those are built
+# through `engine.messages.customer_safe_quote`, an allow-list.
+#
+# This demo has no login, so the boundary below is a declaration of design
+# intent, not an access control. It is written down, marked on the response
+# and asserted in tests/test_audience_boundary.py so that it is a decision
+# rather than an oversight - and so that a route that starts leaking cost
+# into customer-facing output fails a test instead of shipping. In a real
+# deployment the OWNER routes sit behind the shop's own login; the demo is
+# open on purpose, and every figure in it is synthetic.
+OWNER_ROUTES = frozenset({
+    "POST /api/shop-queries",       # margin and stock answers for the owner
+    "POST /api/purchase-plans",     # what to buy, at supplier cost
+    "POST /api/supplier-price-lists",
+    "POST /api/price-decisions",
+})
+
+# Routes whose output can reach a customer. Nothing here may carry supplier
+# cost, margin or purchasing internals.
+CUSTOMER_FACING_ROUTES = frozenset({
+    "POST /api/orders",
+    "GET /api/jobs/{jobId}",
+    "POST /api/whatsapp/send",
+    "POST /api/credit/check",
+})
+
 ROUTES = {
     "POST /api/orders": _create_order,
     "POST /api/supplier-price-lists": _create_price_list,
@@ -1251,7 +1298,17 @@ def handler(event, context):
     if fn is None:
         return _response(404, {"error": "not found"})
     try:
-        return fn(event)
+        response = fn(event)
     except Exception as exc:  # noqa: BLE001 - surface a safe message, log detail
         print(f"ERROR handling {route}: {type(exc).__name__}: {exc}")
         return _response(500, {"error": "internal error"})
+
+    # Say which audience this answer was built for. An owner answer may carry
+    # supplier cost; a customer-facing one may not. Marking it costs nothing
+    # and means anyone reading the API - including someone auditing it - sees
+    # the boundary instead of having to infer it.
+    if route in OWNER_ROUTES:
+        response.setdefault("headers", {})["x-shopflow-audience"] = "owner"
+    elif route in CUSTOMER_FACING_ROUTES:
+        response.setdefault("headers", {})["x-shopflow-audience"] = "customer"
+    return response

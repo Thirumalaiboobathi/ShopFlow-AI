@@ -49,9 +49,14 @@ import boto3  # noqa: E402
 REGION = os.environ.get("AWS_REGION", "ap-south-1")
 STACK = "ShopFlowStack"
 
-CANONICAL_ORDER = ("20 Anchor modular switches 1-Way 10A White, "
-                   "3 coils Finolex 1.5 sq mm FR wire red 90m, "
-                   "2 Havells MCB SP 32A C-curve")
+# The wording in README.md, docs/DEMO-RUNBOOK.md and the Builder Center
+# article, character for character. An earlier version of this script used a
+# wording of its own invention, which the model handled less reliably - so a
+# red smoke test meant "this script phrased it differently", not "the queue is
+# broken". A smoke test should exercise the documented workflow.
+CANONICAL_ORDER = ("Anna, 20 Anchor modular switches 1-Way 10A, "
+                   "3 coils Finolex 1.5 sq mm red wire 90m, "
+                   "2 Havells MCB SP 32A.")
 CANONICAL_TOTAL = 22306.48
 
 # An order takes a bounded 6-turn Bedrock loop, measured at around four
@@ -203,9 +208,31 @@ def main() -> int:
 
         result = job.get("result") or {}
         quote = result.get("quote") or {}
-        check("the canonical quotation is unchanged",
-              quote.get("total") == CANONICAL_TOTAL,
-              f"Rs {quote.get('total')}")
+
+        # Two different things can make this check fail, and conflating them
+        # wastes an afternoon. The queue either carried the job or it did not;
+        # that is what every check above measures, and they have all passed by
+        # the time we get here. What is measured now is what the agent decided
+        # - and the agent asking for clarification is a correct outcome of the
+        # system, not a fault of the queue.
+        #
+        # It is still reported as a failure. The documented canonical order is
+        # documented as producing a quotation, so a run that does not produce
+        # one is a fact worth seeing rather than one worth explaining away.
+        agent_status = result.get("status")
+        if agent_status == "NEEDS_CLARIFICATION":
+            question = (result.get("clarification") or {}).get("question") or ""
+            check("the canonical quotation is unchanged", False,
+                  f"the queue delivered correctly and the worker completed; "
+                  f"the AGENT asked for clarification instead of quoting "
+                  f"- {question[:70]!r}")
+            print("         (not a queue failure: the transport checks above "
+                  "all passed. Bedrock tool-calling varies run to run; the "
+                  "completeness guard then withholds an incomplete quote.)")
+        else:
+            check("the canonical quotation is unchanged",
+                  quote.get("total") == CANONICAL_TOTAL,
+                  f"Rs {quote.get('total')} (agent status {agent_status})")
         check("the job id is the correlation id throughout",
               job.get("jobId") == job_id, str(job.get("jobId")))
 

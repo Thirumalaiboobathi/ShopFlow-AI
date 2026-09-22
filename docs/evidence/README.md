@@ -806,8 +806,8 @@ python -m pytest
 python scripts/smoke_test_planner.py
 ```
 
-**Must be visible:** the commit SHA, a clean working tree, **336 passed**, and
-the smoke test's **25 checks / SMOKE TEST PASSED**.
+**Must be visible:** the commit SHA, a clean working tree, **1490 passed**,
+and the smoke test's **36 checks / SMOKE TEST PASSED**.
 
 **Why it matters:** ties the deployed system to an exact commit, with the full
 test suite and real-AWS smoke checks passing at that commit.

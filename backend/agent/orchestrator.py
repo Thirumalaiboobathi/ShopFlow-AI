@@ -11,14 +11,16 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
 from engine.models import Dataset
 
-from .grounding import (deterministic_quote_summary, unsatisfied_lines,
-                        validate_summary)
+from .grounding import (collect_numbers, deterministic_quote_summary,
+                        unresolved_requests, unsatisfied_lines,
+                        unsupported_prices, validate_summary)
 from .tools import (
     CALCULATE_QUOTE,
     REQUEST_CLARIFICATION,
@@ -30,6 +32,12 @@ from .tools import (
 )
 
 log = logging.getLogger(__name__)
+
+# Said when the model's prose is all reasoning and nothing survives stripping,
+# and when it asks a question that turns out to be empty. Neither states a
+# business fact, and neither describes the internals to a shop owner.
+INCOMPLETE_SUMMARY = "ShopFlow could not complete this order."
+CLARIFY_FALLBACK = "ShopFlow needs one more detail about this order."
 
 # Nova Pro is the working default: capability testing confirmed tool use,
 # constrained SKU selection and clarification behaviour on this account.
@@ -91,10 +99,40 @@ def _bedrock_client():
     return boto3.client("bedrock-runtime", region_name=DEFAULT_REGION)
 
 
+# Nova Pro sometimes narrates its reasoning in a <thinking> block before the
+# answer. That text is the model talking to itself: it names the tools it is
+# considering, and when someone tries a prompt injection it discusses the
+# attempt. It must never reach a shop owner or `GET /api/jobs/{id}`.
+#
+# Narrow on purpose. This strips one known wrapper from one known model at the
+# one boundary where model prose becomes `result.summary`. It is not a
+# reasoning parser and must not grow into one.
+_THINKING = re.compile(r"<\s*thinking\s*>.*?<\s*/\s*thinking\s*>",
+                       re.IGNORECASE | re.DOTALL)
+# An opening tag with no closing tag: everything after it is reasoning that was
+# cut off mid-sentence, so the whole tail goes. Truncated output must not
+# become a partial confession.
+_THINKING_UNCLOSED = re.compile(r"<\s*thinking\s*>.*\Z",
+                                re.IGNORECASE | re.DOTALL)
+# A stray closing tag with nothing opening it.
+_THINKING_STRAY = re.compile(r"<\s*/?\s*thinking\s*>", re.IGNORECASE)
+
+
+def _strip_reasoning(text: str) -> str:
+    """Remove the model's private reasoning from text a person will read."""
+    if not text:
+        return ""
+    cleaned = _THINKING.sub(" ", text)
+    cleaned = _THINKING_UNCLOSED.sub(" ", cleaned)
+    cleaned = _THINKING_STRAY.sub(" ", cleaned)
+    return " ".join(cleaned.split())
+
+
 def _text_of(message: dict) -> str:
-    return " ".join(
+    """The model's prose, with its private reasoning removed."""
+    return _strip_reasoning(" ".join(
         block["text"] for block in message.get("content", []) if "text" in block
-    ).strip()
+    ))
 
 
 def run_order_agent(
@@ -162,9 +200,28 @@ def run_order_agent(
                      if "toolUse" in b]
 
         if not tool_uses:
-            # The model answered in prose. That is not an outcome ShopFlow can
-            # act on, so the task has not completed.
-            result.summary = _text_of(out_message)
+            # The model answered in prose instead of calling a tool. What that
+            # means depends entirely on what the catalogue already said.
+            #
+            # Usually it means the customer asked for something the shop does
+            # not stock, and the model decided to explain rather than call
+            # request_clarification. That is an ordinary shop conversation -
+            # a wrong brand, an unfamiliar unit, a product nobody carries -
+            # and reporting it as a system failure told the owner their order
+            # could not be processed when the honest answer was "we do not
+            # have that". The evidence for which case this is comes from the
+            # searches that already ran, never from reading the prose.
+            unresolved = unresolved_requests(matches)
+            if unresolved:
+                result = _needs_clarification(result, unresolved[0])
+                break
+            # Nothing was ever searched for, or everything that was searched
+            # resolved. Either way there is no unresolved product to ask
+            # about, so this is the agent failing to finish - which is what
+            # FAILED is for. The prose is kept, stripped of the model's
+            # private reasoning, because it is the only account of what
+            # happened.
+            result.summary = _text_of(out_message) or INCOMPLETE_SUMMARY
             result.message = "The agent did not complete the order."
             break
 
@@ -236,9 +293,74 @@ def _finalise(result: AgentResult, tool_name: str, payload: dict) -> AgentResult
         result.summary = deterministic_quote_summary(quote)
     elif tool_name == REQUEST_CLARIFICATION:
         clarification = payload["clarification"]
+        clarification["question"] = _safe_question(clarification)
         result.status = STATUS_NEEDS_CLARIFICATION
         result.clarification = clarification
         result.summary = clarification["question"]
+    return result
+
+
+def _safe_question(clarification: dict) -> str:
+    """The model's question, once it is safe to show to a shop owner.
+
+    Two things can be wrong with it. It can carry the model's private
+    reasoning, which is stripped. And it can quote a price, which is the one
+    kind of number the model has no business writing: the options beside the
+    question already carry real catalogue prices, and a reader cannot tell a
+    quoted figure from a calculated one.
+
+    Specifications are left exactly alone. "Which one - 1-Way 10A or 2-Way
+    16A?" is a good question and every digit in it belongs to a product, not
+    to money. Only currency-marked amounts are checked, and only against the
+    prices of the options actually being offered. A question that quotes a
+    price the engine did not produce is replaced wholesale rather than edited,
+    for the same reason `validate_summary` discards a summary instead of
+    correcting it: a half-repaired sentence is worse than an honest plain one.
+    """
+    question = _strip_reasoning(clarification.get("question") or "")
+    if not question:
+        return CLARIFY_FALLBACK
+
+    options = clarification.get("options") or []
+    ungrounded = unsupported_prices(question, collect_numbers(options))
+    if ungrounded:
+        requested = clarification.get("requestedText") or ""
+        log.warning("clarification quoted %d unsupported price(s); replaced",
+                    len(ungrounded))
+        if requested:
+            return f'Please confirm which product is wanted for "{requested}".'
+        return CLARIFY_FALLBACK
+    return question
+
+
+def _needs_clarification(result: AgentResult, match: dict) -> AgentResult:
+    """Turn one unresolved line into the clarification ShopFlow already uses.
+
+    The single place a clarification is built without the model asking for
+    one, so a quote withheld for incompleteness and a product the catalogue
+    never recognised read the same way and render through the same code.
+
+    Everything here comes from the match the matcher produced: the customer's
+    own wording, the attribute it could not decide, and the options it offered.
+    No SKU is chosen, no product is named that was not already in the
+    catalogue, and nothing is read from the model's prose.
+    """
+    requested = match.get("requestedText") or ""
+    options = match.get("options") or []
+    if options:
+        question = f'Please confirm which product is wanted for "{requested}".'
+    else:
+        question = (f'"{requested}" is not in the catalogue, so it has not '
+                    f"been quoted. Please confirm what is wanted.")
+
+    result.status = STATUS_NEEDS_CLARIFICATION
+    result.clarification = {
+        "requestedText": requested,
+        "clarifyingAttribute": match.get("clarifyingAttribute") or "",
+        "question": question,
+        "options": options,
+    }
+    result.summary = question
     return result
 
 
@@ -263,28 +385,10 @@ def _require_complete_quote(result: AgentResult) -> AgentResult:
     if not missing:
         return result
 
-    match = missing[0]
-    requested = match.get("requestedText") or ""
-    options = match.get("options") or []
-    if options:
-        question = f'Please confirm which product is wanted for "{requested}".'
-    else:
-        question = (f'"{requested}" is not in the catalogue, so it has not '
-                    f"been quoted. Please confirm what is wanted.")
-
     log.warning("incomplete quotation withheld: %d requested line(s) not "
                 "covered by the quote", len(missing))
-
-    result.status = STATUS_NEEDS_CLARIFICATION
     result.quote = None
-    result.clarification = {
-        "requestedText": requested,
-        "clarifyingAttribute": match.get("clarifyingAttribute") or "",
-        "question": question,
-        "options": options,
-    }
-    result.summary = question
-    return result
+    return _needs_clarification(result, missing[0])
 
 
 def apply_summary(result: AgentResult, model_text: str) -> AgentResult:

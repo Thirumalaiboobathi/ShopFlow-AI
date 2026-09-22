@@ -125,6 +125,55 @@ def _requested_key(text) -> str:
     return " ".join(str(text or "").split()).casefold()
 
 
+# Money, and only money. A clarification question is the model's own words,
+# and it legitimately contains numbers: "1-Way 10A", "1.5 sqmm", "32A" are
+# product specifications and stripping them would destroy the question. What
+# it must never contain is a price nobody calculated - "the 5,000 one or the
+# 9,000 one" - because the option buttons beside it carry real catalogue
+# prices and a reader has no way to tell which figure came from where.
+#
+# So the test is the currency marker, not the digits.
+_PRICE = re.compile(r"(?:₹|Rs\.?|INR)\s*([\d,]+(?:\.\d+)?)",
+                    re.IGNORECASE)
+
+
+def unsupported_prices(text: str, allowed: Set[float]) -> List[str]:
+    """Currency amounts in `text` that the deterministic data does not support."""
+    found = []
+    for raw in _PRICE.findall(text or ""):
+        value = _parse(raw)
+        if value is None:
+            continue
+        if not any(abs(value - ok) <= _TOLERANCE for ok in allowed):
+            found.append(raw)
+    return found
+
+
+def unresolved_requests(matches) -> List[dict]:
+    """Requested product lines that never resolved to a catalogue SKU.
+
+    The sibling of `unsatisfied_lines`, and deliberately not the same question.
+    That one asks "is this line in the quote?"; this one asks "did the
+    catalogue ever recognise this line at all?" - which is what tells a prose
+    reply from the model apart from a genuine fault. A line the model searched
+    for twice, vaguely and then precisely, is resolved by the second attempt
+    and is not reported here.
+
+    Grouped on the customer's wording for the same reason as
+    `unsatisfied_lines`: one product the model searched for three times is one
+    product, not three.
+    """
+    grouped: dict = {}
+    for match in matches or []:
+        key = _requested_key(match.get("requestedText"))
+        if not key:
+            continue
+        grouped.setdefault(key, []).append(match)
+
+    return [attempts[-1] for attempts in grouped.values()
+            if not any(m.get("status") == RESOLVED for m in attempts)]
+
+
 def unsatisfied_lines(matches, quote) -> List[dict]:
     """Requested product lines that the quotation does not cover.
 

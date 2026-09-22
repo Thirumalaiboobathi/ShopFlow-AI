@@ -443,7 +443,8 @@ the answer was calculated."*
 
 > *"Havells MCB SP 32 amp irukka?"*
 
-Expect a spoken reply using real inventory, e.g. *"Aamaam, Havells MCB SP 32A
+Expect a spoken reply read from the seeded inventory (synthetic demo
+data, not a real shop's stock), e.g. *"Aamaam, Havells MCB SP 32A
 C-Curve 5 piece irukku."*
 
 **V3 — voice refuses to guess.**
@@ -719,9 +720,9 @@ state a judge is currently looking at.
 Run after **any** deployment, before demoing.
 
 ```bash
-python -m pytest                            # expect: 336 passed
+python -m pytest                            # expect: 1490 passed
 python scripts/smoke_test_planner.py        # expect: 36 checks, SMOKE TEST PASSED
-python scripts/smoke_test_credit_uom.py     # expect: 28 checks, SMOKE TEST PASSED
+python scripts/smoke_test_credit_uom.py     # expect: 27 checks, SMOKE TEST PASSED
 python scripts/smoke_test_voice_whatsapp.py # expect: 21 checks, SMOKE TEST PASSED
                                             # (runs a real Transcribe job, ~10s)
 python scripts/smoke_test_queue.py          # expect: SMOKE TEST PASSED
@@ -768,5 +769,5 @@ remove the budget.
 | Commitments / restocking (after confirm) | ₹12,948.00 / ₹12,045.16 |
 | Total / remaining | ₹24,993.16 / ₹6.84 |
 | Restocking capacity lost | ₹803.40 |
-| Tests | 336 |
+| Tests | 1490 |
 | Real DynamoDB smoke checks | 25/25 |
