@@ -48,6 +48,10 @@ from engine.quote import UomMismatchError, calculate_quote  # noqa: E402
 from engine.purchasing import build_purchase_plan  # noqa: E402
 from engine.uom import COIL, METER, base_equivalent, product_uom  # noqa: E402
 
+# Owner routes require the caller to say it is asking as the shop owner. The
+# header is a demo gate, not authentication - see handler.DEMO_OWNER_HEADER.
+OWNER_HEADERS = {"x-shopflow-demo-owner": "demo-workspace"}
+
 TABLE_NAME = os.environ["TABLE_NAME"]
 WIRE = "W-FIN-1.5-RED-90M"
 SWITCH = "SW-ANC-1W10A"
@@ -151,7 +155,7 @@ def main() -> int:
 
     # --------------------------------------------------------------- credit
     print("\n6. khata, through the real handler")
-    listed = body_of(api.handler({"routeKey": "GET /api/customers"}, None))
+    listed = body_of(api.handler({"routeKey": "GET /api/customers", "headers": OWNER_HEADERS}, None))
     check("customers listed", len(listed["customers"]) == 4,
           f"{len(listed['customers'])} accounts")
     check("every account is labelled synthetic",
@@ -165,7 +169,7 @@ def main() -> int:
     }
     for customer_id, expected in cases.items():
         result = body_of(api.handler({
-            "routeKey": "POST /api/credit/check",
+            "routeKey": "POST /api/credit/check", "headers": OWNER_HEADERS,
             "body": json.dumps({"customerId": customer_id,
                                 "orderTotal": CANONICAL_TOTAL}),
         }, None))
@@ -173,7 +177,7 @@ def main() -> int:
               result["decision"])
 
     example = body_of(api.handler({
-        "routeKey": "POST /api/credit/check",
+        "routeKey": "POST /api/credit/check", "headers": OWNER_HEADERS,
         "body": json.dumps({"customerId": "CUST-RAVI-001", "orderTotal": 4200}),
     }, None))
     check("the worked example reproduces",

@@ -17,6 +17,10 @@ import lambdas.api.handler as api
 from engine.loader import cached_dataset
 from engine.margin import margin_view
 
+# Owner routes require the caller to say it is asking as the shop owner. The
+# header is a demo gate, not authentication - see handler.DEMO_OWNER_HEADER.
+OWNER_HEADERS = {"x-shopflow-demo-owner": "demo-workspace"}
+
 
 class FakeTable:
     def __init__(self):
@@ -47,25 +51,39 @@ class FakeTable:
             item[name] = ExpressionAttributeValues[f":{placeholder[1:]}"]
 
 
-    def query(self, KeyConditionExpression):
+    def query(self, KeyConditionExpression, IndexName=None,
+              ScanIndexForward=True, Limit=None):
         """Interpret the condition properly, including `pk AND begins_with(sk)`.
 
         An earlier version read `_values[1]` and assumed it was the partition
         key string. That silently returned nothing for a composite condition -
         the planner would have found no confirmed costs and every test would
         still have passed. The fake now parses what it is actually given.
+
+        `IndexName` reads GSI1 instead of the table's own keys, which is how
+        the Intelligence route lists a shop's recent jobs. An item that has no
+        GSI1PK is simply not in the index, exactly as in DynamoDB - including
+        every job row written before those attributes existed.
         """
-        pk, prefix = self._parse(KeyConditionExpression)
+        pk_name, sk_name = ("GSI1PK", "GSI1SK") if IndexName else ("PK", "SK")
+        pk, prefix = self._parse(KeyConditionExpression, pk_name, sk_name)
         if pk is None:
             raise AssertionError(
                 "FakeTable.query could not find a partition key in the condition")
-        return {"Items": [
-            dict(v) for k, v in self.items.items()
-            if k[0] == pk and (prefix is None or k[1].startswith(prefix))
-        ]}
+
+        matched = [
+            dict(v) for v in self.items.values()
+            if v.get(pk_name) == pk
+            and (prefix is None or str(v.get(sk_name, "")).startswith(prefix))
+        ]
+        matched.sort(key=lambda v: str(v.get(sk_name, "")),
+                     reverse=not ScanIndexForward)
+        if Limit:
+            matched = matched[:Limit]
+        return {"Items": matched}
 
     @staticmethod
-    def _parse(condition):
+    def _parse(condition, pk_name="PK", sk_name="SK"):
         """Pull the PK equality and any SK begins_with out of the condition."""
         from boto3.dynamodb.conditions import And, BeginsWith, Equals
 
@@ -77,11 +95,11 @@ class FakeTable:
                 stack.extend(node._values)
             elif isinstance(node, Equals):
                 name, value = node._values
-                if name.name == "PK":
+                if name.name == pk_name:
                     pk = value
             elif isinstance(node, BeginsWith):
                 name, value = node._values
-                if name.name == "SK":
+                if name.name == sk_name:
                     prefix = value
         return pk, prefix
 
@@ -282,7 +300,7 @@ def post_price_list(image: bytes = PNG_BYTES, content_type: str = "image/png",
         "imageBase64": encoded if encoded is not None
         else base64.b64encode(image).decode("ascii"),
     }
-    return {"routeKey": "POST /api/supplier-price-lists",
+    return {"routeKey": "POST /api/supplier-price-lists", "headers": OWNER_HEADERS,
             "body": json.dumps(payload)}
 
 
@@ -341,7 +359,7 @@ def test_oversized_image_is_rejected(api_env):
 
 def test_oversized_upload_body_is_rejected(api_env):
     _t, queue, s3 = api_env
-    event = {"routeKey": "POST /api/supplier-price-lists",
+    event = {"routeKey": "POST /api/supplier-price-lists", "headers": OWNER_HEADERS,
              "body": "x" * (api.MAX_UPLOAD_BODY_BYTES + 1)}
     assert api.handler(event, None)["statusCode"] == 413
     assert s3.objects == [] and queue.messages == []
@@ -355,7 +373,7 @@ def test_invalid_base64_is_rejected(api_env):
 
 
 def test_missing_image_is_rejected(api_env):
-    event = {"routeKey": "POST /api/supplier-price-lists",
+    event = {"routeKey": "POST /api/supplier-price-lists", "headers": OWNER_HEADERS,
              "body": json.dumps({"contentType": "image/png"})}
     assert api.handler(event, None)["statusCode"] == 400
 
@@ -385,7 +403,7 @@ def seed_reviewed_job(table) -> str:
 
 
 def post_decision(job_id, sku_id, decision):
-    return {"routeKey": "POST /api/price-decisions",
+    return {"routeKey": "POST /api/price-decisions", "headers": OWNER_HEADERS,
             "body": json.dumps({"jobId": job_id, "skuId": sku_id,
                                 "decision": decision})}
 
@@ -417,7 +435,7 @@ def test_a_decision_is_returned_with_the_job(api_env):
     api.handler(post_decision(job_id, "W-FIN-1.5-RED-90M", "CONFIRMED"), None)
 
     job = body_of(api.handler(
-        {"routeKey": "GET /api/jobs/{jobId}",
+        {"routeKey": "GET /api/jobs/{jobId}", "headers": OWNER_HEADERS,
          "pathParameters": {"jobId": job_id}}, None))
     assert len(job["decisions"]) == 1
     assert job["decisions"][0]["skuId"] == "W-FIN-1.5-RED-90M"
@@ -427,7 +445,7 @@ def test_decision_figures_come_from_the_stored_job_not_the_request(api_env):
     """A caller cannot post a percentage the engine never calculated."""
     table, _lam, _s3 = api_env
     job_id = seed_reviewed_job(table)
-    event = {"routeKey": "POST /api/price-decisions", "body": json.dumps({
+    event = {"routeKey": "POST /api/price-decisions", "headers": OWNER_HEADERS, "body": json.dumps({
         "jobId": job_id, "skuId": "W-FIN-1.5-RED-90M", "decision": "CONFIRMED",
         "percentageDelta": 99.9, "previousPrice": 1.0, "currentPrice": 2.0,
     })}
@@ -482,7 +500,7 @@ def test_stored_decimals_are_returned_to_the_browser_as_numbers(api_env):
     api.handler(post_decision(job_id, "W-FIN-1.5-RED-90M", "CONFIRMED"), None)
 
     job = body_of(api.handler(
-        {"routeKey": "GET /api/jobs/{jobId}",
+        {"routeKey": "GET /api/jobs/{jobId}", "headers": OWNER_HEADERS,
          "pathParameters": {"jobId": job_id}}, None))
     assert job["decisions"][0]["currentPrice"] == 6300.0
 
@@ -490,7 +508,7 @@ def test_stored_decimals_are_returned_to_the_browser_as_numbers(api_env):
 # ---- purchase plans (Stage 5) ----
 
 def post_plan(body: dict):
-    return {"routeKey": "POST /api/purchase-plans", "body": json.dumps(body)}
+    return {"routeKey": "POST /api/purchase-plans", "headers": OWNER_HEADERS, "body": json.dumps(body)}
 
 
 def test_purchase_plan_is_answered_synchronously(api_env):
@@ -656,7 +674,8 @@ def test_2_the_confirmed_cost_survives_a_reload(api_env):
     api.handler(post_decision(job_id, WIRE, "CONFIRMED"), None)
 
     job = body_of(api.handler(
-        {"routeKey": "GET /api/jobs/{jobId}", "pathParameters": {"jobId": job_id}},
+        {"routeKey": "GET /api/jobs/{jobId}", "headers": OWNER_HEADERS,
+         "pathParameters": {"jobId": job_id}},
         None))
     assert [d["skuId"] for d in job["decisions"]] == [WIRE]
     assert cost_row(table)["confirmedCost"] == Decimal("6300.0")
@@ -895,7 +914,7 @@ def test_selling_price_unchanged_alongside_the_impact(api_env):
 # ---- voice: POST /api/shop-queries ----
 
 def post_query(body: dict):
-    return {"routeKey": "POST /api/shop-queries", "body": json.dumps(body)}
+    return {"routeKey": "POST /api/shop-queries", "headers": OWNER_HEADERS, "body": json.dumps(body)}
 
 
 def test_shop_query_is_answered_synchronously_without_a_model(api_env):
@@ -1064,11 +1083,11 @@ def test_a_spoken_margin_question_writes_nothing(api_env):
 
 
 def post_credit(body: dict):
-    return {"routeKey": "POST /api/credit/check", "body": json.dumps(body)}
+    return {"routeKey": "POST /api/credit/check", "headers": OWNER_HEADERS, "body": json.dumps(body)}
 
 
 def test_customers_are_listed_and_labelled_synthetic(api_env):
-    body = body_of(api.handler({"routeKey": "GET /api/customers"}, None))
+    body = body_of(api.handler({"routeKey": "GET /api/customers", "headers": OWNER_HEADERS}, None))
 
     assert body["synthetic"] is True
     assert len(body["customers"]) == 4
@@ -1078,7 +1097,7 @@ def test_customers_are_listed_and_labelled_synthetic(api_env):
 
 def test_one_customer_is_returned_by_id(api_env):
     body = body_of(api.handler({
-        "routeKey": "GET /api/customers/{customerId}",
+        "routeKey": "GET /api/customers/{customerId}", "headers": OWNER_HEADERS,
         "pathParameters": {"customerId": "CUST-RAVI-001"},
     }, None))
 
@@ -1089,7 +1108,7 @@ def test_one_customer_is_returned_by_id(api_env):
 
 def test_an_unknown_customer_id_is_a_404_not_an_invented_account(api_env):
     response = api.handler({
-        "routeKey": "GET /api/customers/{customerId}",
+        "routeKey": "GET /api/customers/{customerId}", "headers": OWNER_HEADERS,
         "pathParameters": {"customerId": "CUST-NOBODY"},
     }, None)
     assert response["statusCode"] == 404
@@ -1098,7 +1117,7 @@ def test_an_unknown_customer_id_is_a_404_not_an_invented_account(api_env):
 def test_a_malformed_customer_id_is_rejected(api_env):
     for bad in ("", "../../etc", "a b", "x" * 80):
         response = api.handler({
-            "routeKey": "GET /api/customers/{customerId}",
+            "routeKey": "GET /api/customers/{customerId}", "headers": OWNER_HEADERS,
             "pathParameters": {"customerId": bad},
         }, None)
         assert response["statusCode"] == 400, bad

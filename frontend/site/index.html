@@ -31,6 +31,100 @@
     --ok:#4fd1ac; --ok-soft:#12251f; --code:#1c2127;
   }
   *{box-sizing:border-box}
+
+  /* ---- demo workspace shell ------------------------------------------- */
+  .view{display:none}
+  .view.on{display:block}
+  .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);
+      white-space:nowrap}
+
+  .loginwrap{min-height:100vh; display:flex; align-items:center;
+    justify-content:center; padding:24px 16px}
+  .logincard{width:100%; max-width:430px; background:var(--panel);
+    border:1px solid var(--line); border-radius:14px; padding:32px 28px}
+  .loginbrand{margin:0; font-size:1.7rem; letter-spacing:-.02em}
+  .logintag{margin:6px 0 0; font-weight:600; color:var(--accent)}
+  .loginlede{margin:12px 0 22px; color:var(--muted); font-size:.93rem;
+    line-height:1.55}
+  .loginform{display:flex; flex-direction:column; gap:8px}
+  .loginform label{font-size:.78rem; font-weight:650; letter-spacing:.06em;
+    text-transform:uppercase; color:var(--muted)}
+  .loginform input{padding:11px 13px; border:1px solid var(--line);
+    border-radius:8px; background:var(--bg); color:var(--ink);
+    font-size:1rem; font-family:inherit}
+  .loginform input:focus-visible{outline:2px solid var(--accent);
+    outline-offset:1px}
+  .loginform button{margin-top:6px}
+  .loginhelp{margin:2px 0 0; font-size:.83rem; color:var(--muted)}
+  .demobadge{margin-top:22px; padding:12px 14px; border-radius:8px;
+    background:var(--warn-soft); border:1px solid var(--line);
+    font-size:.83rem; line-height:1.5; color:var(--ink)}
+  .demobadge strong{display:block; margin-bottom:3px}
+
+  .wsbar{display:flex; flex-wrap:wrap; gap:14px 20px; align-items:center;
+    justify-content:space-between; padding:14px 20px;
+    border-bottom:1px solid var(--line); background:var(--panel)}
+  .wsid{display:flex; align-items:baseline; gap:14px; flex-wrap:wrap}
+  .wslogo{font-weight:750; font-size:1.05rem; letter-spacing:-.01em}
+  .wsshop{display:flex; flex-direction:column; line-height:1.3}
+  .wsshop strong{font-size:.95rem}
+  .wsshop span{font-size:.79rem; color:var(--muted)}
+  .wsnav{display:flex; flex-wrap:wrap; gap:4px; align-items:center}
+  .wslink{padding:7px 11px; border-radius:7px; font-size:.87rem;
+    text-decoration:none; color:var(--muted); font-weight:600}
+  .wslink:hover{background:var(--accent-soft); color:var(--accent)}
+  .wslink[aria-current="page"]{background:var(--accent-soft);
+    color:var(--accent)}
+  .wslink:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+  .wslogout{margin-left:6px; padding:7px 12px; font-size:.85rem}
+  .wsbadge{margin:18px 20px 0; max-width:1040px}
+  .wspane{display:none; padding:8px 20px 44px; max-width:1040px}
+  .wspane.on{display:block}
+  .wspane h2{margin-top:26px}
+  .wspane h3{margin-top:30px; font-size:1rem}
+
+  .kpis{display:grid; gap:12px; margin:16px 0 8px;
+    grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+  .kpi{background:var(--panel); border:1px solid var(--line);
+    border-radius:10px; padding:14px 16px; display:flex;
+    flex-direction:column; gap:4px}
+  .kfig{font-size:1.5rem; font-weight:700; font-variant-numeric:tabular-nums;
+    color:var(--accent)}
+  .klab{font-size:.79rem; color:var(--muted); line-height:1.35}
+
+  .tablewrap{overflow-x:auto; border:1px solid var(--line);
+    border-radius:10px; margin-top:12px}
+  .wstable{width:100%; border-collapse:collapse; font-size:.87rem}
+  .wstable th,.wstable td{padding:9px 12px; text-align:left;
+    border-bottom:1px solid var(--line); white-space:nowrap}
+  .wstable thead th{background:var(--code); font-size:.74rem;
+    letter-spacing:.06em; text-transform:uppercase; color:var(--muted)}
+  .wstable tbody tr:last-child td{border-bottom:none}
+  .wstable td.num{text-align:right; font-variant-numeric:tabular-nums}
+  .pill{display:inline-block; padding:2px 8px; border-radius:99px;
+    font-size:.73rem; font-weight:650; letter-spacing:.03em}
+  .pill.ok{background:var(--ok-soft); color:var(--ok)}
+  .pill.low{background:var(--warn-soft); color:var(--warn)}
+  .pill.short{background:var(--bad-soft); color:var(--bad)}
+
+  .invfilter{display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center;
+    margin-top:14px}
+  .invfilter label{font-size:.78rem; font-weight:650; color:var(--muted)}
+  .invfilter input{padding:8px 11px; border:1px solid var(--line);
+    border-radius:8px; background:var(--panel); color:var(--ink);
+    font-family:inherit; min-width:min(260px,100%)}
+  .profile{display:grid; grid-template-columns:auto 1fr; gap:8px 22px;
+    margin:16px 0 0; max-width:560px}
+  .profile dt{color:var(--muted); font-size:.85rem}
+  .profile dd{margin:0; font-weight:600; font-size:.92rem}
+  .aslink{display:inline-block; text-decoration:none; text-align:center}
+
+  @media (max-width:640px){
+    .wsbar{padding:12px 14px}
+    .wsbadge{margin:14px 14px 0}
+    .wspane{padding:4px 14px 36px}
+    .wsnav{width:100%}
+  }
   /* The font stack has to carry twelve writing systems. Nothing is fetched
      at runtime: these are names of fonts the device may already have, and the
      browser walks the list until one covers the character. Where a device has
@@ -434,10 +528,299 @@
     background:var(--panel); color:var(--ink); font:inherit; font-size:.9rem}
 
   [hidden]{display:none !important}
+  .wstabs { display: flex; gap: 2px; flex-wrap: wrap; margin: 18px 0 0;
+    border-bottom: 1px solid var(--line); }
+  .wstab { appearance: none; background: none; border: 0;
+    border-bottom: 2px solid transparent; padding: 9px 14px; cursor: pointer;
+    font: inherit; font-size: .92rem; color: var(--muted); }
+  .wstab.on { color: var(--ink); border-bottom-color: var(--accent);
+    font-weight: 600; }
+  .wstabpane { display: none; padding-top: 14px; }
+  .wstabpane.on { display: block; }
+  .rstate { display: inline-block; padding: 2px 8px; border-radius: 999px;
+    font-size: .74rem; font-weight: 600; letter-spacing: .02em; }
+  .rstate.ok { background: #e7f6ec; color: #16653a; }
+  .rstate.review { background: #fdf3e2; color: #8a5a06; }
+  .rstate.confirmed { background: #e8eefc; color: #1e40af; }
+  .rstate.bad { background: #fdeaea; color: #9b1c1c; }
+  @media (prefers-color-scheme: dark) {
+    .rstate.ok { background: #10301e; color: #86e0ab; }
+    .rstate.review { background: #3a2c10; color: #f2c975; }
+    .rstate.confirmed { background: #172554; color: #a5c0f5; }
+    .rstate.bad { background: #3a1616; color: #f3a6a6; }
+  }
 </style>
 </head>
 <body>
-<div class="wrap">
+
+<!-- ===================================================================
+     Demo workspace shell.
+
+     The login below is NOT authentication. It establishes a shop context
+     in the browser and nothing more: no credential is checked, no token is
+     issued, and the API behind it is exactly as open as it was before. The
+     page says so in three places, because a login box that does not
+     authenticate is the kind of thing that gets read as a security claim
+     if it is not labelled.
+     ==================================================================== -->
+<div id="viewLogin" class="view">
+  <div class="loginwrap">
+    <main class="logincard">
+      <h1 class="loginbrand">ShopFlow<span class="ai"> AI</span></h1>
+      <p class="logintag">Smarter decisions for independent retailers.</p>
+      <p class="loginlede">
+        Order understanding, stock verification, supplier price monitoring and
+        cash-constrained purchasing — for electrical and hardware shops.
+      </p>
+
+      <form id="loginForm" class="loginform" novalidate>
+        <label for="shopId">Shop ID or email</label>
+        <input id="shopId" name="shopId" type="text" autocomplete="off"
+               value="demo@shopflow.ai" aria-describedby="loginHelp">
+        <button type="submit" class="primary" id="enterDemo">
+          Enter demo workspace
+        </button>
+        <p class="loginhelp" id="loginHelp">
+          No credentials required. Any value opens the same demo shop.
+        </p>
+      </form>
+
+      <p class="demobadge" role="note">
+        <strong>Demo workspace — authentication is simulated for the
+        hackathon.</strong>
+        Sign-in establishes a shop context in this browser only. It grants no
+        access and protects nothing. Production deployments should add
+        authenticated shop-level access controls.
+      </p>
+    </main>
+  </div>
+</div>
+
+<div id="viewWorkspace" class="view">
+  <div class="wsbar">
+    <div class="wsid">
+      <span class="wslogo">ShopFlow<span class="ai"> AI</span></span>
+      <span class="wsshop">
+        <strong id="wsShopName">Demo Electricals, Madurai</strong>
+        <span id="wsShopMeta">Electrical &amp; hardware retail</span>
+      </span>
+    </div>
+    <nav class="wsnav" aria-label="Workspace">
+      <a href="/workspace" data-route class="wslink" id="navOverview">Overview</a>
+      <a href="/workspace/profile" data-route class="wslink" id="navProfile">Shop profile</a>
+      <a href="/workspace/inventory" data-route class="wslink" id="navInventory">Inventory</a>
+      <a href="/workspace/orders" data-route class="wslink" id="navOrders">Orders</a>
+      <a href="/workspace/intelligence" data-route class="wslink" id="navIntelligence">Intelligence</a>
+      <a href="/workspace/assistant" data-route class="wslink" id="navAssistant">AI assistant</a>
+      <button type="button" class="ghost wslogout" id="logoutBtn">Log out</button>
+    </nav>
+  </div>
+
+  <p class="demobadge wsbadge" role="note">
+    <strong>Demo workspace — authentication is simulated.</strong>
+    Inventory and sales history are synthetic and do not represent a real
+    shop's records. Production deployments should add authenticated
+    shop-level access controls.
+  </p>
+
+  <section id="paneOverview" class="wspane">
+    <h2>Shop overview</h2>
+    <div class="kpis">
+      <div class="kpi"><span class="kfig" id="kpiSkus">—</span>
+        <span class="klab">SKUs in the catalogue</span></div>
+      <div class="kpi"><span class="kfig" id="kpiLow">—</span>
+        <span class="klab">Below reorder point</span></div>
+      <div class="kpi"><span class="kfig" id="kpiShort">—</span>
+        <span class="klab">Short against commitments</span></div>
+      <div class="kpi"><span class="kfig">6 months</span>
+        <span class="klab">Seeded sales history</span></div>
+    </div>
+    <p class="note">
+      Every figure above is read from the same seeded dataset the AI assistant
+      uses. “Below reorder point” is the purchasing planner's own calculation,
+      not a separate rule invented for this page.
+    </p>
+
+    <h3>Inventory snapshot</h3>
+    <p class="note" id="shortageNote" role="status" aria-live="polite"></p>
+    <div class="tablewrap">
+      <table class="wstable" id="snapshotTable">
+        <caption class="vh">Stock levels needing attention</caption>
+        <thead><tr><th scope="col">SKU</th><th scope="col">Product</th>
+          <th scope="col">On hand</th><th scope="col">Status</th></tr></thead>
+        <tbody id="snapshotBody"></tbody>
+      </table>
+    </div>
+    <p class="note"><a href="/workspace/inventory" data-route>See the full
+      inventory →</a></p>
+
+    <h3>AI assistant</h3>
+    <p>Ask ShopFlow about orders, stock, supplier prices or purchasing. The
+      language model reads the request; every quantity, price and total is
+      calculated by deterministic code.</p>
+    <p><a href="/workspace/assistant" data-route class="primary aslink"
+          id="openAssistant">Open AI assistant</a></p>
+  </section>
+
+  <section id="paneProfile" class="wspane">
+    <h2>Shop profile</h2>
+    <dl class="profile">
+      <dt>Shop name</dt><dd id="profName">Demo Electricals, Madurai</dd>
+      <dt>Location</dt><dd id="profLocation">Madurai, Tamil Nadu</dd>
+      <dt>Business type</dt><dd id="profType">Electrical &amp; hardware retail</dd>
+      <dt>Inventory</dt><dd><span id="profSkus">—</span> SKUs</dd>
+      <dt>Sales history</dt><dd>6 months, seeded</dd>
+      <dt>Data</dt><dd id="profData">Synthetic demo data</dd>
+      <dt>Shop record</dt><dd><code>SHOP#demo</code></dd>
+    </dl>
+    <p class="demobadge" role="note">
+      <strong>Demo data</strong> — inventory and sales history are synthetic
+      and do not represent a real shop's records. ShopFlow does not currently
+      store real shop or customer data.
+    </p>
+  </section>
+
+  <section id="paneInventory" class="wspane">
+    <h2>Inventory</h2>
+    <p class="note">
+      The seeded catalogue, read from <code>GET /api/demo</code>. Selling
+      prices are the shop's own; supplier cost is not shown here.
+    </p>
+    <div class="invfilter">
+      <label for="invSearch">Filter by product, brand or SKU</label>
+      <input id="invSearch" type="search" placeholder="e.g. Anchor, MCB, wire">
+      <span class="note" id="invCount" role="status" aria-live="polite"></span>
+    </div>
+    <div class="tablewrap">
+      <table class="wstable" id="invTable">
+        <caption class="vh">Seeded shop inventory</caption>
+        <thead><tr>
+          <th scope="col">SKU</th><th scope="col">Product</th>
+          <th scope="col">Brand</th><th scope="col">Category</th>
+          <th scope="col">UOM</th><th scope="col">Selling price</th>
+          <th scope="col">On hand</th><th scope="col">Status</th>
+        </tr></thead>
+        <tbody id="invBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="paneIntelligence" class="wspane">
+    <h2>ShopFlow Intelligence</h2>
+    <p>
+      What ShopFlow has read, what it has worked out, and whether it is
+      running. Every number on this page is produced by the deterministic
+      engines &mdash; supplier price comparison, margin, purchasing and the
+      quotation engine. No figure here is written by the language model.
+    </p>
+
+    <div class="wstabs" role="tablist">
+      <button class="wstab on" id="tabDocs" role="tab" aria-selected="true"
+        data-tab="tpDocs">Supplier documents</button>
+      <button class="wstab" id="tabTrace" role="tab" aria-selected="false"
+        data-tab="tpTrace">Decision trace</button>
+      <button class="wstab" id="tabAlerts" role="tab" aria-selected="false"
+        data-tab="tpAlerts">Alerts</button>
+      <button class="wstab" id="tabOps" role="tab" aria-selected="false"
+        data-tab="tpOps">Operations</button>
+    </div>
+
+    <div id="tpDocs" class="wstabpane on">
+      <p class="note">
+        A supplier price list is read with Amazon Textract, which returns the
+        table and a confidence score for every word. The rows go to the same
+        deterministic matcher a customer order uses. A row is
+        <strong>REVIEW REQUIRED</strong> when the SKU is ambiguous, the
+        characters were read with low confidence, or the price moved past the
+        alert threshold &mdash; and only a row you
+        <strong>CONFIRM</strong> can affect purchasing.
+      </p>
+      <p><a href="/workspace/assistant" data-route class="primary aslink">
+        Upload a price list in the assistant</a></p>
+      <div class="tablewrap">
+        <table class="wstable">
+          <thead><tr>
+            <th>Document</th><th>Read by</th><th>Supplier</th>
+            <th class="num">Rows</th><th class="num">Matched</th>
+            <th class="num">Review</th><th>Status</th>
+          </tr></thead>
+          <tbody id="docBody"></tbody>
+        </table>
+      </div>
+      <p id="docNote" class="note"></p>
+    </div>
+
+    <div id="tpTrace" class="wstabpane">
+      <p class="note">
+        Every processed order carries a decision trace: the searches, the
+        matches, the stock check and the arithmetic, as structured facts
+        rather than prose. It never contains the model's private reasoning,
+        and the customer-facing copy never contains a supplier cost or a
+        margin.
+      </p>
+      <p id="traceNote" class="note">
+        Run an order in the AI assistant and its trace appears under the
+        quotation, on the same screen as the result.
+      </p>
+      <p><a href="/workspace/assistant" data-route class="primary aslink">
+        Open AI assistant</a></p>
+    </div>
+
+    <div id="tpAlerts" class="wstabpane">
+      <p class="note">
+        Supplier cost moves, low margins, stockouts and failed processing.
+        A clarification is not listed here: ShopFlow asking which variant a
+        customer meant is the system working, not an alert.
+      </p>
+      <div class="tablewrap">
+        <table class="wstable">
+          <thead><tr>
+            <th>Kind</th><th>SKU</th><th>Detail</th>
+          </tr></thead>
+          <tbody id="alertBody"></tbody>
+        </table>
+      </div>
+      <p id="alertNote" class="note"></p>
+    </div>
+
+    <div id="tpOps" class="wstabpane">
+      <div class="kpis">
+        <div class="kpi"><span class="kfig" id="opsOrders">&mdash;</span>
+          <span class="klab">Orders processed</span></div>
+        <div class="kpi"><span class="kfig" id="opsQuoted">&mdash;</span>
+          <span class="klab">Quoted</span></div>
+        <div class="kpi"><span class="kfig" id="opsClarify">&mdash;</span>
+          <span class="klab">Clarifications asked</span></div>
+        <div class="kpi"><span class="kfig" id="opsFailed">&mdash;</span>
+          <span class="klab">Failed</span></div>
+      </div>
+      <p id="opsNote" class="note"></p>
+      <p class="note">
+        Counted from job records, which expire after 24 hours. The durable
+        operational history is in CloudWatch, on the
+        <code>shopflow-operations</code> dashboard, alongside queue depth,
+        dead-letter queue depth and processing time.
+      </p>
+    </div>
+  </section>
+  <section id="paneOrders" class="wspane">
+    <h2>Orders</h2>
+    <p>
+      Customer orders are processed by the AI assistant: a messy request in
+      everyday shop language becomes a verified quotation, or a question when
+      the catalogue is ambiguous.
+    </p>
+    <p class="note">
+      This demo does not keep an order history view — each order is a job with
+      its own record, and the assistant shows the result and the full
+      calculation behind it.
+    </p>
+    <p><a href="/workspace/assistant" data-route class="primary aslink">
+      Open AI assistant</a></p>
+  </section>
+</div>
+
+<div id="viewAssistant" class="view wrap">
 
 <header>
   <h1>ShopFlow<span class="ai"> AI</span></h1>
@@ -752,6 +1135,333 @@
 
 </div>
 
+<script>
+// >>> workspace
+// The demo workspace shell: login, routing, shop context, inventory table.
+//
+// This script owns navigation and nothing else. It calculates no business
+// figure - the KPI counts and every inventory row come from GET /api/demo,
+// which reads the same seeded dataset and the same purchasing-planner
+// reorder logic the assistant uses. If this file disagreed with the engine
+// about what "low stock" means, the engine would be right.
+//
+// The session is a flag in sessionStorage. It is not a credential, it is not
+// checked by anything, and the API is exactly as open with it as without it.
+(function () {
+  "use strict";
+
+  var el = function (id) { return document.getElementById(id); };
+  var KEY = "shopflow.session";
+
+  var PANES = {
+    "/workspace": "paneOverview",
+    "/workspace/profile": "paneProfile",
+    "/workspace/inventory": "paneInventory",
+    "/workspace/orders": "paneOrders",
+    "/workspace/intelligence": "paneIntelligence"
+  };
+  var NAV = {
+    "/workspace": "navOverview",
+    "/workspace/profile": "navProfile",
+    "/workspace/inventory": "navInventory",
+    "/workspace/orders": "navOrders",
+    "/workspace/intelligence": "navIntelligence",
+    "/workspace/assistant": "navAssistant"
+  };
+
+  function signedIn() {
+    try { return sessionStorage.getItem(KEY) === "demo"; }
+    catch (e) { return false; }   // private mode, blocked storage
+  }
+  function signIn() {
+    try { sessionStorage.setItem(KEY, "demo"); } catch (e) {}
+  }
+  function signOut() {
+    try { sessionStorage.removeItem(KEY); } catch (e) {}
+  }
+
+  function show(id) {
+    ["viewLogin", "viewWorkspace", "viewAssistant"].forEach(function (v) {
+      el(v).classList.toggle("on", v === id);
+    });
+  }
+
+  function normalise(path) {
+    if (path.length > 1 && path.charAt(path.length - 1) === "/") {
+      path = path.slice(0, -1);
+    }
+    return path;
+  }
+
+  function render(path) {
+    path = normalise(path || "/");
+
+    if (path === "/login" || !signedIn()) {
+      show("viewLogin");
+      if (path !== "/login") history.replaceState({}, "", "/login");
+      var input = el("shopId");
+      if (input) input.focus();
+      return;
+    }
+    if (path === "/" ) { history.replaceState({}, "", "/workspace"); path = "/workspace"; }
+
+    if (path === "/workspace/assistant") {
+      // The existing application, untouched. It keeps its own markup, its own
+      // script and its own API calls; the workspace only decides when it is
+      // on screen.
+      show("viewAssistant");
+      markNav(path);
+      return;
+    }
+    if (!PANES[path]) { history.replaceState({}, "", "/workspace"); path = "/workspace"; }
+
+    show("viewWorkspace");
+    Object.keys(PANES).forEach(function (p) {
+      el(PANES[p]).classList.toggle("on", p === path);
+    });
+    markNav(path);
+    load();
+    if (path === "/workspace/intelligence") loadIntelligence();
+  }
+
+  function markNav(path) {
+    Object.keys(NAV).forEach(function (p) {
+      var link = el(NAV[p]);
+      if (!link) return;
+      if (p === path) { link.setAttribute("aria-current", "page"); }
+      else { link.removeAttribute("aria-current"); }
+    });
+  }
+
+  function go(path) {
+    history.pushState({}, "", path);
+    render(path);
+  }
+
+  // ---- data -------------------------------------------------------------
+  // One fetch per session. Everything below renders it; nothing recomputes it.
+  var shop = null;
+
+  function rupees(n) {
+    if (typeof n !== "number") return "—";
+    return "₹" + n.toLocaleString("en-IN", {minimumFractionDigits: 2,
+                                                 maximumFractionDigits: 2});
+  }
+  function pill(status) {
+    // Nothing on the shelf reads as urgently as something promised twice.
+    var cls = (status === "SHORTAGE" || status === "OUT OF STOCK") ? "short"
+            : status === "LOW STOCK" ? "low" : "ok";
+    return '<span class="pill ' + cls + '">' + status + "</span>";
+  }
+  function esc(s) {
+    return String(s === null || s === undefined ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function load() {
+    if (shop) { paint(); return; }
+    fetch("/api/demo").then(function (r) { return r.json(); })
+      .then(function (d) { shop = d; paint(); })
+      .catch(function () {
+        el("invCount").textContent = "Inventory is unavailable right now.";
+      });
+  }
+
+  function paint() {
+    var inv = (shop && shop.inventory) || [];
+
+    if (shop && shop.shopName) {
+      el("wsShopName").textContent = shop.shopName;
+      el("profName").textContent = shop.shopName;
+    }
+    if (shop && shop.shopLocation) el("profLocation").textContent = shop.shopLocation;
+    if (shop && shop.businessType) {
+      el("wsShopMeta").textContent = shop.businessType;
+      el("profType").textContent = shop.businessType;
+    }
+    if (shop && shop.dataNotice) el("profData").textContent = shop.dataNotice;
+
+    var low = inv.filter(function (i) { return i.status === "LOW STOCK"; });
+    var short = inv.filter(function (i) { return i.status === "SHORTAGE"; });
+    el("kpiSkus").textContent = shop && shop.catalogSize ? shop.catalogSize : inv.length;
+    el("kpiLow").textContent = low.length;
+    el("kpiShort").textContent = short.length;
+    el("profSkus").textContent = shop && shop.catalogSize ? shop.catalogSize : inv.length;
+
+    // Say plainly when there is no shortage, rather than leaving a zero to be
+    // read as a gap in the data. The seeded shop genuinely has nothing
+    // promised beyond what is on the shelf, and inventing a shortage row to
+    // make the table look busier would be the one thing this page must not
+    // do. Order-specific shortages are a different question and are already
+    // answered where they belong - on the quotation, per line.
+    el("shortageNote").textContent = short.length
+      ? short.length + " SKU(s) are promised beyond available stock."
+      : "No reorder-point shortages currently detected. Shortages against a "
+        + "particular customer order are shown on that order's quotation.";
+
+    // The snapshot leads with whatever needs attention, not with the
+    // alphabet. If nothing does, it says so rather than padding the table.
+    var attention = short.concat(low).slice(0, 8);
+    el("snapshotBody").innerHTML = attention.length
+      ? attention.map(function (i) {
+          return "<tr><td><code>" + esc(i.skuId) + "</code></td><td>" +
+            esc(i.name) + '</td><td class="num">' + i.onHand + "</td><td>" +
+            pill(i.status) + "</td></tr>";
+        }).join("")
+      : '<tr><td colspan="4">Nothing is below its reorder point.</td></tr>';
+
+    renderInventory(inv);
+  }
+
+  function renderInventory(rows) {
+    var q = (el("invSearch").value || "").trim().toLowerCase();
+    var shown = !q ? rows : rows.filter(function (i) {
+      return (i.name + " " + i.brand + " " + i.category + " " + i.skuId)
+        .toLowerCase().indexOf(q) !== -1;
+    });
+    el("invCount").textContent = shown.length + " of " + rows.length + " SKUs";
+    el("invBody").innerHTML = shown.map(function (i) {
+      return "<tr><td><code>" + esc(i.skuId) + "</code></td><td>" +
+        esc(i.name) + "</td><td>" + esc(i.brand) + "</td><td>" +
+        esc(i.category) + "</td><td>" + esc(i.unit) + '</td><td class="num">' +
+        rupees(i.sellingPrice) + '</td><td class="num">' + i.onHand +
+        "</td><td>" + pill(i.status) + "</td></tr>";
+    }).join("");
+  }
+
+
+  // ---- ShopFlow Intelligence ---------------------------------------------
+  //
+  // One owner-gated read, rendered into four tabs. This code counts and
+  // formats; it computes no business figure of its own. Every number below
+  // arrives from GET /api/intelligence, which reads the same deterministic
+  // engines the planner and the quotation engine use.
+  var intel = null;
+
+  function stateClass(state) {
+    if (state === "CONFIRMED") return "confirmed";
+    if (state === "REVIEW_REQUIRED") return "review";
+    if (state === "MATCHED") return "ok";
+    return "";
+  }
+
+  function loadIntelligence() {
+    if (intel) { paintIntelligence(); return; }
+    fetch("/api/intelligence", { headers: OWNER_HEADERS })
+      .then(function (r) {
+        if (!r.ok) throw new Error("unavailable");
+        return r.json();
+      })
+      .then(function (d) { intel = d; paintIntelligence(); })
+      .catch(function () {
+        el("docNote").textContent =
+          "Intelligence is unavailable right now. Orders, quotations and " +
+          "purchase plans are unaffected.";
+      });
+  }
+
+  function paintIntelligence() {
+    var docs = (intel && intel.documents) || [];
+    el("docBody").innerHTML = docs.length
+      ? docs.map(function (d) {
+          var state = d.status === "FAILED" ? "bad"
+                    : d.reviewRequiredCount > 0 ? "review" : "ok";
+          var label = d.status === "FAILED" ? "FAILED"
+                    : d.reviewRequiredCount > 0 ? "REVIEW REQUIRED"
+                    : d.status;
+          return "<tr><td><code>" + esc((d.jobId || "").slice(0, 8)) +
+            "</code></td><td>" + esc(d.reader || "\u2014") + "</td><td>" +
+            esc(d.supplierName || "\u2014") + '</td><td class="num">' +
+            d.lineCount + '</td><td class="num">' + d.matchedCount +
+            '</td><td class="num">' + d.reviewRequiredCount + "</td><td>" +
+            '<span class="rstate ' + state + '">' + esc(label) +
+            "</span></td></tr>";
+        }).join("")
+      : '<tr><td colspan="7">No supplier document has been uploaded in the ' +
+        'last 24 hours.</td></tr>';
+    el("docNote").textContent = docs.length
+      ? "Only a row you confirm can affect purchasing. Nothing here has " +
+        "changed a supplier cost by itself."
+      : "";
+
+    var alerts = (intel && intel.alerts) || [];
+    el("alertBody").innerHTML = alerts.length
+      ? alerts.map(function (a) {
+          return "<tr><td>" + esc(a.kind.replace(/_/g, " ")) +
+            "</td><td><code>" + esc(a.skuId || a.jobId || "\u2014") +
+            "</code></td><td>" + esc(a.productName ? a.productName + " \u2014 " +
+            a.detail : a.detail) + "</td></tr>";
+        }).join("")
+      : '<tr><td colspan="3">Nothing needs attention.</td></tr>';
+    el("alertNote").textContent = alerts.length
+      ? alerts.length + " item(s). Each one is an engine's verdict, not an " +
+        "opinion: margin, reorder point and supplier comparison are all " +
+        "deterministic."
+      : "";
+
+    var ops = (intel && intel.operations) || { counts: {}, outcomes: {} };
+    el("opsOrders").textContent = ops.counts.orders || 0;
+    el("opsQuoted").textContent = ops.outcomes.QUOTED || 0;
+    el("opsClarify").textContent = ops.outcomes.NEEDS_CLARIFICATION || 0;
+    el("opsFailed").textContent = ops.outcomes.FAILED || 0;
+    el("opsNote").textContent = intel && intel.eventsEnabled
+      ? "Business events are being published to EventBridge."
+      : "Business events are not configured in this environment. Orders, " +
+        "quotations and purchase plans are unaffected.";
+  }
+
+  // The tabs. No routing: they are one pane's internal state.
+  Array.prototype.forEach.call(
+    document.querySelectorAll(".wstab"), function (tab) {
+      tab.addEventListener("click", function () {
+        Array.prototype.forEach.call(
+          document.querySelectorAll(".wstab"), function (t) {
+            var on = t === tab;
+            t.classList.toggle("on", on);
+            t.setAttribute("aria-selected", on ? "true" : "false");
+          });
+        Array.prototype.forEach.call(
+          document.querySelectorAll(".wstabpane"), function (pane) {
+            pane.classList.toggle("on", pane.id === tab.getAttribute("data-tab"));
+          });
+      });
+    });
+
+  // ---- wiring -----------------------------------------------------------
+  el("loginForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    signIn();
+    go("/workspace");
+  });
+
+  el("logoutBtn").addEventListener("click", function () {
+    signOut();
+    shop = null;
+    go("/login");
+  });
+
+  el("invSearch").addEventListener("input", function () {
+    if (shop) renderInventory(shop.inventory || []);
+  });
+
+  // Every in-app link routes without a page load. Anything else, including
+  // /api/health in the footer, behaves like an ordinary link.
+  document.addEventListener("click", function (e) {
+    var a = e.target.closest ? e.target.closest("a[data-route]") : null;
+    if (!a || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+    e.preventDefault();
+    go(a.getAttribute("href"));
+  });
+
+  window.addEventListener("popstate", function () {
+    render(location.pathname);
+  });
+
+  render(location.pathname);
+})();
+// <<< workspace
+</script>
 <script>
 (function () {
   "use strict";
@@ -1349,9 +2059,22 @@
   // the owner's own language rather than flashing English at them.
   initLanguages();
 
+  // Owner routes answer the shop owner about their own business: supplier
+  // cost, margin, purchasing and khata accounts. The API keeps them out of a
+  // plain public request, and the demo workspace marks its own requests here.
+  //
+  // This is a demo gate, not authentication. The value below is not a secret
+  // and anyone reading this page can send it. Real protection needs an
+  // authenticated owner session, which this demo does not have.
+  var OWNER_HEADERS = { "x-shopflow-demo-owner": "demo-workspace" };
+  function ownerJson() {
+    return { "content-type": "application/json",
+             "x-shopflow-demo-owner": "demo-workspace" };
+  }
+
   // Khata accounts, so the selector is never hard-coded. Every account is
   // synthetic demo data and the API says so on the response.
-  fetch("/api/customers").then(function (r) { return r.json(); }).then(function (d) {
+  fetch("/api/customers", { headers: OWNER_HEADERS }).then(function (r) { return r.json(); }).then(function (d) {
     (d.customers || []).forEach(function (c) {
       var opt = document.createElement("option");
       opt.value = c.customerId;
@@ -1796,7 +2519,7 @@
     }).then(function (base64) {
       return fetch("/api/supplier-price-lists", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: ownerJson(),
         body: JSON.stringify({ contentType: contentType, imageBase64: base64 })
       });
     }).then(function (r) {
@@ -1931,7 +2654,7 @@
     row.innerHTML = "Saving…";
     fetch("/api/price-decisions", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: ownerJson(),
       body: JSON.stringify({
         jobId: currentPriceJob,
         skuId: btn.getAttribute("data-sku"),
@@ -2026,7 +2749,7 @@
 
     fetch("/api/purchase-plans", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: ownerJson(),
       body: JSON.stringify(payload)
     }).then(function (r) {
       return r.json().then(function (b) { return { ok: r.ok, body: b }; });
@@ -2638,7 +3361,7 @@
 
     fetch("/api/shop-queries", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: ownerJson(),
       body: JSON.stringify({ transcript: transcript, language: lang.code })
     }).then(function (r) {
       return r.json().then(function (b) { return { ok: r.ok, body: b }; });
@@ -2808,5 +3531,6 @@
   }
 })();
 </script>
+
 </body>
 </html>

@@ -945,7 +945,7 @@ that rather than from wanting a queue.
 | Message retention | 4 days | Longer than the 24-hour job TTL, so the queue can never be the reason a job is lost |
 | DLQ retention | **14 days** | A dead-lettered order is evidence of a defect, and the point of it is that a person gets to read it. Four days can span a weekend |
 | Batch size | **1** | A batch would risk one visibility timeout against the slowest order in it, and a mid-batch failure re-runs messages that already succeeded |
-| Max concurrency | **5** | The account ceiling is 10, shared with every other project. Unbounded, a queue burst would scale the worker until the API had no concurrency left and the public site started failing. Five leaves five |
+| Max concurrency | **2** | Two bounds apply. The account's Lambda ceiling is 10, shared with every other project, so the worker must never take it all. The tighter one is Bedrock: this account's Nova Pro quota is **25 requests per minute**, and one order is 2–4 Converse calls in about six seconds, so one busy worker already asks for ~30 a minute. Above two, extra workers only turn queued orders into throttled ones - an evaluator's burst of ~30 orders at five-wide left five jobs waiting over six minutes. Two is also the lowest value SQS accepts |
 
 #### At-least-once delivery, handled
 
@@ -965,7 +965,8 @@ permanently, which is the exact failure this change exists to remove.
 
 | Failure | Treatment |
 |---|---|
-| Bedrock throttle, 5xx, connection dropped | Job left as-is, exception **re-raised** so SQS redelivers |
+| Bedrock throttle, 5xx, connection dropped | Job left as-is, exception **re-raised** so SQS redelivers - after a jittered **30s**, then **90s**, not the full 360s visibility timeout. A throttle is counted separately (`Outcome=THROTTLED`) from other transient errors |
+| The same, on the **last** of three deliveries | Job marked `FAILED` with "ShopFlow is busy … please send the order again", message acknowledged. A throttled order ends in an answer instead of sitting at `PROCESSING` |
 | Order too long, document unreadable, invalid supplier line | Job marked `FAILED`, message acknowledged |
 | Anything unrecognised | Treated as terminal — the cheaper mistake |
 
@@ -974,8 +975,11 @@ customer order.
 
 #### What happens at the dead-letter queue
 
-**Nothing automatic.** A message that exhausts its three attempts lands in the
-DLQ with the job still at `PROCESSING`, and an alarm goes into ALARM state.
+**Nothing automatic.** A transient failure no longer gets here - the third
+attempt ends the job, as above. What still reaches the DLQ is a message the
+worker could not handle at all: a crash, or a Lambda timeout that kills the
+invocation before the worker's own code can run. That lands with the job still
+at `PROCESSING`, and an alarm goes into ALARM state.
 There is no recovery workflow in this phase and none is claimed: the message
 body carries the `jobId`, which is how a person finds the job. Building
 automatic redrive is a later decision, not an undocumented one.
@@ -998,10 +1002,20 @@ periods, so a single retryable failure does not page anyone), and queue age
 above five minutes (an order takes seconds; five minutes means the worker is
 not consuming).
 
-> **No alarm action is configured.** There is no SNS topic in this stack, so
-> these alarms change state and are visible in the console — **they do not
-> email anyone.** An alarm nobody is told about is a record, not a
-> notification. Wiring them to a topic is the next phase.
+A fourth, `shopflow-order-agent-failures`, fires on any order that fails
+inside the agent. It counts **only genuine failures**: a clarification is a
+completed order, and a message that names nothing the shop sells - a greeting,
+a question, a prompt injection - is recorded as the `NO_PRODUCT` outcome and
+does not publish `OrderProcessingFailed`. An evaluator's injection test once
+put this alarm into ALARM for correct behaviour.
+
+> **Every alarm publishes to the `shopflow-owner-alerts` SNS topic.** The
+> topic policy admits CloudWatch as well as EventBridge (the EventBridge target
+> had replaced SNS's default policy, which would have refused an alarm's
+> publish). **Delivery to a person still needs a subscription**, which is
+> opt-in (`enableBusinessAlerts`), so on a default deployment an alarm
+> notification is published and reaches nobody. Subscribing in the console
+> starts delivery with no redeploy. Delivery has not been tested end to end.
 
 ### The AI / deterministic boundary
 
@@ -1090,11 +1104,20 @@ polls, and every WhatsApp message are built through an allow-list
 (`engine.messages.customer_safe_quote`), and tests fail if a cost field ever
 appears in one.
 
-**On the owner side it is a declaration, not an access control.** *This public
-demo has no login*, so anyone who knows the URL can call the owner routes and
-read the margin on a SKU. That is a deliberate trade for a demo whose data is
-entirely synthetic — 147 invented SKUs and six months of generated sales — so
-no real shop's cost base is exposed by it. In a real deployment these routes
+**On the owner side there is a gate, and it is not authentication.** Owner
+routes — margin answers, purchase plans, supplier price lists and khata
+accounts — require the caller to send `x-shopflow-demo-owner`, which the demo
+workspace does once someone has entered it. A plain unauthenticated GET of a
+purchase plan or a customer's credit balance now returns 401 instead of the
+data, and any route added to `OWNER_ROUTES` is gated by that membership alone.
+
+That header is not a secret. It is visible in the page source and anyone who
+wants past it can send it themselves. It stops accidental and drive-by
+exposure and makes the boundary executable rather than declarative; it does
+not make these routes private. *This public demo has no login.* That is a
+deliberate trade for a demo whose data is entirely synthetic — 147 invented
+SKUs and six months of generated sales — so no real shop's cost base or real
+customer's phone number is exposed by it. In a real deployment these routes
 sit behind the shop's own authentication. We would rather write that down than
 have it found.
 
@@ -1397,6 +1420,41 @@ Stated plainly, because the system is only useful if its claims are reliable.
 - **Ambiguous supplier price-list lines are surfaced but not resolvable in the
   UI** — the owner can see them, not fix them.
 - **Clarification is single-round** in the interface.
+- **Supplier documents are read as single-page images, not PDFs.** Textract
+  `AnalyzeDocument` is called synchronously with the uploaded image. A
+  multi-page PDF would need the asynchronous API, a completion topic and a job
+  token; none of that is built, and no document type beyond the existing
+  PNG/JPEG/WebP upload is accepted.
+- **Extraction confidence is Textract's, not ShopFlow's.** A row below 90%
+  word confidence is sent for review. The threshold is a judgement about when
+  a person should look, not a measured accuracy figure — no extraction
+  accuracy has been measured.
+- **The Nova Pro document reader reports no confidence.** When Textract finds
+  no table and the model reader runs instead, its rows carry no score, so a
+  badly-read row from that path is not flagged as low confidence. It is still
+  matched deterministically and a material price move still requires
+  confirmation.
+- **Business alerts and alarms are published but not delivered by default.**
+  The SNS topic is created with no subscription unless `enableBusinessAlerts`
+  is set at deploy time. Events and alarm notifications are still published
+  to it; nobody is emailed. No address is written in the source.
+- **A decision trace is an explanation, not an audit log.** It is rebuilt from
+  the stored result and expires with the job row after 24 hours. The raw tool
+  trace remains a separate, owner-side audit record.
+- **Owner routes are gated, not authenticated.** `x-shopflow-demo-owner` keeps
+  supplier costs, margins and khata accounts out of a plain public request. The
+  value is not a secret and the gate is not an access control. Real protection
+  needs an authenticated owner session, which this demo does not have.
+- **Multi-line reliability is a measured range, not a guarantee.** An
+  independent evaluation completed the documented three-line order 7 times in
+  20 before the cross-line fix; every failure was a safe clarification and no
+  run produced a wrong number. After the fix the same order completed 20 of 20
+  and a harder six-line order 15 of 15 — but on the day of that measurement the
+  unguarded build also completed the three-line order 20 of 20, so those runs
+  confirm no regression rather than proving the improvement. What is proven
+  deterministically, and does not depend on the model, is that the exact
+  contaminated arguments from the failing traces now resolve: see
+  `tests/test_line_isolation.py`.
 - **No translation here has been reviewed by a native speaker.** Every
   resource file is application-provided and says so, in its own metadata and
   on every localized API response. Bodo, Manipuri and Santali are partial —

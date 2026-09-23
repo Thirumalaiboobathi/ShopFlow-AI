@@ -6,6 +6,7 @@ import pytest
 
 from conftest import make_dataset, make_product
 from engine.quote import (
+    DuplicateSkuError,
     InvalidQuantityError,
     UnknownSkuError,
     calculate_quote,
@@ -61,12 +62,15 @@ def test_non_integer_quantity_is_rejected():
             calculate_quote(data, [("A", bad)])
 
 
-def test_repeated_sku_lines_are_merged():
+def test_repeated_sku_lines_are_refused_not_added_together():
+    """This used to merge 3 + 2 into 5. Adding lines together is how one
+    duplicated model call became a quotation for four breakers instead of two:
+    a quotation lists each SKU once, and anything else is refused."""
     data = make_dataset([make_product("A", 100, 150)],
                         inventory={"A": 100}, velocity={"A": 1})
-    quote = calculate_quote(data, [("A", 3), ("A", 2)])
-    assert len(quote.lines) == 1
-    assert quote.lines[0].quantity == 5
+    with pytest.raises(DuplicateSkuError) as exc:
+        calculate_quote(data, [("A", 3), ("A", 2)])
+    assert exc.value.skuIds == ["A"]
 
 
 def test_inventory_lookup_returns_deterministic_stock():

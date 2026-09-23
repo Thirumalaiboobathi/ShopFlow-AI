@@ -22,8 +22,13 @@ from aws_cdk import (
     aws_apigatewayv2_integrations as integrations,
     aws_budgets as budgets,
     aws_cloudfront as cloudfront,
+    aws_events as events,
+    aws_events_targets as events_targets,
+    aws_sns as sns,
+    aws_sns_subscriptions as sns_subs,
     aws_cloudfront_origins as origins,
     aws_cloudwatch as cloudwatch,
+    aws_cloudwatch_actions as cloudwatch_actions,
     aws_dynamodb as dynamodb,
     aws_iam as iam,
     aws_lambda as lambda_,
@@ -126,6 +131,99 @@ class ShopFlowStack(Stack):
                     abort_incomplete_multipart_upload_after=Duration.days(1),
                 ),
             ],
+        )
+
+        # ------------------------------------------------------------------
+        # Business events and owner alerts
+        # ------------------------------------------------------------------
+        # A custom bus rather than the default one. The default bus carries
+        # every AWS service event in the account, so a rule on it has to
+        # filter against traffic this application does not produce; a bus of
+        # its own means a ShopFlow rule matches ShopFlow events and nothing
+        # else, and it costs nothing - EventBridge bills per million events
+        # published, not per bus.
+        event_bus = events.EventBus(
+            self, "BusinessEvents",
+            event_bus_name=f"{PREFIX}-business-events",
+        )
+
+        # Where owner alerts go. The topic exists whether or not anybody is
+        # subscribed to it, because the rules below need a target and because
+        # a topic with no subscription is the correct configuration for a demo
+        # nobody wants email from.
+        alerts_topic = sns.Topic(
+            self, "OwnerAlerts",
+            topic_name=f"{PREFIX}-owner-alerts",
+            display_name="ShopFlow owner alerts",
+        )
+
+        # CloudWatch alarms publish here too (see Alarms below).
+        #
+        # The EventBridge target further down attaches a topic policy that
+        # admits events.amazonaws.com and nothing else - and a topic policy
+        # REPLACES the default one. Without this statement an alarm action
+        # would be wired, visible in the console, and refused with
+        # AccessDenied at the one moment it mattered. Scoped to this account's
+        # own ShopFlow alarms.
+        alerts_topic.add_to_resource_policy(iam.PolicyStatement(
+            sid="AllowShopFlowAlarms",
+            principals=[iam.ServicePrincipal("cloudwatch.amazonaws.com")],
+            actions=["sns:Publish"],
+            resources=[alerts_topic.topic_arn],
+            conditions={
+                "StringEquals": {"aws:SourceAccount": self.account},
+                "ArnLike": {"aws:SourceArn":
+                            f"arn:aws:cloudwatch:{self.region}:{self.account}"
+                            f":alarm:{PREFIX}-*"},
+            },
+        ))
+
+        # Subscribing is opt-in and off by default.
+        #
+        # `alertEmail` is already required for the cost budget, so reusing it
+        # would silently sign the deployer up for business alerts the moment
+        # this stack shipped - an email address given for one purpose being
+        # used for another. It takes a second, deliberate flag.
+        #
+        # No address is written down here. If the flag is set, the address
+        # comes from the same context the budget uses; if it is not, the topic
+        # stays empty and every alert below is published and dropped, which
+        # changes nothing about any order, quotation or plan.
+        business_alerts_enabled = str(
+            self.node.try_get_context("enableBusinessAlerts") or ""
+        ).lower() in ("1", "true", "yes")
+        if business_alerts_enabled and alert_email:
+            alerts_topic.add_subscription(
+                sns_subs.EmailSubscription(alert_email))
+
+        # Which events are worth interrupting somebody for.
+        #
+        # Four of the six. `OrderNeedsClarification` is deliberately absent:
+        # asking which colour the customer meant is the system working as
+        # designed, and an owner emailed about it learns to ignore the emails
+        # - including the one that mattered. `PurchasePlanGenerated` is
+        # included because the owner asked for the plan and the number is the
+        # answer.
+        alerting_events = [
+            "SupplierPriceChanged",
+            "StockoutDetected",
+            "LowMarginDetected",
+            "OrderProcessingFailed",
+            "PurchasePlanGenerated",
+        ]
+        events.Rule(
+            self, "OwnerAlertRule",
+            rule_name=f"{PREFIX}-owner-alerts",
+            description=(
+                "Routes the ShopFlow business events worth telling the shop "
+                "owner about to SNS. OrderNeedsClarification is excluded on "
+                "purpose: a clarification is correct behaviour, not an alert."),
+            event_bus=event_bus,
+            event_pattern=events.EventPattern(
+                source=["shopflow.business"],
+                detail_type=alerting_events,
+            ),
+            targets=[events_targets.SnsTopic(alerts_topic)],
         )
 
         # ------------------------------------------------------------------
@@ -236,6 +334,9 @@ class ShopFlowStack(Stack):
                 "BEDROCK_MODEL_ID": bedrock_model_id,
                 "BEDROCK_REGION": self.region,
                 "UPLOADS_BUCKET": uploads.bucket_name,
+                # Empty would switch business events off; the worker publishes
+                # to this bus and carries on regardless if it cannot.
+                "EVENT_BUS_NAME": event_bus.event_bus_name,
             },
             log_group=logs.LogGroup(
                 self, "WorkerLogs",
@@ -283,18 +384,45 @@ class ShopFlowStack(Stack):
             # other project in it. Left unbounded, a burst of queued orders
             # would scale this worker out until there was no concurrency left
             # for the API function - and the public site would start failing
-            # while the queue drained. Five leaves five.
+            # while the queue drained.
+            #
+            # Two, not five, and the reason is Bedrock, not Lambda. The
+            # account's quota for Nova Pro is 25 cross-region requests per
+            # minute, and one order is two to four Converse calls in about six
+            # seconds - one busy worker alone asks for roughly thirty a minute.
+            # Throughput is capped by that quota whatever this number is; above
+            # two, extra workers only turn queued orders into throttled ones,
+            # each of which burns one of its three attempts. An evaluator's
+            # burst of ~30 orders at five-wide left five jobs throttled and
+            # waiting over six minutes. Two is also the lowest value SQS
+            # accepts here. A waiting message costs nothing; a throttled one
+            # costs an attempt.
             #
             # Note this is the event source's own limit, not reserved
             # concurrency: reserving is rejected outright on an account with a
             # ceiling of 10, and would also take capacity away from other
             # projects rather than just capping this one.
-            max_concurrency=5,
+            max_concurrency=2,
         ))
 
         table.grant_read_write_data(worker_fn)
         # Read-only on uploads: the worker reads a price list, never writes one.
         uploads.grant_read(worker_fn)
+        # Publish only, and only to this bus. The worker never reads an event,
+        # creates a rule or describes the bus.
+        event_bus.grant_put_events_to(worker_fn)
+        # One Textract action, for the one call the document reader makes.
+        # `AnalyzeDocument` is synchronous and takes the image in the request,
+        # so no Textract-side S3 access is granted and none is needed.
+        #
+        # Textract has no resource-level ARNs for this action, so the resource
+        # is "*". That is the API's own shape rather than a widening: the
+        # action itself is the boundary, and it can read only a document this
+        # function hands it.
+        worker_fn.add_to_role_policy(iam.PolicyStatement(
+            actions=["textract:AnalyzeDocument"],
+            resources=["*"],
+        ))
         worker_fn.add_to_role_policy(iam.PolicyStatement(
             actions=["bedrock:InvokeModel"],
             # Scoped to the one model this agent uses, via the APAC inference
@@ -318,6 +446,9 @@ class ShopFlowStack(Stack):
                 "TABLE_NAME": table.table_name,
                 "ORDERS_QUEUE_URL": orders_queue.queue_url,
                 "UPLOADS_BUCKET": uploads.bucket_name,
+                # The API publishes one event: PurchasePlanGenerated, after
+                # the plan is already built and returned correctly.
+                "EVENT_BUS_NAME": event_bus.event_bus_name,
                 # WhatsApp is off unless switched on deliberately. With no
                 # context supplied this is the only variable added, it reads
                 # "false", and the API falls back to the wa.me draft.
@@ -339,6 +470,8 @@ class ShopFlowStack(Stack):
             ),
         )
         table.grant_read_write_data(api_fn)
+        # Publish only, to this bus only.
+        event_bus.grant_put_events_to(api_fn)
         # Write-only on uploads: the API stores a price list and never reads
         # one back, so a bug here cannot turn into a document-disclosure path.
         uploads.grant_put(api_fn)
@@ -424,6 +557,7 @@ class ShopFlowStack(Stack):
             ("/api/languages", apigw.HttpMethod.GET),
             ("/api/jobs/{jobId}", apigw.HttpMethod.GET),
             ("/api/demo", apigw.HttpMethod.GET),
+            ("/api/intelligence", apigw.HttpMethod.GET),
         ):
             http_api.add_routes(
                 path=path, methods=[method], integration=api_integration)
@@ -558,12 +692,13 @@ class ShopFlowStack(Stack):
         # actually ask, and each fires on a metric AWS already publishes, so
         # none of them costs a custom metric.
         #
-        # NO ALARM ACTIONS ARE CONFIGURED. There is no SNS topic in this stack
-        # yet, so these alarms change state and are visible in the console and
-        # on the CDK-created dashboard - they do not email anyone. Saying that
-        # plainly matters more than the alarm looking complete: an alarm that
-        # nobody is told about is a record, not a notification, and the README
-        # says so too.
+        # Every alarm publishes to the owner-alerts topic when it fires. That
+        # topic has NO subscriber unless the deployer opts in with
+        # `enableBusinessAlerts` (see above), so on a default deployment the
+        # alarm's notification is published to SNS and delivered to nobody.
+        # What this changes is that the wiring exists and is exercised: a
+        # subscription added in the console or by the flag receives alarms
+        # with no redeploy, instead of there being nothing to subscribe to.
 
         # 1. Anything in the dead-letter queue.
         #
@@ -572,7 +707,7 @@ class ShopFlowStack(Stack):
         # customer's order failed three times and no automatic process will
         # pick it up. One datapoint is enough; waiting for a second would mean
         # waiting for a second lost order.
-        cloudwatch.Alarm(
+        ordersDlqNotEmpty_alarm = cloudwatch.Alarm(
             self, "OrdersDlqNotEmpty",
             alarm_name=f"{PREFIX}-orders-dlq-not-empty",
             alarm_description=(
@@ -596,7 +731,7 @@ class ShopFlowStack(Stack):
         # survivable. Two periods filters the momentary Bedrock throttle that
         # resolves itself. What this catches is a sustained fault - a bad
         # deploy, a revoked permission, a model that has stopped answering.
-        cloudwatch.Alarm(
+        workerErrorsSustained_alarm = cloudwatch.Alarm(
             self, "WorkerErrorsSustained",
             alarm_name=f"{PREFIX}-worker-errors-sustained",
             alarm_description=(
@@ -622,7 +757,7 @@ class ShopFlowStack(Stack):
         #
         # This is the alarm that would have caught the original defect, if the
         # original defect had been capable of leaving a message anywhere.
-        cloudwatch.Alarm(
+        ordersQueueBacklog_alarm = cloudwatch.Alarm(
             self, "OrdersQueueBacklog",
             alarm_name=f"{PREFIX}-orders-queue-backlog",
             alarm_description=(
@@ -636,6 +771,215 @@ class ShopFlowStack(Stack):
             evaluation_periods=2,
             datapoints_to_alarm=2,
             treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
+        )
+
+        # 4. An order failed inside the agent.
+        #
+        # This is the gap the first three alarms left. When the agent itself
+        # fails, the worker marks the job FAILED and acknowledges the message
+        # - deliberately, because a malformed order will not succeed on a
+        # retry and redelivering it three times only delays the same answer.
+        # The consequence is that the message never reaches the dead-letter
+        # queue, never ages on the main queue and is not a Lambda error, so
+        # alarms 1, 2 and 3 are all silent while a customer is told their
+        # order could not be processed.
+        #
+        # The metric is the one the worker already emits, published with no
+        # dimensions so an alarm can watch it (see observability/metrics.py).
+        # It counts FAILED only. A clarification is recorded as a completed
+        # order, because asking the shop owner which colour they meant is the
+        # system working, not failing, and an alarm that fires on safe
+        # behaviour is an alarm people learn to ignore.
+        #
+        # Threshold 0 over fifteen minutes: the right number of orders lost
+        # inside the agent is none. Like every alarm here it publishes to the
+        # owner-alerts topic, which reaches a person only once subscribed.
+        #
+        # A message that names nothing the shop sells - a greeting, a prompt
+        # injection - is NOT counted: the worker records it as the NO_PRODUCT
+        # outcome of ShopFlowOrdersCompleted. An evaluator's injection test
+        # once put this alarm into ALARM for correct behaviour.
+        orderAgentFailures_alarm = cloudwatch.Alarm(
+            self, "OrderAgentFailures",
+            alarm_name=f"{PREFIX}-order-agent-failures",
+            alarm_description=(
+                "An order failed inside the agent and was marked FAILED "
+                "without ever reaching the dead-letter queue, so no other "
+                "alarm sees it. Safe clarifications are NOT counted here. "
+                "The jobId is on the EMF log line beside the metric."),
+            metric=cloudwatch.Metric(
+                namespace="ShopFlow",
+                metric_name="ShopFlowOrdersFailed",
+                period=Duration.minutes(15),
+                statistic="Sum",
+            ),
+            threshold=0,
+            comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            evaluation_periods=1,
+            treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
+        )
+
+        alarm_action = cloudwatch_actions.SnsAction(alerts_topic)
+        for alarm in (ordersDlqNotEmpty_alarm, workerErrorsSustained_alarm,
+                      ordersQueueBacklog_alarm, orderAgentFailures_alarm):
+            alarm.add_alarm_action(alarm_action)
+
+        # ------------------------------------------------------------------
+        # Dashboard
+        # ------------------------------------------------------------------
+        # One page answering "is ShopFlow working right now", in the order
+        # somebody would ask it: are orders completing, is the agent failing,
+        # is the queue draining, and what has the business done today.
+        #
+        # Every widget reads a metric that already exists. Nothing here
+        # publishes a new one, so the dashboard costs the $3/month a custom
+        # dashboard costs and adds no per-metric charge at all.
+        #
+        # Deliberately not decorative. There is no widget for a number that
+        # nobody would act on, and no business figure anywhere on it - a
+        # quotation total in an operational dashboard is a business fact
+        # leaking into a system with a different audience, which is the rule
+        # observability/metrics.py exists to keep.
+        def order_metric(name: str, outcome: str, label: str,
+                         colour: str | None = None) -> cloudwatch.Metric:
+            return cloudwatch.Metric(
+                namespace="ShopFlow", metric_name=name,
+                dimensions_map={"JobType": "ORDER", "Outcome": outcome},
+                statistic="Sum", period=Duration.minutes(5), label=label,
+                color=colour,
+            )
+
+        def shopflow_metric(name: str, label: str, statistic: str = "Sum",
+                            dimensions: dict | None = None,
+                            colour: str | None = None) -> cloudwatch.Metric:
+            return cloudwatch.Metric(
+                namespace="ShopFlow", metric_name=name,
+                dimensions_map=dimensions or {},
+                statistic=statistic, period=Duration.minutes(5), label=label,
+                color=colour,
+            )
+
+        dashboard = cloudwatch.Dashboard(
+            self, "Dashboard",
+            dashboard_name=f"{PREFIX}-operations",
+            default_interval=Duration.hours(3),
+        )
+        dashboard.add_widgets(
+            cloudwatch.TextWidget(
+                markdown=(
+                    "# ShopFlow operations\n"
+                    "Order outcomes, agent health, queue health and business "
+                    "events. Counts only - no quotation totals, prices, "
+                    "margins or customer data appear on this page.\n\n"
+                    "**A clarification is not a failure.** ShopFlow asking "
+                    "which variant the customer meant is the system working; "
+                    "it is charted beside QUOTED, not beside FAILED."),
+                width=24, height=3,
+            ),
+        )
+        dashboard.add_widgets(
+            cloudwatch.GraphWidget(
+                title="Order outcomes",
+                left=[
+                    order_metric("ShopFlowOrdersCompleted", "QUOTED",
+                                 "Quoted", cloudwatch.Color.GREEN),
+                    order_metric("ShopFlowOrdersCompleted",
+                                 "NEEDS_CLARIFICATION", "Clarification asked",
+                                 cloudwatch.Color.BLUE),
+                    order_metric("ShopFlowOrdersFailed", "FAILED", "Failed",
+                                 cloudwatch.Color.RED),
+                    # A message naming nothing the shop sells. Answered, not
+                    # failed - which is why it is not in the alarmed metric.
+                    order_metric("ShopFlowOrdersCompleted", "NO_PRODUCT",
+                                 "No product named", cloudwatch.Color.GREY),
+                ],
+                width=12, height=6,
+            ),
+            cloudwatch.GraphWidget(
+                title="Agent failures (alarmed)",
+                left=[shopflow_metric("ShopFlowOrdersFailed",
+                                      "Agent failures (all job types)",
+                                      colour=cloudwatch.Color.RED)],
+                left_annotations=[cloudwatch.HorizontalAnnotation(
+                    value=0, label="alarm threshold",
+                    color=cloudwatch.Color.RED)],
+                width=12, height=6,
+            ),
+        )
+        dashboard.add_widgets(
+            cloudwatch.GraphWidget(
+                title="Queue health",
+                left=[
+                    orders_queue.metric_approximate_number_of_messages_visible(
+                        period=Duration.minutes(5), statistic="Maximum",
+                        label="Queue depth"),
+                    orders_dlq.metric_approximate_number_of_messages_visible(
+                        period=Duration.minutes(5), statistic="Maximum",
+                        label="Dead-letter queue",
+                        color=cloudwatch.Color.RED),
+                ],
+                right=[orders_queue.metric_approximate_age_of_oldest_message(
+                    period=Duration.minutes(5), statistic="Maximum",
+                    label="Oldest message (s)"),
+                    # Bedrock request-rate throttles, each one a retried
+                    # attempt. The capacity signal behind a growing queue.
+                    order_metric("ShopFlowWorkerFailures", "THROTTLED",
+                                 "Bedrock throttled (retried)",
+                                 cloudwatch.Color.ORANGE)],
+                width=12, height=6,
+            ),
+            cloudwatch.GraphWidget(
+                title="Processing time",
+                left=[shopflow_metric("ShopFlowWorkerProcessingSeconds",
+                                      "Average order (s)", statistic="Average",
+                                      dimensions={"JobType": "ORDER"}),
+                      shopflow_metric("ShopFlowWorkerProcessingSeconds",
+                                      "Slowest order (s)", statistic="Maximum",
+                                      dimensions={"JobType": "ORDER"})],
+                width=12, height=6,
+            ),
+        )
+        dashboard.add_widgets(
+            cloudwatch.GraphWidget(
+                title="Business events",
+                left=[
+                    shopflow_metric("ShopFlowBusinessEvents",
+                                    "Supplier price changed",
+                                    dimensions={"EventType":
+                                                "SupplierPriceChanged"}),
+                    shopflow_metric("ShopFlowBusinessEvents", "Stockout",
+                                    dimensions={"EventType":
+                                                "StockoutDetected"}),
+                    shopflow_metric("ShopFlowBusinessEvents", "Low margin",
+                                    dimensions={"EventType":
+                                                "LowMarginDetected"}),
+                    shopflow_metric("ShopFlowBusinessEvents",
+                                    "Purchase plan generated",
+                                    dimensions={"EventType":
+                                                "PurchasePlanGenerated"}),
+                ],
+                width=12, height=6,
+            ),
+            cloudwatch.GraphWidget(
+                title="Documents read, and what failed to publish",
+                left=[
+                    shopflow_metric("ShopFlowDocumentsExtracted",
+                                    "Read by Textract",
+                                    dimensions={"Reader": "TEXTRACT"}),
+                    shopflow_metric("ShopFlowDocumentsExtracted",
+                                    "Read by Nova Pro",
+                                    dimensions={"Reader": "NOVA_PRO"}),
+                ],
+                right=[
+                    shopflow_metric("ShopFlowDocumentExtractionFailures",
+                                    "Extraction failed",
+                                    colour=cloudwatch.Color.RED),
+                    shopflow_metric("ShopFlowEventPublishFailures",
+                                    "Event publish failed",
+                                    colour=cloudwatch.Color.ORANGE),
+                ],
+                width=12, height=6,
+            ),
         )
 
         # ------------------------------------------------------------------

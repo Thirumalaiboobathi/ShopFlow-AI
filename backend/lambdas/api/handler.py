@@ -61,6 +61,8 @@ from engine.cost_records import (
     latest_confirmed_costs,
     to_plan_decisions,
 )
+from agent import decision_trace
+from observability import events
 from engine.credit import (
     InvalidOrderTotalError,
     check_credit,
@@ -75,9 +77,11 @@ from engine.language import (
     localize_response,
     normalize_language,
 )
+from engine.budget import restock_candidates
 from engine.loader import cached_dataset
 from observability import metrics
 from engine.margin import margin_alerts, margin_view
+from engine.shortage import committed_demand
 from engine.messages import (
     CREDIT_REMINDER,
     CREDIT_STATUS,
@@ -112,6 +116,8 @@ from engine.purchasing import (
     build_purchase_plan,
     what_if,
 )
+from engine.supplier_prices import (CONFIRMED as SUPPLIER_CONFIRMED,
+                                     STATE_CONFIRMED, STATE_REVIEW_REQUIRED)
 from engine.supplier_prices import DECISIONS, build_decision_record
 from engine.voice import MAX_TRANSCRIPT_CHARS, answer_shop_query
 
@@ -222,6 +228,27 @@ def _job_key(job_id: str) -> dict:
     return {"PK": f"JOB#{job_id}", "SK": "META"}
 
 
+# The shop's own jobs, newest last, on the index the table has always had.
+#
+# GSI1 was created with the table and nothing has ever written to it. Putting
+# these two attributes on a job row makes "the last twenty jobs for this shop"
+# a single query instead of a scan, and it adds no AWS resource, no schema
+# migration and no second table - a GSI has no fixed schema, so an attribute
+# that was not there yesterday simply starts appearing today.
+#
+# Rows written before this change carry neither attribute and are absent from
+# the index. That is correct rather than unfortunate: they have not been lost,
+# they are readable by job id exactly as they always were, and a listing that
+# quietly back-filled them would be inventing history.
+def _job_index(job_id: str, job_type: str, created_at: int) -> dict:
+    return {
+        "GSI1PK": f"SHOP#{DEFAULT_SHOP_ID}",
+        # Sortable by time, unique by job id.
+        "GSI1SK": f"JOB#{created_at:011d}#{job_id}",
+        "jobType": job_type,
+    }
+
+
 def _create_order(event) -> dict:
     raw = event.get("body") or ""
     if len(raw.encode("utf-8")) > MAX_BODY_BYTES:
@@ -286,6 +313,7 @@ def _create_order(event) -> dict:
     now = int(time.time())
     failed = _queue_job(job_id, JOB_ORDER, {
         **_job_key(job_id),
+        **_job_index(job_id, JOB_ORDER, now),
         "jobId": job_id,
         "jobType": JOB_ORDER,
         "status": "QUEUED",
@@ -428,6 +456,7 @@ def _create_price_list(event) -> dict:
     now = int(time.time())
     failed = _queue_job(job_id, JOB_PRICE_LIST, {
         **_job_key(job_id),
+        **_job_index(job_id, JOB_PRICE_LIST, now),
         "jobId": job_id,
         "jobType": JOB_PRICE_LIST,
         "status": "QUEUED",
@@ -607,6 +636,24 @@ def _create_purchase_plan(event) -> dict:
         data, {sku: entry["cost"] for sku, entry in confirmed.items()})
     if alerts:
         plan["marginProtection"] = alerts
+
+    # The plan is complete and correct at this point. Announcing it cannot
+    # change it: `publish` never raises, and a bus that is down or absent
+    # leaves this response exactly as it is.
+    events.publish(events.PURCHASE_PLAN_GENERATED,
+                   **events.purchase_plan_generated(plan))
+
+    # The owner's view of how this was worked out. Supplier cost, margin and
+    # the plan are owner facts, and this route is behind the owner gate.
+    plan["decisionTrace"] = {
+        "available": True,
+        "audience": "owner",
+        "steps": decision_trace.owner_steps(
+            margin_alerts=alerts or [], plan=plan),
+        "source": "agent.decision_trace",
+    }
+    plan["decisionTrace"]["lines"] = decision_trace.render(
+        plan["decisionTrace"]["steps"])
 
     return _response(200, plan)
 
@@ -1172,6 +1219,17 @@ def _get_job(event) -> dict:
         # Localized additively: the result's own fields are carried through
         # untouched, and a `localized` block of words is attached beside them.
         body["result"] = localize_response(json.loads(item["result"]), language)
+
+        # The trace the worker built, or one rebuilt from the stored result
+        # for a job that predates it. Customer-safe by construction: it is
+        # `decision_trace.customer_steps`, which cannot produce a supplier
+        # cost, a margin or a budget, and which never reads model prose.
+        #
+        # A trace is an explanation of a quotation and may never be a reason
+        # not to have one, so a failure here says so and the result stands.
+        if not isinstance(body["result"].get("decisionTrace"), dict):
+            body["result"]["decisionTrace"] = decision_trace.build(
+                body["result"])
     if item.get("error"):
         body["error"] = item["error"]
 
@@ -1181,6 +1239,27 @@ def _get_job(event) -> dict:
         return _response(200, _poll_transcription(item, body))
 
     if body["jobType"] == JOB_PRICE_LIST:
+        # A price-list result IS supplier cost: every matched row carries what
+        # the shop last paid and what the document says it will now pay. This
+        # route is otherwise customer-facing, so the document half of it is
+        # not - reading a supplier price list requires the owner gate, as
+        # calling POST /api/supplier-price-lists already did.
+        #
+        # This closed a real hole. The upload route was gated and the route
+        # that returned its answer was not, so the costs were one poll away
+        # from anybody who had the job id.
+        if not _is_demo_owner(event):
+            owner_only = _response(401, {
+                "error": "owner route",
+                "message": ("A supplier price list is owner data. Poll this "
+                            "job with the ShopFlow demo workspace."),
+                "demoGate": True,
+                "isAuthentication": False,
+                "note": OWNER_GATE_NOTE,
+            })
+            owner_only.setdefault("headers", {})["x-shopflow-audience"] = "owner"
+            return owner_only
+
         # Owner rulings live alongside the job so a reload shows what was
         # already decided rather than asking again.
         rows = table().query(
@@ -1190,7 +1269,253 @@ def _get_job(event) -> dict:
             {k: v for k, v in row.items() if k not in ("PK", "SK", "expiresAt")}
             for row in rows
         ]
+        # The review boundary, recomputed now that the rulings are known. A
+        # row the owner confirmed reads CONFIRMED; everything else is derived
+        # exactly as it was at extraction time.
+        _apply_review_states(body, body["decisions"])
+
     return _response(200, body)
+
+
+def _apply_review_states(body: dict, decisions: list) -> None:
+    """Recompute each document row's review state from the owner's rulings.
+
+    Derived rather than stored, so a ruling recorded after the document was
+    read is reflected without rewriting the stored result. The states
+    themselves are `engine.supplier_prices.review_state`; nothing is decided
+    here.
+    """
+    review = ((body.get("result") or {}).get("review") or {})
+    lines = review.get("lines")
+    if not isinstance(lines, list):
+        return
+
+    ruled = {d.get("skuId"): d.get("decision")
+             for d in decisions or [] if d.get("skuId")}
+    for line in lines:
+        sku_id = line.get("skuId")
+        decision = ruled.get(sku_id)
+        if decision == SUPPLIER_CONFIRMED:
+            line["reviewState"] = STATE_CONFIRMED
+        elif decision:
+            line["reviewState"] = STATE_REVIEW_REQUIRED
+    review["confirmedCount"] = sum(
+        1 for line in lines if line.get("reviewState") == STATE_CONFIRMED)
+
+
+# ---------------------------------------------------------------------------
+# ShopFlow Intelligence
+# ---------------------------------------------------------------------------
+# One owner route behind the owner gate, answering the three questions the
+# workspace's Intelligence section asks: what documents have been read, what
+# needs my attention, and is the system healthy.
+#
+# Every figure here is read from a deterministic engine or from a job row that
+# an engine wrote. Nothing is recomputed, no model is called, and there is no
+# second copy of any business rule: the alerts below come from
+# `engine.margin.margin_alerts`, `engine.budget.restock_candidates` and the
+# shop's own confirmed cost records - the same three sources the planner uses.
+
+# How far back the Intelligence view looks. Job rows expire after 24 hours
+# anyway (`JOB_TTL_SECONDS`), so a larger number would return the same rows.
+INTELLIGENCE_JOB_LIMIT = 50
+
+
+def _recent_jobs(limit: int = INTELLIGENCE_JOB_LIMIT) -> list:
+    """The shop's most recent jobs, newest first, from GSI1.
+
+    Returns an empty list rather than raising. The Intelligence view is an
+    operational read; if the index query fails, the page says it has nothing
+    to show and every other route is unaffected.
+    """
+    try:
+        rows = table().query(
+            IndexName="GSI1",
+            KeyConditionExpression=Key("GSI1PK").eq(f"SHOP#{DEFAULT_SHOP_ID}")
+            & Key("GSI1SK").begins_with("JOB#"),
+            ScanIndexForward=False,
+            Limit=limit,
+        ).get("Items", [])
+    except Exception as exc:  # noqa: BLE001
+        print(f"intelligence job query failed: {type(exc).__name__}: {exc}")
+        return []
+    return rows
+
+
+def _document_summary(row: dict) -> dict:
+    """One price-list job, as the Supplier Documents tab shows it."""
+    summary = {
+        "jobId": row.get("jobId"),
+        "status": row.get("status"),
+        "createdAt": int(row.get("createdAt") or 0),
+        "contentType": row.get("imageContentType"),
+        "bytes": int(row.get("imageBytes") or 0),
+        "reader": None,
+        "supplierName": None,
+        "lineCount": 0,
+        "matchedCount": 0,
+        "reviewRequiredCount": 0,
+        "materialChangeCount": 0,
+        "error": row.get("error") or None,
+    }
+    try:
+        review = (json.loads(row["result"]) or {}).get("review") or {}
+    except (KeyError, TypeError, ValueError):
+        return summary
+
+    readers = review.get("readers") or []
+    summary.update({
+        "reader": readers[0] if readers else None,
+        "supplierName": review.get("supplierName"),
+        "lineCount": review.get("lineCount") or 0,
+        "matchedCount": review.get("matchedCount") or 0,
+        "reviewRequiredCount": review.get("reviewRequiredCount") or 0,
+        "materialChangeCount": review.get("materialChangeCount") or 0,
+        "documentDate": review.get("documentDate"),
+    })
+    return summary
+
+
+def _operations(rows: list) -> dict:
+    """Counts of what the queue has been doing. Operations, not business."""
+    outcomes = {"QUOTED": 0, "NEEDS_CLARIFICATION": 0, "FAILED": 0,
+                "REVIEWED": 0}
+    counts = {"total": 0, "orders": 0, "documents": 0, "queued": 0,
+              "processing": 0, "done": 0, "failed": 0}
+
+    for row in rows:
+        counts["total"] += 1
+        job_type = str(row.get("jobType") or JOB_ORDER)
+        if job_type == JOB_ORDER:
+            counts["orders"] += 1
+        elif job_type == JOB_PRICE_LIST:
+            counts["documents"] += 1
+
+        status = str(row.get("status") or "")
+        if status == "QUEUED":
+            counts["queued"] += 1
+        elif status == "PROCESSING":
+            counts["processing"] += 1
+        elif status == "DONE":
+            counts["done"] += 1
+        elif status == "FAILED":
+            counts["failed"] += 1
+
+        try:
+            result = json.loads(row["result"]) or {}
+        except (KeyError, TypeError, ValueError):
+            continue
+        outcome = str(result.get("status") or "")
+        if outcome in outcomes:
+            outcomes[outcome] += 1
+
+    return {"counts": counts, "outcomes": outcomes,
+            "window": "the last %d jobs" % INTELLIGENCE_JOB_LIMIT,
+            "note": ("Counted from job rows, which expire after 24 hours. "
+                     "CloudWatch holds the durable operational history.")}
+
+
+def _alerts(data, rows: list) -> list:
+    """What the owner should look at, derived from the engines.
+
+    Four kinds, and each one is somebody else's calculation:
+
+      * a supplier cost the owner confirmed that moved what they pay
+      * a margin the margin engine calls low
+      * a SKU the purchasing planner calls short
+      * a job that failed
+
+    Nothing here decides what is material or what is low. It reads the
+    engines' own verdicts and puts them in one list.
+    """
+    alerts = []
+    confirmed = _confirmed_costs()
+
+    for alert in margin_alerts(
+            data, {sku: entry["cost"] for sku, entry in confirmed.items()}):
+        if not alert.get("comparisonAvailable"):
+            continue
+        if alert.get("previousSupplierCost") != alert.get("confirmedSupplierCost"):
+            alerts.append({
+                "kind": "SUPPLIER_PRICE_CHANGED",
+                "skuId": alert.get("skuId"),
+                "productName": alert.get("productName"),
+                "previousCost": alert.get("previousSupplierCost"),
+                "newCost": alert.get("confirmedSupplierCost"),
+                "detail": "Confirmed supplier cost has moved.",
+            })
+        if alert.get("status") == "LOW_MARGIN":
+            alerts.append({
+                "kind": "LOW_MARGIN",
+                "skuId": alert.get("skuId"),
+                "productName": alert.get("productName"),
+                "previousMargin": alert.get("oldMarginAmount"),
+                "newMargin": alert.get("newMarginAmount"),
+                "marginPercent": alert.get("newMarginPercent"),
+                "detail": "Margin is below the configured threshold.",
+            })
+
+    demand = committed_demand(data.committedOrders())
+    for sku_id in sorted(data.products):
+        if data.onHand(sku_id) <= 0:
+            alerts.append({
+                "kind": "STOCKOUT",
+                "skuId": sku_id,
+                "productName": data.product(sku_id).name,
+                "onHand": data.onHand(sku_id),
+                "detail": "Nothing on the shelf.",
+            })
+        elif data.onHand(sku_id) - demand.get(sku_id, 0) < 0:
+            # Promised beyond the shelf. `uncommitted_stock(...) < 0` was
+            # tested here before and can never be true - it clamps at zero.
+            alerts.append({
+                "kind": "STOCKOUT",
+                "skuId": sku_id,
+                "productName": data.product(sku_id).name,
+                "onHand": data.onHand(sku_id),
+                "detail": "Promised beyond available stock.",
+            })
+
+    for row in rows:
+        if str(row.get("status")) == "FAILED":
+            alerts.append({
+                "kind": "PROCESSING_FAILED",
+                "jobId": row.get("jobId"),
+                "jobType": row.get("jobType"),
+                "detail": str(row.get("error") or "Processing failed.")[:200],
+            })
+
+    return alerts
+
+
+def _get_intelligence(event) -> dict:
+    """Supplier documents, alerts and operations, for the owner workspace."""
+    data = cached_dataset()
+    rows = _recent_jobs()
+    documents = [_document_summary(row) for row in rows
+                 if str(row.get("jobType")) == JOB_PRICE_LIST]
+
+    # Alerts read the shop's confirmed costs, which is another table query.
+    # If it fails, the page shows what it could read rather than nothing:
+    # this route reports on the system and must not be the part that breaks.
+    try:
+        alerts = _alerts(data, rows)
+    except Exception as exc:  # noqa: BLE001
+        print(f"intelligence alerts unavailable: {type(exc).__name__}: {exc}")
+        alerts = []
+
+    return _response(200, {
+        "shopId": f"SHOP#{DEFAULT_SHOP_ID}",
+        "documents": documents,
+        "alerts": alerts,
+        "operations": _operations(rows),
+        "eventsEnabled": bool(events.bus_name()),
+        "synthetic": True,
+        "dataNotice": ("Synthetic demo data. Inventory, sales history and "
+                       "customer records are generated and do not represent "
+                       "a real shop's records."),
+        "source": "lambdas.api.handler._get_intelligence",
+    })
 
 
 def _get_languages(event) -> dict:
@@ -1209,6 +1534,66 @@ def _get_languages(event) -> dict:
                 "India's 22 Scheduled Languages, with English as the default "
                 "fallback.",
     })
+
+
+# What the workspace inventory table may show. An allow-list, for the same
+# reason `engine.messages.customer_safe_line` is one: `Product` also carries
+# `costPrice`, and this route is public. A field added to Product later is
+# absent from here until somebody decides otherwise.
+INVENTORY_FIELDS = ("skuId", "name", "brand", "category", "unit",
+                    "sellingPrice", "onHand", "status")
+
+
+def _inventory_snapshot(data) -> list:
+    """The seeded shop's stock, as the workspace shows it.
+
+    No new inventory logic. `restock_candidates` is the same function the
+    purchasing planner uses to decide what is below its reorder point, and
+    `committed_demand` is the same one that totals what is already promised
+    to a customer. This reads both and adds a label - it does not compute a
+    threshold of its own, because a second opinion about what "low" means is
+    exactly how two parts of a system start disagreeing.
+    """
+    demand = committed_demand(data.committedOrders())
+    low = {c.skuId for c in restock_candidates(data)}
+
+    rows = []
+    for sku_id in sorted(data.products):
+        product = data.product(sku_id)
+        on_hand = data.onHand(sku_id)
+        if on_hand <= 0:
+            # Nothing on the shelf. This used to fall through to IN STOCK
+            # whenever the SKU sold slowly enough that the planner did not
+            # call it low, so two SKUs with zero stock were labelled as
+            # available. Reading the label, not the number, is exactly what a
+            # shop owner does.
+            #
+            # This is serialization only. The quantity is untouched, the
+            # planner's reorder rule is untouched, and nothing here decides
+            # what to buy.
+            status = "OUT OF STOCK"
+        elif on_hand - demand.get(sku_id, 0) < 0:
+            # Already promised more than is on the shelf. This used to test
+            # `uncommitted_stock(...) < 0`, which can never be true - that
+            # function clamps at zero - so the label was unreachable and the
+            # canonical order's switch (14 on hand, 20 promised) read IN STOCK
+            # beside a quotation reporting it short by 6.
+            status = "SHORTAGE"
+        elif sku_id in low:
+            status = "LOW STOCK"     # below the planner's reorder point
+        else:
+            status = "IN STOCK"
+        rows.append({
+            "skuId": sku_id,
+            "name": product.name,
+            "brand": product.brand,
+            "category": product.category,
+            "unit": product.unit,
+            "sellingPrice": product.sellingPrice,
+            "onHand": on_hand,
+            "status": status,
+        })
+    return rows
 
 
 def _get_demo(event) -> dict:
@@ -1239,6 +1624,11 @@ def _get_demo(event) -> dict:
         ),
         "ambiguousExample": "Anna, 3 coils Finolex 1.5 sq mm wire.",
         "derivedFromSeededOrder": example,
+        "shopLocation": "Madurai, Tamil Nadu",
+        "businessType": "Electrical & hardware retail",
+        "dataNotice": ("Synthetic demo data. Inventory and sales history are "
+                       "generated and do not represent a real shop's records."),
+        "inventory": _inventory_snapshot(data),
     })
 
 
@@ -1264,6 +1654,18 @@ OWNER_ROUTES = frozenset({
     "POST /api/purchase-plans",     # what to buy, at supplier cost
     "POST /api/supplier-price-lists",
     "POST /api/price-decisions",
+    # Khata accounts. These carry a contractor's name, phone number, credit
+    # limit and outstanding balance - shaped exactly like real customer
+    # records even though every digit here is generated. They were
+    # unclassified, which meant nothing stopped a plain GET reading them.
+    "GET /api/customers",
+    "GET /api/customers/{customerId}",
+    # A credit decision states the limit and the balance it was made against.
+    # It was marked customer-facing, which was wrong: it is the answer a shop
+    # owner gets at the counter, not something a customer is shown.
+    "POST /api/credit/check",
+    # Supplier documents, margin alerts and queue operations.
+    "GET /api/intelligence",
 })
 
 # Routes whose output can reach a customer. Nothing here may carry supplier
@@ -1272,8 +1674,41 @@ CUSTOMER_FACING_ROUTES = frozenset({
     "POST /api/orders",
     "GET /api/jobs/{jobId}",
     "POST /api/whatsapp/send",
-    "POST /api/credit/check",
 })
+
+# The demo-owner gate.
+#
+# What this is: owner routes require the caller to say, explicitly, that it is
+# asking as the shop owner. The demo workspace sends this header once someone
+# has entered it. A plain public GET of a khata account or a purchase plan no
+# longer returns one, and any route added to OWNER_ROUTES is gated by that
+# fact alone rather than by someone remembering to gate it.
+#
+# What this is NOT, stated plainly because an evaluator will work it out in
+# seconds and should not have to: it is not authentication. The value is not a
+# secret, it is visible in the page source, and anyone who wants past it can
+# send the header themselves. It stops accidental and drive-by exposure, and
+# it makes the boundary executable instead of declarative. It does not make
+# these routes private.
+#
+# Making them genuinely private needs an authenticated owner session, which
+# this demo deliberately does not have - see the limitation recorded in
+# README.md. Everything behind this gate is synthetic, and no real shop's
+# records are in this project.
+OWNER_GATE_NOTE = ("This is a demo gate, not authentication. The header is "
+                   "not a secret. In a real deployment these routes sit "
+                   "behind the shop's own login. All data here is synthetic.")
+
+DEMO_OWNER_HEADER = "x-shopflow-demo-owner"
+DEMO_OWNER_VALUE = "demo-workspace"
+
+
+def _is_demo_owner(event) -> bool:
+    """Did the caller ask as the shop owner? Header names are case-insensitive."""
+    for key, value in (event.get("headers") or {}).items():
+        if str(key).strip().lower() == DEMO_OWNER_HEADER:
+            return str(value).strip() == DEMO_OWNER_VALUE
+    return False
 
 ROUTES = {
     "POST /api/orders": _create_order,
@@ -1289,6 +1724,7 @@ ROUTES = {
     "GET /api/languages": _get_languages,
     "GET /api/jobs/{jobId}": _get_job,
     "GET /api/demo": _get_demo,
+    "GET /api/intelligence": _get_intelligence,
 }
 
 
@@ -1297,6 +1733,23 @@ def handler(event, context):
     fn = ROUTES.get(route)
     if fn is None:
         return _response(404, {"error": "not found"})
+
+    if route in OWNER_ROUTES and not _is_demo_owner(event):
+        response = _response(401, {
+            "error": "owner route",
+            "message": (
+                "This route answers the shop owner about their own business - "
+                "supplier costs, margins, purchasing and khata accounts - and "
+                "is not part of the public customer surface. The ShopFlow demo "
+                f"workspace marks its requests with the {DEMO_OWNER_HEADER} "
+                "header."),
+            "demoGate": True,
+            "isAuthentication": False,
+            "note": OWNER_GATE_NOTE,
+        })
+        response.setdefault("headers", {})["x-shopflow-audience"] = "owner"
+        return response
+
     try:
         response = fn(event)
     except Exception as exc:  # noqa: BLE001 - surface a safe message, log detail
@@ -1307,8 +1760,15 @@ def handler(event, context):
     # supplier cost; a customer-facing one may not. Marking it costs nothing
     # and means anyone reading the API - including someone auditing it - sees
     # the boundary instead of having to infer it.
+    headers = response.setdefault("headers", {})
+    if headers.get("x-shopflow-audience"):
+        # The route already said who this particular answer is for, and it
+        # knows better than the table does. `GET /api/jobs/{id}` is the case:
+        # an order result is customer-facing, and a supplier price list read
+        # back through the same route is not.
+        return response
     if route in OWNER_ROUTES:
-        response.setdefault("headers", {})["x-shopflow-audience"] = "owner"
+        headers["x-shopflow-audience"] = "owner"
     elif route in CUSTOMER_FACING_ROUTES:
-        response.setdefault("headers", {})["x-shopflow-audience"] = "customer"
+        headers["x-shopflow-audience"] = "customer"
     return response

@@ -29,33 +29,49 @@ how a shop loses an order:
     so SQS redelivers it. Marking these FAILED would turn a two-second blip
     into a lost order.
 
-A message that exhausts its retries goes to the dead-letter queue with the job
-still at PROCESSING. **Nothing here repairs it.** The DLQ alarm is how a human
-finds out, and the jobId in the message is how they find the job. There is no
-automatic recovery in this phase and this module does not pretend otherwise.
+A retry waits a short, jittered interval rather than the full visibility
+timeout: `_back_off` shortens the message's visibility to 30s and then 90s.
+Bedrock throttling on this account is a per-minute quota, so a throttled order
+is worth retrying a minute later, not six minutes later.
+
+On the LAST delivery a transient failure is no longer handed back. The job is
+marked FAILED with a message that says the shop is busy and the order should
+be sent again, so a throttled order ends in an answer rather than sitting at
+PROCESSING forever.
+
+A message the worker cannot handle at all - a crash, or a Lambda timeout that
+kills the invocation before any of this code runs - still goes to the
+dead-letter queue with the job at PROCESSING. **Nothing here repairs that.**
+The DLQ alarm is how a human finds out, and the jobId in the message is how
+they find the job.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import random
 import time
 
 import boto3
 from boto3.dynamodb.conditions import Key
 
 from agent.orchestrator import (
+    FAILURE_NO_PRODUCT_NAMED,
     DEFAULT_MODEL_ID,
     OrderTooLongError,
     run_order_agent,
 )
+from agent.decision_trace import build as build_decision_trace
+from agent.textract_reader import (NOVA_PRO, TEXTRACT, TextractError,
+                                   read_price_list)
 from agent.vision import ExtractionError, extract_price_list
 from engine.cost_records import DEFAULT_SHOP_ID, cost_pk, latest_confirmed_costs
 from engine.credit import check_quote_credit
 from engine.loader import cached_dataset
 from engine.margin import margin_alerts, quotation_margin_impact
 from engine.supplier_prices import InvalidSupplierLineError, review_price_list
-from observability import metrics
+from observability import events, metrics
 
 TABLE_NAME = os.environ["TABLE_NAME"]
 MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", DEFAULT_MODEL_ID)
@@ -102,6 +118,31 @@ RETRYABLE_EXCEPTION_NAMES = frozenset({
 })
 
 
+# The subset of retryable codes that mean "you are asking too fast". Counted
+# separately, because a throttle is a capacity fact - the account's Bedrock
+# quota is requests per minute - and not a fault in the order or the code.
+THROTTLE_ERROR_CODES = frozenset({
+    "ThrottlingException", "Throttling", "TooManyRequestsException",
+    "RequestThrottled", "RequestThrottledException",
+    "ProvisionedThroughputExceededException",
+})
+
+# Must equal the queue's redrive `maxReceiveCount` (asserted against the
+# synthesized template in tests/test_queue.py). On this delivery a transient
+# failure is final: handing it back would only send it to the dead-letter
+# queue with the job stuck at PROCESSING.
+MAX_RECEIVES = 3
+
+# Seconds before the next delivery, by attempt, plus up to 50% jitter so a
+# burst of throttled orders does not come back in the same second and throttle
+# again. Well inside the 360s visibility timeout it replaces.
+RETRY_BACKOFF_SECONDS = (30, 90)
+
+BUSY_MESSAGE = ("ShopFlow is busy and could not process this order after "
+                f"{MAX_RECEIVES} attempts. Nothing was quoted. Please send the "
+                "order again.")
+
+
 class RetryableFailure(RuntimeError):
     """Raised to hand a message back to SQS for another attempt."""
 
@@ -129,6 +170,53 @@ def is_retryable(exc: BaseException) -> bool:
         if isinstance(status, int) and status >= 500:
             return True
     return False
+
+
+def is_throttle(exc: BaseException) -> bool:
+    """A retryable failure that means the request rate, not the request."""
+    response = getattr(exc, "response", None)
+    if isinstance(response, dict):
+        code = (response.get("Error") or {}).get("Code")
+        if code in THROTTLE_ERROR_CODES:
+            return True
+    return type(exc).__name__ in THROTTLE_ERROR_CODES
+
+
+def _delivery(record: dict) -> dict:
+    """What SQS said about this delivery: which attempt, and how to reach it."""
+    attributes = record.get("attributes") or {}
+    try:
+        receives = int(attributes.get("ApproximateReceiveCount") or 1)
+    except (TypeError, ValueError):
+        receives = 1
+    queue_url = None
+    parts = str(record.get("eventSourceARN") or "").split(":")
+    if len(parts) == 6 and parts[2] == "sqs":
+        queue_url = f"https://sqs.{parts[3]}.amazonaws.com/{parts[4]}/{parts[5]}"
+    return {"receives": receives, "queueUrl": queue_url,
+            "receiptHandle": record.get("receiptHandle")}
+
+
+def _back_off(delivery: dict) -> None:
+    """Bring the next attempt forward from the 360s visibility timeout.
+
+    Best effort. If it fails, SQS still redelivers after the full visibility
+    timeout, which is exactly the behaviour before this existed.
+    """
+    if not delivery or not delivery.get("queueUrl") \
+            or not delivery.get("receiptHandle"):
+        return
+    attempt = max(1, int(delivery.get("receives") or 1))
+    base = RETRY_BACKOFF_SECONDS[min(attempt, len(RETRY_BACKOFF_SECONDS)) - 1]
+    delay = int(base + random.uniform(0, base / 2))
+    try:
+        boto3.client("sqs").change_message_visibility(
+            QueueUrl=delivery["queueUrl"],
+            ReceiptHandle=delivery["receiptHandle"],
+            VisibilityTimeout=delay)
+    except Exception as exc:  # noqa: BLE001 - the default timeout still applies
+        print(json.dumps({"event": "backoff_not_applied",
+                          "error": type(exc).__name__}))
 
 
 def _claim(job_id: str, item: dict) -> bool:
@@ -224,6 +312,49 @@ def _margin_protection(payload: dict):
         return None
 
 
+def _read_document(job_id: str, image_bytes: bytes, content_type: str):
+    """Read one supplier document, with Textract first and the model second.
+
+    Textract is tried first because a dealer price list is a table and it
+    returns one, with a per-word confidence score that decides whether a row
+    needs a human before it can move a purchase cost. The model reader is the
+    fallback for the documents Textract finds no table in - a photographed
+    handwritten list, most obviously - and it remains exactly as it was.
+
+    A fallback is not a repair. Whichever reader runs, its rows go to the same
+    deterministic matcher and the same price comparison, and neither reader
+    gets to decide what a row means. The one that ran is recorded on every
+    row so an owner can see how their document was read.
+    """
+    try:
+        rows, supplier, doc_date = read_price_list(
+            image_bytes, bucket="", key="")
+        metrics.emit(metrics.DOCUMENTS_EXTRACTED, job_id=job_id,
+                     dimensions={"Reader": TEXTRACT}, rowCount=len(rows))
+        return supplier, doc_date, rows, {}, TEXTRACT
+    except Exception as exc:  # noqa: BLE001 - fall back, do not fail
+        # Textract being unavailable, throttled or unable to find a table is
+        # not the end of the document: it is a reason to try the other reader.
+        # If that one fails too, its error is the one the owner sees, because
+        # it is the one about the document rather than about a service.
+        print(json.dumps({"event": "textract_fallback", "jobId": job_id,
+                          "reason": f"{type(exc).__name__}: {str(exc)[:200]}"}))
+        if not isinstance(exc, TextractError):
+            metrics.emit(metrics.DOCUMENT_EXTRACTION_FAILURES, job_id=job_id,
+                         dimensions={"Reader": TEXTRACT})
+
+    supplier, doc_date, items, usage = extract_price_list(
+        image_bytes, content_type, model_id=MODEL_ID)
+    for row in items:
+        if isinstance(row, dict):
+            # The model reports no confidence, so none is claimed. `source`
+            # is what lets the interface say which reader produced the row.
+            row.setdefault("source", NOVA_PRO)
+    metrics.emit(metrics.DOCUMENTS_EXTRACTED, job_id=job_id,
+                 dimensions={"Reader": NOVA_PRO}, rowCount=len(items))
+    return supplier, doc_date, items, usage, NOVA_PRO
+
+
 def _process_price_list(job_id: str, item: dict) -> dict:
     """Read one supplier price list and review it against the catalogue.
 
@@ -236,10 +367,8 @@ def _process_price_list(job_id: str, item: dict) -> dict:
             Bucket=UPLOADS_BUCKET, Key=item["imageKey"])
         image_bytes = obj["Body"].read()
 
-        supplier, doc_date, items, usage = extract_price_list(
-            image_bytes, item.get("imageContentType") or "image/png",
-            model_id=MODEL_ID,
-        )
+        supplier, doc_date, items, usage, reader = _read_document(
+            job_id, image_bytes, item.get("imageContentType") or "image/png")
         review = review_price_list(cached_dataset(), supplier, doc_date, items)
     except (ExtractionError, InvalidSupplierLineError) as exc:
         # A document we could not read is a real answer, not a crash - and a
@@ -250,6 +379,12 @@ def _process_price_list(job_id: str, item: dict) -> dict:
         metrics.emit(metrics.ORDERS_FAILED, job_id=job_id,
                      dimensions={"JobType": JOB_PRICE_LIST,
                                  "Outcome": "FAILED"})
+        metrics.emit(metrics.DOCUMENT_EXTRACTION_FAILURES, job_id=job_id)
+        # No pricing state changed. A document that could not be read leaves
+        # every confirmed cost exactly where it was.
+        events.publish(events.ORDER_PROCESSING_FAILED, job_id=job_id,
+                       jobId=job_id, jobType=JOB_PRICE_LIST,
+                       reason=type(exc).__name__)
         return {"ok": False}
     except Exception as exc:  # noqa: BLE001
         # Everything else is classified by the caller, so a throttled Bedrock
@@ -274,6 +409,8 @@ def _process_price_list(job_id: str, item: dict) -> dict:
         "ambiguousCount": payload["ambiguousCount"],
         "unmatchedCount": payload["unmatchedCount"],
         "materialChangeCount": payload["materialChangeCount"],
+        "reviewRequiredCount": payload["reviewRequiredCount"],
+        "reader": reader,
         "inputTokens": usage.get("inputTokens"),
         "outputTokens": usage.get("outputTokens"),
     }))
@@ -283,6 +420,16 @@ def _process_price_list(job_id: str, item: dict) -> dict:
     metrics.emit(metrics.ORDERS_COMPLETED, job_id=job_id,
                  dimensions={"JobType": JOB_PRICE_LIST,
                              "Outcome": "REVIEWED"})
+
+    # A material supplier price move is a business fact, so it is an event.
+    # The numbers are the comparison's own - see engine.supplier_prices - and
+    # one SKU produces one event however many rows named it.
+    for detail in events.unique([
+        events.supplier_price_changed(line["comparison"])
+        for line in payload["lines"]
+        if line.get("comparison") and line["comparison"].get("materialChange")
+    ]):
+        events.publish(events.SUPPLIER_PRICE_CHANGED, job_id=job_id, **detail)
     _update(
         job_id,
         status=STATUS_DONE,
@@ -330,11 +477,11 @@ def handler(event, context):
                                      "Outcome": "TERMINAL"})
             results.append({"ok": False, "reason": "malformed"})
             continue
-        results.append(_process_message(message))
+        results.append(_process_message(message, _delivery(record)))
     return {"ok": all(r.get("ok") for r in results), "results": results}
 
 
-def _process_message(message: dict) -> dict:
+def _process_message(message: dict, delivery: dict | None = None) -> dict:
     job_id = message.get("jobId") if isinstance(message, dict) else None
     if not job_id or not isinstance(job_id, str):
         print("ERROR: no jobId in message")
@@ -373,19 +520,48 @@ def _process_message(message: dict) -> dict:
             return _process_price_list(job_id, item)
         return _process_order(job_id, item)
     except Exception as exc:  # noqa: BLE001
-        if is_retryable(exc):
+        receives = (delivery or {}).get("receives") or 1
+        if is_retryable(exc) and receives < MAX_RECEIVES:
             # Left exactly as it is - still PROCESSING, still recoverable.
-            # Re-raised so SQS redelivers it.
+            # Re-raised so SQS redelivers it, sooner than the visibility
+            # timeout would.
+            throttled = is_throttle(exc)
             print(json.dumps({
                 "event": "retryable_failure",
                 "jobId": job_id,
                 "jobType": job_type,
                 "error": type(exc).__name__,
+                "throttled": throttled,
+                "attempt": receives,
             }))
             metrics.emit(metrics.WORKER_FAILURES, job_id=job_id,
                          dimensions={"JobType": job_type,
-                                     "Outcome": "RETRYABLE"})
+                                     "Outcome": ("THROTTLED" if throttled
+                                                 else "RETRYABLE")})
+            _back_off(delivery)
             raise
+        if is_retryable(exc):
+            # The last delivery, and still transient. Handing it back would
+            # dead-letter it with the job stuck at PROCESSING, so the job ends
+            # here with an answer the owner can act on: send it again.
+            print(json.dumps({
+                "event": "retries_exhausted",
+                "jobId": job_id,
+                "jobType": job_type,
+                "error": type(exc).__name__,
+                "throttled": is_throttle(exc),
+                "attempt": receives,
+            }))
+            _update(job_id, status=STATUS_FAILED, error=BUSY_MESSAGE,
+                    finishedAt=int(time.time()))
+            metrics.emit(metrics.WORKER_FAILURES, job_id=job_id,
+                         dimensions={"JobType": job_type, "Outcome": "TERMINAL"})
+            metrics.emit(metrics.ORDERS_FAILED, job_id=job_id,
+                         dimensions={"JobType": job_type, "Outcome": "FAILED"})
+            events.publish(events.ORDER_PROCESSING_FAILED, job_id=job_id,
+                           jobId=job_id, jobType=job_type,
+                           reason="retries_exhausted")
+            return {"ok": False, "reason": "retries-exhausted"}
         print(f"ERROR terminal failure for {job_id}: "
               f"{type(exc).__name__}: {exc}")
         # Worded for the job that actually failed. This message is returned by
@@ -400,6 +576,49 @@ def _process_message(message: dict) -> dict:
         metrics.emit(metrics.ORDERS_FAILED, job_id=job_id,
                      dimensions={"JobType": job_type, "Outcome": "FAILED"})
         return {"ok": False, "reason": "terminal"}
+
+
+def _publish_order_events(job_id: str, payload: dict, status: str,
+                          failure_kind: str | None = None) -> None:
+    """Announce what the engines decided about one order. Never raises.
+
+    Three things are worth an event here and nothing else is. A shortage is a
+    fact about stock the owner may need to act on; a margin that fell past the
+    threshold is a fact about money; an order that failed inside the agent is
+    the one outcome nobody is watching for.
+
+    A clarification is emitted too, but it is deliberately NOT routed to an
+    alert: asking which colour the customer meant is the system working, and
+    an owner who is emailed about it learns to ignore the emails.
+    """
+    quote = payload.get("quote") or {}
+
+    for detail in events.unique([
+        events.stockout_detected(line)
+        for line in quote.get("lines") or []
+        if (line.get("shortageQty") or 0) > 0
+    ]):
+        events.publish(events.STOCKOUT_DETECTED, job_id=job_id, **detail)
+
+    protection = payload.get("marginProtection") or {}
+    for detail in events.unique([
+        events.low_margin_detected(alert)
+        for alert in protection.get("affected") or []
+    ]):
+        events.publish(events.LOW_MARGIN_DETECTED, job_id=job_id, **detail)
+
+    if status == "NEEDS_CLARIFICATION":
+        clarification = payload.get("clarification") or {}
+        events.publish(events.ORDER_NEEDS_CLARIFICATION, job_id=job_id,
+                       jobId=job_id,
+                       attribute=clarification.get("clarifyingAttribute") or None)
+    elif status == "FAILED" and failure_kind != FAILURE_NO_PRODUCT_NAMED:
+        # A message that named nothing the shop sells - a greeting, a
+        # question, a prompt injection - was answered, not lost. Announcing it
+        # as a processing failure would page the owner about correct
+        # behaviour, which is how alerts come to be ignored.
+        events.publish(events.ORDER_PROCESSING_FAILED, job_id=job_id,
+                       jobId=job_id, jobType=JOB_ORDER, reason="agent")
 
 
 def _process_order(job_id: str, item: dict) -> dict:
@@ -421,9 +640,13 @@ def _process_order(job_id: str, item: dict) -> dict:
     try:
         # The language the owner typed in, carried from the job row. A hint to
         # the model about the sentence, not an input to any business tool.
+        # Quantities are held to what the customer wrote, not to the
+        # confirmation sentence appended above: that sentence repeats the
+        # customer's words, count included, and would read as a second line.
         result = run_order_agent(cached_dataset(), order_text,
                                  model_id=MODEL_ID,
-                                 language=str(item.get("language") or "en"))
+                                 language=str(item.get("language") or "en"),
+                                 customer_text=item.get("orderText") or "")
     except OrderTooLongError as exc:
         # Terminal by definition: the text will be the same length next time.
         _update(job_id, status=STATUS_FAILED, error=str(exc))
@@ -463,6 +686,21 @@ def _process_order(job_id: str, item: dict) -> dict:
     if credit:
         payload["credit"] = credit
 
+    # How this was worked out, built from the engines' own output and stored
+    # beside the result so it can be shown without re-running anything.
+    #
+    # This is the customer-safe view: matches, stock, shortages and the
+    # quotation. Supplier cost, margin and the purchase plan are the owner's
+    # and are added by the API behind the owner gate - `customer_steps`
+    # cannot produce them at all. Nothing here reads model prose, so no
+    # reasoning can arrive through it. If building it raises, the trace says
+    # it is unavailable and the quotation is untouched.
+    # The quantity verdict is passed beside the result rather than inside it:
+    # it is what lets the trace say "the customer wrote 2, the model proposed
+    # 4" instead of "4 requested".
+    payload["decisionTrace"] = build_decision_trace(
+        payload, quantity_check=getattr(result, "quantityCheck", None))
+
     status = STATUS_DONE if result.status != "FAILED" else STATUS_FAILED
     _update(
         job_id,
@@ -470,14 +708,31 @@ def _process_order(job_id: str, item: dict) -> dict:
         result=json.dumps(payload),
         finishedAt=int(time.time()),
     )
+
+    # Business events, AFTER the job row is written.
+    #
+    # The order is deliberate: the business result is durable before anything
+    # is announced, so a bus that is down, throttled or not configured cannot
+    # leave a customer without the quotation that was already calculated.
+    # Every number below is copied out of engine output - none is derived
+    # here and none came from the model.
+    _publish_order_events(job_id, payload, result.status,
+                          getattr(result, "failureKind", None))
     # Counts and a duration. No total, no SKU, no customer - see the note at
     # the top of observability/metrics.py for why that line is drawn hard.
     metrics.emit(metrics.WORKER_PROCESSING_SECONDS, elapsed / 1000.0,
                  job_id=job_id, dimensions={"JobType": JOB_ORDER})
-    metrics.emit(
-        metrics.ORDERS_COMPLETED if status == STATUS_DONE
-        else metrics.ORDERS_FAILED,
-        job_id=job_id,
-        dimensions={"JobType": JOB_ORDER, "Outcome": result.status},
-    )
+    # ShopFlowOrdersFailed is what the agent-failure alarm watches, so only a
+    # genuine agent failure may reach it. A clarification is a completed
+    # order. A FAILED result for a message that named no product is recorded
+    # under its own outcome: the job still reads FAILED to the customer, but
+    # nobody is paged because a customer said hello.
+    if status == STATUS_DONE:
+        metric, outcome = metrics.ORDERS_COMPLETED, result.status
+    elif getattr(result, "failureKind", None) == FAILURE_NO_PRODUCT_NAMED:
+        metric, outcome = metrics.ORDERS_COMPLETED, "NO_PRODUCT"
+    else:
+        metric, outcome = metrics.ORDERS_FAILED, result.status
+    metrics.emit(metric, job_id=job_id,
+                 dimensions={"JobType": JOB_ORDER, "Outcome": outcome})
     return {"ok": True, "status": result.status}

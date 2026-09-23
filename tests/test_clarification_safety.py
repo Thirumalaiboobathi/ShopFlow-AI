@@ -17,6 +17,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 
+from conftest import CANONICAL_ORDER, canonical_quote_turn  # noqa: E402
 from agent.grounding import collect_numbers, unsupported_prices  # noqa: E402
 from agent.orchestrator import (  # noqa: E402
     CLARIFY_FALLBACK,
@@ -31,6 +32,7 @@ CANONICAL_ITEMS = [
     {"skuId": "W-FIN-1.5-RED-90M", "quantity": 3},
     {"skuId": "MCB-HAV-SP-32A-C", "quantity": 2},
 ]
+
 CANONICAL_TOTAL = 22306.48
 
 # Two real options, with the prices the catalogue actually holds.
@@ -186,8 +188,8 @@ def test_an_ordinary_clarification_is_untouched(seeded):
 
 
 def test_the_canonical_order_is_unaffected(seeded):
-    fake = FakeBedrock([tool_use("calculate_quote", {"items": CANONICAL_ITEMS})])
-    result = run_order_agent(seeded, "order", client=fake)
+    fake = FakeBedrock([canonical_quote_turn(CANONICAL_ITEMS)])
+    result = run_order_agent(seeded, CANONICAL_ORDER, client=fake)
 
     assert result.status == STATUS_QUOTED
     assert result.quote["total"] == CANONICAL_TOTAL

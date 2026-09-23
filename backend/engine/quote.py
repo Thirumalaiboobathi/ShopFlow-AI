@@ -32,6 +32,22 @@ class InvalidQuantityError(ValueError):
     pass
 
 
+class DuplicateSkuError(InvalidQuantityError):
+    """The same SKU was listed more than once.
+
+    These lines used to be added together. That turned one model mistake -
+    sending "2 Havells MCB" twice - into a quotation for four, and nothing
+    downstream could tell a doubled line from a real one. A quotation lists
+    each SKU once, with its whole quantity, and anything else is refused.
+    """
+
+    def __init__(self, skuIds: Sequence[str]):
+        self.skuIds = list(skuIds)
+        super().__init__(
+            f"each SKU may appear once; listed more than once: "
+            f"{', '.join(self.skuIds)}")
+
+
 class UomMismatchError(ValueError):
     """The unit the customer used cannot be reconciled with the SKU.
 
@@ -206,12 +222,20 @@ def calculate_quote(
     if unknown:
         raise UnknownSkuError(unknown)
 
+    seen, duplicated = set(), []
+    for skuId, _ in normalised:
+        if skuId in seen and skuId not in duplicated:
+            duplicated.append(skuId)
+        seen.add(skuId)
+    if duplicated:
+        raise DuplicateSkuError(duplicated)
+
     merged: Dict[str, int] = {}
     for skuId, qty in normalised:
         if not isinstance(qty, int) or isinstance(qty, bool) or qty <= 0:
             raise InvalidQuantityError(
                 f"quantity for {skuId} must be a positive integer, got {qty!r}")
-        merged[skuId] = merged.get(skuId, 0) + qty
+        merged[skuId] = qty
 
     # Units are validated before anything is priced. A line whose unit cannot
     # be reconciled is not quoted at a guessed quantity and then flagged - it

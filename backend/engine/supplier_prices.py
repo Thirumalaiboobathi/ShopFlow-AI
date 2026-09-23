@@ -39,6 +39,36 @@ DECISIONS = {CONFIRMED, REJECTED}
 
 MAX_SUPPLIER_LINES = 50
 
+# The review boundary a document row travels along:
+#
+#     EXTRACTED  ->  MATCHED  ->  REVIEW_REQUIRED  ->  CONFIRMED
+#
+# EXTRACTED       something was read off the page. A price, and nothing more.
+# MATCHED         it resolved to exactly one catalogue SKU, confidently, and
+#                 its price has not moved materially.
+# REVIEW_REQUIRED the owner must look: the SKU is ambiguous or unknown, the
+#                 characters were read with low confidence, or the price moved
+#                 far enough to matter.
+# CONFIRMED       the owner has ruled on it.
+#
+# Only CONFIRMED may reach purchasing. That is enforced not by this constant
+# but by `engine.cost_records`, which is written only on a confirmation and is
+# the single thing the planner reads.
+STATE_EXTRACTED = "EXTRACTED"
+STATE_MATCHED = "MATCHED"
+STATE_REVIEW_REQUIRED = "REVIEW_REQUIRED"
+STATE_CONFIRMED = "CONFIRMED"
+REVIEW_STATES = (STATE_EXTRACTED, STATE_MATCHED, STATE_REVIEW_REQUIRED,
+                 STATE_CONFIRMED)
+
+# Below this, a row's characters were not read confidently enough to move a
+# purchase cost without somebody looking. Textract reports per-word confidence
+# as a percentage; the sample dealer list reads at 98.6% average.
+#
+# This is the single definition. `agent.textract_reader` imports it rather
+# than keeping a second number that could drift away from this one.
+MIN_ROW_CONFIDENCE = 90.0
+
 
 class InvalidSupplierLineError(ValueError):
     pass
@@ -56,6 +86,11 @@ class SupplierLine:
     colour: Optional[str] = None
     length: Optional[str] = None
     unit: Optional[str] = None
+    # How the row was read, and how sure the reader was. Both are provenance,
+    # not business data: they decide whether a person looks at the row, and
+    # they never take part in a price comparison.
+    confidence: Optional[float] = None
+    source: Optional[str] = None
 
     def as_dict(self) -> dict:
         return {
@@ -67,6 +102,8 @@ class SupplierLine:
             "colour": self.colour,
             "length": self.length,
             "unit": self.unit,
+            "confidence": self.confidence,
+            "source": self.source,
         }
 
 
@@ -154,11 +191,13 @@ class SupplierLineResult:
     clarifyingAttribute: Optional[str] = None
     candidates: List[dict] = field(default_factory=list)
     comparison: Optional[PriceComparison] = None
+    reviewState: str = STATE_EXTRACTED
 
     def as_dict(self) -> dict:
         return {
             "line": self.line.as_dict(),
             "status": self.status,
+            "reviewState": self.reviewState,
             "skuId": self.skuId,
             "matchedName": self.matchedName,
             "clarifyingAttribute": self.clarifyingAttribute,
@@ -191,6 +230,12 @@ def build_supplier_line(raw: Dict) -> SupplierLine:
         text = str(value).strip()
         return text or None
 
+    confidence = raw.get("confidence")
+    if isinstance(confidence, bool) or not isinstance(confidence, (int, float)):
+        confidence = None
+    else:
+        confidence = round(float(confidence), 2)
+
     return SupplierLine(
         description=description,
         price=money(float(price)),
@@ -200,7 +245,41 @@ def build_supplier_line(raw: Dict) -> SupplierLine:
         colour=opt("colour"),
         length=opt("length"),
         unit=opt("unit"),
+        confidence=confidence,
+        source=opt("source"),
     )
+
+
+def review_state(result: "SupplierLineResult",
+                 decisions: Optional[Dict[str, str]] = None,
+                 min_confidence: float = MIN_ROW_CONFIDENCE) -> str:
+    """Where along the review boundary one extracted row currently sits.
+
+    Derived, never stored: it is a reading of facts that already exist - the
+    match verdict, the confidence the row was read at, whether the price moved
+    materially, and whether the owner has ruled. Nothing here decides anything
+    that was not already decided somewhere that can be tested on its own.
+
+    The default is caution. A row only reaches MATCHED by being unambiguous,
+    read confidently and unchanged in price; anything else waits for a person.
+    """
+    decided = (decisions or {}).get(result.skuId or "")
+    if decided in DECISIONS:
+        return STATE_CONFIRMED if decided == CONFIRMED else STATE_REVIEW_REQUIRED
+
+    if result.status != MATCHED:
+        # Ambiguous or unknown. The matcher refuses to choose and so does this.
+        return STATE_REVIEW_REQUIRED
+
+    confidence = result.line.confidence
+    if confidence is not None and float(confidence) < min_confidence:
+        return STATE_REVIEW_REQUIRED
+
+    if result.comparison is not None and result.comparison.materialChange:
+        # A material move is the whole reason the owner is being shown this.
+        return STATE_REVIEW_REQUIRED
+
+    return STATE_MATCHED
 
 
 def compare_price(
@@ -222,6 +301,19 @@ def compare_price(
     )
 
 
+# The share of a printed line's words a catalogue product must carry to be
+# offered for it at all. An evaluation's sample price list had "Kaveri 4-core
+# Armoured Cable 25 sqmm" - a brand this shop does not stock - and the review
+# offered "Cable Clip Clamp 20mm" for it, on the single shared word "cable"
+# (one word in seven). Held for review, so nothing was changed, but a
+# suggestion that wrong teaches the owner to stop reading suggestions.
+#
+# Applied to a single weak candidate too: that one would otherwise be MATCHED
+# and its printed price compared against the cost of an unrelated SKU.
+# Supplier review only; customer orders are matched exactly as before.
+MIN_SUPPLIER_MATCH_SCORE = 0.5
+
+
 def match_supplier_line(
     data: Dataset,
     line: SupplierLine,
@@ -240,6 +332,12 @@ def match_supplier_line(
         colour=line.colour,
         length=line.length,
     )
+
+    best = max((c.get("score") or 0.0 for c in resolution.candidates),
+               default=0.0)
+    if resolution.status in (MATCH_RESOLVED, MATCH_AMBIGUOUS) \
+            and best < MIN_SUPPLIER_MATCH_SCORE:
+        return SupplierLineResult(line=line, status=UNMATCHED)
 
     if resolution.status == MATCH_RESOLVED:
         return SupplierLineResult(
@@ -289,6 +387,14 @@ class PriceListReview:
             "ambiguousCount": sum(1 for r in self.results if r.status == AMBIGUOUS),
             "unmatchedCount": sum(1 for r in self.results if r.status == UNMATCHED),
             "materialChangeCount": len(self.materialChanges),
+            "reviewRequiredCount": sum(
+                1 for r in self.results if r.reviewState == STATE_REVIEW_REQUIRED),
+            "lowConfidenceCount": sum(
+                1 for r in self.results
+                if r.line.confidence is not None
+                and float(r.line.confidence) < MIN_ROW_CONFIDENCE),
+            "readers": sorted(
+                {r.line.source for r in self.results if r.line.source}),
             "lines": [r.as_dict() for r in self.results],
             "source": "engine.supplier_prices.review_price_list",
         }
@@ -308,10 +414,14 @@ def review_price_list(
         raise InvalidSupplierLineError(
             f"a price list may carry at most {MAX_SUPPLIER_LINES} lines")
 
-    results = [
-        match_supplier_line(data, build_supplier_line(raw), threshold)
-        for raw in raw_lines
-    ]
+    results = []
+    for raw in raw_lines:
+        result = match_supplier_line(data, build_supplier_line(raw), threshold)
+        # No decisions exist yet at extraction time, so this is the state the
+        # row starts in. The API recomputes it once the owner's rulings are
+        # known, which is why it is derived rather than stored.
+        result.reviewState = review_state(result)
+        results.append(result)
     return PriceListReview(
         supplierName=supplier_name or "Unknown supplier",
         documentDate=document_date,

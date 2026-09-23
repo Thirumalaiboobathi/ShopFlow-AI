@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import pytest
 
+from conftest import CANONICAL_ORDER, canonical_quote_turn  # noqa: E402
 from agent.grounding import (
     collect_numbers,
     deterministic_quote_summary,
@@ -60,16 +61,34 @@ CANONICAL_ITEMS = [
 ]
 
 
+
 # ---- 1. order extraction and 9. end-to-end canonical order ----
 
 def test_canonical_order_produces_the_engine_quote(seeded):
+    # One search per product, as rule 1 of the system prompt requires. This
+    # used to script a single search and quote three lines off the back of it,
+    # which is not a run the agent is allowed to have: two of those skuIds
+    # would have come from nowhere. The quotation asserted below is unchanged.
     fake = FakeBedrock([
         tool_use("search_catalog",
-                 {"requestedText": "20 Anchor modular switches",
-                  "brand": "Anchor", "category": "Switch"}),
-        tool_use("calculate_quote", {"items": CANONICAL_ITEMS}, "t2"),
+                 {"requestedText": "20 Anchor modular switches 1-Way 10A White",
+                  "brand": "Anchor", "category": "Switch",
+                  "specification": "1-Way 10A", "colour": "White"}),
+        tool_use("search_catalog",
+                 {"requestedText": "3 coils Finolex 1.5 sq mm red wire 90m",
+                  "brand": "Finolex", "category": "Wire", "colour": "Red",
+                  "length": "90m", "uom": "COIL"}, "t2"),
+        tool_use("search_catalog",
+                 {"requestedText": "2 Havells MCB SP 32A",
+                  "brand": "Havells", "category": "MCB",
+                  "specification": "SP 32A"}, "t3"),
+        tool_use("calculate_quote", {"items": CANONICAL_ITEMS}, "t4"),
     ])
-    result = run_order_agent(seeded, "20 switches, 3 coils, 2 MCB", client=fake)
+    result = run_order_agent(
+        seeded,
+        "Anna, 20 Anchor modular switches 1-Way 10A White, 3 coils Finolex "
+        "1.5 sq mm red wire 90m, 2 Havells MCB SP 32A.",
+        client=fake)
 
     assert result.status == STATUS_QUOTED
     assert result.quote["total"] == 22306.48
@@ -79,8 +98,8 @@ def test_canonical_order_produces_the_engine_quote(seeded):
 
 
 def test_agent_stops_as_soon_as_the_quote_is_produced(seeded):
-    fake = FakeBedrock([tool_use("calculate_quote", {"items": CANONICAL_ITEMS})])
-    result = run_order_agent(seeded, "order", client=fake)
+    fake = FakeBedrock([canonical_quote_turn(CANONICAL_ITEMS)])
+    result = run_order_agent(seeded, CANONICAL_ORDER, client=fake)
     assert result.status == STATUS_QUOTED
     assert result.turns == 1
     assert len(fake.calls) == 1
@@ -122,9 +141,9 @@ def test_agent_recovers_when_the_model_invents_a_sku(seeded):
     fake = FakeBedrock([
         tool_use("calculate_quote",
                  {"items": [{"skuId": "INVENTED-SKU", "quantity": 5}]}),
-        tool_use("calculate_quote", {"items": CANONICAL_ITEMS}, "t2"),
+        canonical_quote_turn(CANONICAL_ITEMS),
     ])
-    result = run_order_agent(seeded, "order", client=fake)
+    result = run_order_agent(seeded, CANONICAL_ORDER, client=fake)
 
     assert result.status == STATUS_QUOTED
     rejected = [t for t in result.trace if not t.get("ok")]
@@ -313,8 +332,8 @@ def test_ungrounded_summary_is_replaced_by_the_engines_own_words(seeded):
 
 
 def test_grounded_model_summary_is_allowed_through(seeded):
-    fake = FakeBedrock([tool_use("calculate_quote", {"items": CANONICAL_ITEMS})])
-    result = run_order_agent(seeded, "order", client=fake)
+    fake = FakeBedrock([canonical_quote_turn(CANONICAL_ITEMS)])
+    result = run_order_agent(seeded, CANONICAL_ORDER, client=fake)
     result = apply_summary(result, "The quotation comes to Rs 22306.48.")
     assert result.grounded is True
     assert result.summary == "The quotation comes to Rs 22306.48."

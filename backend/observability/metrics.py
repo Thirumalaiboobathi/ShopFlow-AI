@@ -47,6 +47,16 @@ WORKER_FAILURES = "ShopFlowWorkerFailures"
 DUPLICATE_DELIVERIES = "ShopFlowDuplicateDeliveries"
 QUEUE_SEND_FAILURES = "ShopFlowQueueSendFailures"
 
+# Business events. These count deterministic things that happened in the shop,
+# never what anything was worth: `SupplierPriceChanges` is a count of changes,
+# not a sum of money, for the same reason the rest of this module refuses
+# business figures.
+BUSINESS_EVENTS = "ShopFlowBusinessEvents"
+EVENT_PUBLISH_FAILURES = "ShopFlowEventPublishFailures"
+ALERT_PUBLISH_FAILURES = "ShopFlowAlertPublishFailures"
+DOCUMENTS_EXTRACTED = "ShopFlowDocumentsExtracted"
+DOCUMENT_EXTRACTION_FAILURES = "ShopFlowDocumentExtractionFailures"
+
 _UNITS: Dict[str, str] = {
     ORDERS_QUEUED: "Count",
     ORDERS_COMPLETED: "Count",
@@ -55,20 +65,58 @@ _UNITS: Dict[str, str] = {
     WORKER_FAILURES: "Count",
     DUPLICATE_DELIVERIES: "Count",
     QUEUE_SEND_FAILURES: "Count",
+    BUSINESS_EVENTS: "Count",
+    EVENT_PUBLISH_FAILURES: "Count",
+    ALERT_PUBLISH_FAILURES: "Count",
+    DOCUMENTS_EXTRACTED: "Count",
+    DOCUMENT_EXTRACTION_FAILURES: "Count",
 }
 
 # Deliberately two, and deliberately low-cardinality. Every distinct dimension
 # VALUE creates a separate billed metric, so a dimension carrying a job id
 # would create one metric per order. `jobId` belongs in the log line beside
 # the metric - searchable, free, and not retained as a metric forever.
-_SAFE_DIMENSIONS = ("JobType", "Outcome")
+_SAFE_DIMENSIONS = ("JobType", "Outcome", "EventType", "Reader")
+
+# Metrics that are ALSO published with no dimensions at all.
+#
+# A metric emitted only under JobType/Outcome exists in CloudWatch only under
+# that exact pair, so an alarm has to name one - and "an order failed" is not
+# a question about one pair. An agent failure marks the job FAILED and
+# acknowledges the message, which is correct (it will never succeed on a
+# retry) and which is also why it never reaches the dead-letter queue and why
+# the DLQ alarm has never seen one.
+#
+# So these two are published a second time with an empty dimension set, which
+# is what an alarm can actually watch. It costs one extra custom metric each
+# and is the whole of the fix: a failure that is invisible to every alarm is
+# not being monitored, however many alarms there are.
+_AGGREGATE_METRICS = frozenset({
+    ORDERS_FAILED, WORKER_FAILURES,
+    # Publishing an event or an alert is not business logic, so a failure here
+    # must be visible without being able to change an order. Undimensioned so
+    # a single alarm or dashboard widget can watch it.
+    EVENT_PUBLISH_FAILURES, ALERT_PUBLISH_FAILURES,
+    DOCUMENT_EXTRACTION_FAILURES,
+})
 
 # Job types and outcomes are closed sets. Anything else is dropped, which
 # bounds cardinality by construction rather than by care.
 _ALLOWED_VALUES = {
     "JobType": {"ORDER", "PRICE_LIST", "TRANSCRIPT", "UNKNOWN"},
+    # NO_PRODUCT: a message naming nothing the shop sells, answered without
+    # an order - not a failure. THROTTLED: a retryable failure caused by the
+    # Bedrock request-rate quota, counted apart from other transient errors.
     "Outcome": {"QUOTED", "NEEDS_CLARIFICATION", "NOT_FOUND", "REVIEWED",
-                "FAILED", "DUPLICATE", "RETRYABLE", "TERMINAL", "UNKNOWN"},
+                "FAILED", "DUPLICATE", "RETRYABLE", "THROTTLED", "TERMINAL",
+                "NO_PRODUCT", "UNKNOWN"},
+    # The closed set of business events. A typo becomes a dropped dimension
+    # rather than a new billed metric, exactly as with the two above.
+    "EventType": {"SupplierPriceChanged", "StockoutDetected",
+                  "LowMarginDetected", "PurchasePlanGenerated",
+                  "OrderNeedsClarification", "OrderProcessingFailed"},
+    # Which reader produced a document's rows.
+    "Reader": {"TEXTRACT", "NOVA_PRO", "NONE"},
 }
 
 
@@ -98,14 +146,19 @@ def emit(metric: str, value: float = 1, *,
         if metric not in _UNITS:
             return None
         clean = _clean_dimensions(dimensions)
+        # The dimension SETS this metric is published under. One grouping for
+        # the breakdown, plus - for the two metrics an alarm watches - the
+        # undimensioned total. CloudWatch bills per set, so this list stays
+        # short by construction.
+        sets = [list(clean)] if clean else [[]]
+        if metric in _AGGREGATE_METRICS and [] not in sets:
+            sets.append([])
         document = {
             "_aws": {
                 "Timestamp": int(time.time() * 1000),
                 "CloudWatchMetrics": [{
                     "Namespace": NAMESPACE,
-                    # One dimension SET. CloudWatch bills per unique
-                    # combination, so this stays as a single grouping.
-                    "Dimensions": [list(clean)] if clean else [[]],
+                    "Dimensions": sets,
                     "Metrics": [{"Name": metric, "Unit": _UNITS[metric]}],
                 }],
             },

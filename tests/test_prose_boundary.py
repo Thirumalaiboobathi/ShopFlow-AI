@@ -24,6 +24,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 
+from conftest import CANONICAL_ORDER, canonical_quote_turn  # noqa: E402
 from agent.grounding import unresolved_requests  # noqa: E402
 from agent.orchestrator import (  # noqa: E402
     CLARIFY_FALLBACK,
@@ -41,6 +42,7 @@ CANONICAL_ITEMS = [
     {"skuId": "W-FIN-1.5-RED-90M", "quantity": 3},
     {"skuId": "MCB-HAV-SP-32A-C", "quantity": 2},
 ]
+
 CANONICAL_TOTAL = 22306.48
 PARTIAL_ITEMS = [
     {"skuId": "W-FIN-1.5-RED-90M", "quantity": 3},
@@ -216,8 +218,12 @@ def test_1c_a_refined_search_is_not_reported_as_unresolved(seeded):
     """Vague, then precise. One product, and it resolved - so prose after it
     is the agent failing to finish, not an unanswered question."""
     text = "20 Anchor modular switches 1-Way 10A White"
+    # A specification from another line. The length that used to be used here
+    # no longer reaches the matcher - `line_guard` removes a length the line
+    # never states - and this test is about what happens after a search fails,
+    # not about which contamination caused it.
     vague = {"requestedText": text, "brand": "Anchor", "category": "Switch",
-             "length": "90m"}
+             "specification": "SP 32A"}
     precise = {"requestedText": text, "brand": "Anchor", "category": "Switch",
                "specification": "1-Way 10A", "colour": "White"}
     assert run_tool(seeded, "search_catalog", vague)["status"] == "NOT_FOUND"
@@ -285,8 +291,8 @@ def test_6b_an_injection_wrapped_around_a_real_unresolved_product(seeded):
 # ---------------------------------------------------------------------------
 
 def test_12_the_canonical_order_still_quotes(seeded):
-    fake = FakeBedrock([tool_use("calculate_quote", {"items": CANONICAL_ITEMS})])
-    result = run_order_agent(seeded, "order", client=fake)
+    fake = FakeBedrock([canonical_quote_turn(CANONICAL_ITEMS)])
+    result = run_order_agent(seeded, CANONICAL_ORDER, client=fake)
 
     assert result.status == STATUS_QUOTED
     assert result.quote["total"] == CANONICAL_TOTAL

@@ -692,8 +692,10 @@ def test_8e_the_worker_consumes_the_queue_with_bounded_concurrency(template):
     assert len(mappings) == 1
     properties = mappings[0]["Properties"]
     assert properties["BatchSize"] == 1
-    assert properties["ScalingConfig"]["MaximumConcurrency"] == 5
-    assert properties["MaximumConcurrency"] if False else True  # shape varies
+    # Two: the account's Bedrock quota (25 Nova Pro requests a minute) is the
+    # real ceiling, and above two workers extra concurrency only converts
+    # queued orders into throttled ones. Two is the lowest value SQS accepts.
+    assert properties["ScalingConfig"]["MaximumConcurrency"] == 2
 
 
 def test_8f_bounded_concurrency_leaves_room_for_the_api(template):
@@ -710,17 +712,50 @@ def test_8g_no_function_reserves_concurrency(template):
         assert "ReservedConcurrentExecutions" not in fn["Properties"]
 
 
-def test_8h_there_are_three_alarms_each_with_a_description(template):
+def test_8h_there_are_four_alarms_each_with_a_description(template):
     alarms = _resources(template, "AWS::CloudWatch::Alarm")
-    assert len(alarms) == 3
+    assert len(alarms) == 4
     names = {a["Properties"]["AlarmName"] for a in alarms}
     assert names == {
         "shopflow-orders-dlq-not-empty",
         "shopflow-worker-errors-sustained",
         "shopflow-orders-queue-backlog",
+        # An agent failure never reaches the dead-letter queue, so the first
+        # three alarms are silent while a customer is told their order could
+        # not be processed. This is the one that sees it.
+        "shopflow-order-agent-failures",
     }
     for alarm in alarms:
         assert len(alarm["Properties"]["AlarmDescription"]) > 40
+
+
+def test_8h2_the_agent_failure_alarm_watches_the_metric_the_worker_emits(template):
+    """The alarm and the emitter must agree on the name, or it watches nothing."""
+    alarm = [a for a in _resources(template, "AWS::CloudWatch::Alarm")
+             if a["Properties"]["AlarmName"] == "shopflow-order-agent-failures"][0]
+    assert alarm["Properties"]["Namespace"] == metrics.NAMESPACE
+    assert alarm["Properties"]["MetricName"] == metrics.ORDERS_FAILED
+    # Undimensioned, which is the only shape an alarm can watch.
+    assert not alarm["Properties"].get("Dimensions")
+    assert alarm["Properties"]["Threshold"] == 0
+    assert metrics.ORDERS_FAILED in metrics._AGGREGATE_METRICS
+
+
+def test_8h3_a_safe_clarification_is_not_counted_as_a_failure(template):
+    """An alarm that fires on correct behaviour is one people learn to ignore."""
+    failed = metrics.emit(metrics.ORDERS_FAILED,
+                          dimensions={"JobType": "ORDER", "Outcome": "FAILED"})
+    clarified = metrics.emit(metrics.ORDERS_COMPLETED,
+                             dimensions={"JobType": "ORDER",
+                                         "Outcome": "NEEDS_CLARIFICATION"})
+
+    sets = failed["_aws"]["CloudWatchMetrics"][0]["Dimensions"]
+    assert [] in sets                      # the alarm can see this one
+    assert metrics.ORDERS_FAILED in failed
+    # A clarification is a completed order and is published only under its
+    # own breakdown, so it can never reach the failure alarm.
+    assert metrics.ORDERS_FAILED not in clarified
+    assert [] not in clarified["_aws"]["CloudWatchMetrics"][0]["Dimensions"]
 
 
 def test_8i_the_dlq_alarm_fires_on_a_single_message(template):
@@ -736,16 +771,69 @@ def test_8i_the_dlq_alarm_fires_on_a_single_message(template):
     assert alarm["Properties"]["ComparisonOperator"] == "GreaterThanThreshold"
 
 
-def test_8j_no_alarm_claims_to_notify_anyone(template):
-    """There is no SNS topic in this stack yet.
+def test_8j_every_alarm_notifies_the_owner_alerts_topic(template):
+    """Every alarm has an action, and the action is the stack's one topic.
 
-    These alarms change state and are visible in the console. They do not
-    email anyone, and the documentation says so rather than implying a
-    notification path that does not exist.
+    This used to assert the opposite - that no alarm notified anybody - and an
+    independent evaluator rightly called the alarms decorative. The topic is
+    the existing owner-alerts topic; no second topic and no subscription are
+    created here, so deploying still emails nobody until someone subscribes.
     """
-    for alarm in _resources(template, "AWS::CloudWatch::Alarm"):
-        assert not alarm["Properties"].get("AlarmActions")
-    assert _resources(template, "AWS::SNS::Topic") == []
+    topics = template.find_resources("AWS::SNS::Topic")
+    assert {t["Properties"]["TopicName"] for t in topics.values()} == {
+        "shopflow-owner-alerts"}
+    topic_id = next(iter(topics))
+
+    alarms = _resources(template, "AWS::CloudWatch::Alarm")
+    assert len(alarms) == 4
+    for alarm in alarms:
+        assert alarm["Properties"]["AlarmActions"] == [{"Ref": topic_id}],             alarm["Properties"]["AlarmName"]
+
+
+def test_8j1_cloudwatch_may_publish_to_the_topic(template):
+    """An alarm action is refused at publish time unless the topic policy
+    admits CloudWatch.
+
+    The EventBridge target replaces SNS's default topic policy with one that
+    admits events.amazonaws.com only - which is exactly the policy on the live
+    topic today. Both principals must be present, CloudWatch's scoped to this
+    account's ShopFlow alarms.
+    """
+    policies = _resources(template, "AWS::SNS::TopicPolicy")
+    statements = [st for p in policies
+                  for st in p["Properties"]["PolicyDocument"]["Statement"]]
+    principals = {st["Principal"]["Service"] for st in statements
+                  if st.get("Effect") == "Allow"
+                  and "sns:Publish" in json.dumps(st.get("Action"))}
+    assert {"events.amazonaws.com", "cloudwatch.amazonaws.com"} <= principals
+
+    cloudwatch = [st for st in statements
+                  if st["Principal"]["Service"] == "cloudwatch.amazonaws.com"][0]
+    condition = json.dumps(cloudwatch["Condition"])
+    assert "aws:SourceAccount" in condition
+    assert ":alarm:shopflow-*" in condition
+
+
+def test_8j2_the_owner_alert_topic_has_no_subscription_by_default(template):
+    """Deploying must not sign anybody up for email.
+
+    `enableBusinessAlerts` is off unless it is deliberately set, so the
+    default template carries a topic with nothing subscribed to it. Events
+    are still published and still routed; they simply reach nobody, which is
+    the right default for a public demo.
+    """
+    assert _resources(template, "AWS::SNS::Subscription") == []
+
+
+def test_8j3_no_email_address_is_written_into_the_stack_source():
+    """An address belongs in context, never in a file that gets committed."""
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "infrastructure" / "shopflow_stack.py").read_text(
+        encoding="utf-8")
+    assert "@" not in source.replace("@example", "").replace(
+        "aws-cdk-lib", "")
 
 
 def test_8k_the_budget_survives(template):
@@ -754,16 +842,66 @@ def test_8k_the_budget_survives(template):
     assert budgets[0]["Properties"]["Budget"]["BudgetLimit"]["Amount"] == 25
 
 
-def test_8l_no_new_aws_service_was_introduced_beyond_sqs_and_alarms(template):
-    """Phase 1 is a reliability phase, not a service-count phase."""
+def test_8l_no_service_is_added_that_nothing_uses(template):
+    """The list that matters, minus the two this build deliberately added.
+
+    EventBridge and SNS were added on purpose: business events are routed to
+    a bus, and the alert-worthy ones reach an owner topic. They are asserted
+    positively in the two tests below, so removing them from this list does
+    not leave them unchecked.
+
+    Everything still forbidden is something nothing in ShopFlow uses, and the
+    point of the test is unchanged - a service may not appear because it
+    sounds impressive. Step Functions in particular: the document reader is a
+    single synchronous Textract call and needs no state machine.
+    """
     kinds = {r["Type"] for r in template.to_json()["Resources"].values()}
-    for forbidden in ("AWS::Events::Rule", "AWS::Events::EventBus",
-                      "AWS::SNS::Topic", "AWS::StepFunctions::StateMachine",
+    for forbidden in ("AWS::StepFunctions::StateMachine",
                       "AWS::WAFv2::WebACL", "AWS::KMS::Key",
                       "AWS::CloudTrail::Trail", "AWS::Cognito::UserPool",
                       "AWS::OpenSearchServerless::Collection",
-                      "AWS::RDS::DBInstance", "AWS::EC2::NatGateway"):
+                      "AWS::RDS::DBInstance", "AWS::EC2::NatGateway",
+                      "AWS::Bedrock::Agent", "AWS::ElasticLoadBalancingV2::LoadBalancer"):
         assert forbidden not in kinds, f"{forbidden} was added"
+
+
+def test_8m_there_is_exactly_one_bus_one_topic_and_one_rule(template):
+    """Small on purpose. One bus, one topic, one rule between them."""
+    buses = _resources(template, "AWS::Events::EventBus")
+    rules = _resources(template, "AWS::Events::Rule")
+    topics = _resources(template, "AWS::SNS::Topic")
+
+    assert [b["Properties"]["Name"] for b in buses] == \
+        ["shopflow-business-events"]
+    assert [t["Properties"]["TopicName"] for t in topics] == \
+        ["shopflow-owner-alerts"]
+    assert len(rules) == 1
+
+    rule = rules[0]["Properties"]
+    assert rule["EventPattern"]["source"] == ["shopflow.business"]
+    # A clarification is correct behaviour and must not become an email.
+    assert "OrderNeedsClarification" not in rule["EventPattern"]["detail-type"]
+    assert set(rule["EventPattern"]["detail-type"]) == {
+        "SupplierPriceChanged", "StockoutDetected", "LowMarginDetected",
+        "OrderProcessingFailed", "PurchasePlanGenerated"}
+
+
+def test_8n_the_dashboard_is_operational_not_decorative(template):
+    """One dashboard, and no business figures anywhere on it."""
+    import json as _json
+
+    dashboards = _resources(template, "AWS::CloudWatch::Dashboard")
+    assert len(dashboards) == 1
+    assert dashboards[0]["Properties"]["DashboardName"] == "shopflow-operations"
+
+    body = _json.dumps(dashboards[0]["Properties"]["DashboardBody"])
+    for forbidden in ("22306", "24993", "24996", "sellingPrice", "costPrice",
+                      "creditLimit", "margin\\u20b9", "Revenue"):
+        assert forbidden not in body, forbidden
+    # It charts what the application already emits, and nothing else.
+    assert "ShopFlowOrdersCompleted" in body
+    assert "ShopFlowOrdersFailed" in body
+    assert "ShopFlowBusinessEvents" in body
 
 
 # ---------------------------------------------------------------------------

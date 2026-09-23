@@ -140,9 +140,12 @@ def test_every_route_declares_an_audience():
 
     classified = handler.OWNER_ROUTES | handler.CUSTOMER_FACING_ROUTES
     unclassified = set(handler.ROUTES) - classified
-    # Routes that carry no business figures at all need no audience.
-    neutral = {"GET /api/languages", "GET /api/demo", "GET /api/customers",
-               "GET /api/customers/{customerId}", "POST /api/voice/transcribe"}
+    # Routes that carry no business figures at all need no audience. The two
+    # khata routes used to be listed here as carrying none, which was wrong:
+    # a khata account is a name, a phone number, a credit limit and an
+    # outstanding balance. They are owner routes now.
+    neutral = {"GET /api/languages", "GET /api/demo",
+               "POST /api/voice/transcribe"}
     assert unclassified <= neutral, unclassified
     assert not (handler.OWNER_ROUTES & handler.CUSTOMER_FACING_ROUTES)
 
@@ -157,6 +160,14 @@ def test_the_endpoints_that_carry_supplier_cost_are_the_declared_owner_ones():
         "POST /api/purchase-plans",
         "POST /api/supplier-price-lists",
         "POST /api/price-decisions",
+        # Khata accounts: name, phone number, credit limit, balance.
+        "GET /api/customers",
+        "GET /api/customers/{customerId}",
+        # A credit decision states the limit and the balance it was made
+        # against, so it is an owner answer, not a customer-facing one.
+        "POST /api/credit/check",
+        # Supplier documents, margin alerts and queue operations.
+        "GET /api/intelligence",
     })
 
 
@@ -177,3 +188,123 @@ def test_margin_and_purchasing_figures_are_unchanged(data):
 
     plan = build_purchase_plan(data, 25000)
     assert plan["budget"] == 25000
+
+
+# ---------------------------------------------------------------------------
+# The demo-owner gate
+# ---------------------------------------------------------------------------
+# An independent evaluation read supplier unit costs, supplier identities, and
+# synthetic contractor names, phone numbers, credit limits and balances out of
+# this API with plain unauthenticated requests. Owner routes now require the
+# caller to say it is asking as the shop owner.
+#
+# These tests assert what that gate does and, just as deliberately, what it
+# does not do. It is not authentication and nothing here pretends otherwise.
+
+OWNER_GATE_HEADERS = {"x-shopflow-demo-owner": "demo-workspace"}
+
+
+def _handler():
+    sys.path.insert(0, str(ROOT / "backend" / "lambdas" / "api"))
+    import handler  # noqa: E402
+    return handler
+
+
+def _owner_events(handler):
+    """One minimal event per owner route."""
+    return {
+        "GET /api/customers": {},
+        "GET /api/customers/{customerId}": {
+            "pathParameters": {"customerId": "CUST-RAVI-001"}},
+        "POST /api/credit/check": {
+            "body": json.dumps({"customerId": "CUST-RAVI-001",
+                                "orderTotal": 4200})},
+        "POST /api/purchase-plans": {"body": json.dumps({"budget": 25000})},
+        "POST /api/shop-queries": {"body": json.dumps({"transcript": "hi"})},
+        "POST /api/supplier-price-lists": {"body": json.dumps({})},
+        "POST /api/price-decisions": {"body": json.dumps({})},
+        "GET /api/intelligence": {},
+    }
+
+
+def test_an_unmarked_request_to_an_owner_route_is_refused():
+    handler = _handler()
+    for route, event in _owner_events(handler).items():
+        assert route in handler.OWNER_ROUTES, route
+        response = handler.handler(dict(event, routeKey=route), None)
+        assert response["statusCode"] == 401, route
+        assert response["headers"]["x-shopflow-audience"] == "owner"
+
+
+def test_a_refused_owner_route_hands_back_no_business_data():
+    """The refusal must not be a leak of its own."""
+    handler = _handler()
+    for route, event in _owner_events(handler).items():
+        body = handler.handler(dict(event, routeKey=route), None)["body"]
+        for internal in ("unitCost", "costPrice", "supplierId", "supplierName",
+                         "creditLimit", "outstandingAmount", "phone",
+                         "marginPerUnit", "customerName"):
+            assert internal not in body, (route, internal)
+
+
+def test_the_gate_does_not_claim_to_be_authentication():
+    """An evaluator will work this out in seconds. It should not have to."""
+    handler = _handler()
+    body = json.loads(handler.handler({"routeKey": "GET /api/customers"},
+                                      None)["body"])
+    assert body["demoGate"] is True
+    assert body["isAuthentication"] is False
+    assert "not authentication" in body["note"].lower()
+    assert "synthetic" in body["note"].lower()
+
+    source = (ROOT / "backend" / "lambdas" / "api" / "handler.py").read_text(
+        encoding="utf-8").lower()
+    for forbidden in ("secure owner login", "authenticated owner session is "
+                      "enforced", "production authentication"):
+        assert forbidden not in source, forbidden
+
+
+def test_a_marked_request_reaches_the_route():
+    handler = _handler()
+    response = handler.handler(
+        {"routeKey": "GET /api/customers", "headers": OWNER_GATE_HEADERS}, None)
+    assert response["statusCode"] == 200
+    assert json.loads(response["body"])["synthetic"] is True
+
+
+def test_the_header_name_is_read_case_insensitively():
+    """API Gateway does not promise a casing, so neither may the gate."""
+    handler = _handler()
+    for key in ("X-ShopFlow-Demo-Owner", "x-shopflow-demo-owner",
+                "X-SHOPFLOW-DEMO-OWNER"):
+        response = handler.handler(
+            {"routeKey": "GET /api/customers",
+             "headers": {key: "demo-workspace"}}, None)
+        assert response["statusCode"] == 200, key
+
+
+def test_a_wrong_or_empty_marker_is_refused():
+    handler = _handler()
+    for value in ("", "  ", "demo", "owner", "true"):
+        response = handler.handler(
+            {"routeKey": "GET /api/customers",
+             "headers": {"x-shopflow-demo-owner": value}}, None)
+        assert response["statusCode"] == 401, value
+
+
+def test_customer_facing_routes_stay_open_and_unchanged():
+    """The gate may not reach the public surface."""
+    handler = _handler()
+    for route in handler.CUSTOMER_FACING_ROUTES:
+        response = handler.handler({"routeKey": route}, None)
+        # Whatever else it says - a validation error, a missing job - it is
+        # never the gate, and it never asks the caller to prove it is the owner.
+        assert response["statusCode"] != 401, route
+        assert "demoGate" not in response["body"], route
+
+
+def test_every_owner_route_is_gated_by_membership_alone():
+    """Adding a route to OWNER_ROUTES gates it. Nobody has to remember to."""
+    handler = _handler()
+    for route in handler.OWNER_ROUTES:
+        assert handler.handler({"routeKey": route}, None)["statusCode"] == 401

@@ -86,7 +86,21 @@ def quote_of(seeded, items):
 
 
 # The leaked attribute that caused the live failure: a switch has no length.
+# A switch line that cannot resolve, because another line's specification
+# landed on it.
+#
+# This was the original leak - length="90m" from the wire line - and it is
+# now repaired before the matcher ever sees it: `line_guard` removes a length
+# the line's own words never state. See HISTORIC_LENGTH_LEAK below, which
+# asserts exactly that. The completeness guard still has to work when a line
+# fails for a reason the line guard cannot see, and a specification from
+# another line is one: "SP 32A" and "1-Way 10A" are both legitimate ways to
+# write a specification, and nothing deterministic can tell which line a
+# specification came from. So that is what is used here.
 LEAKED_SWITCH_SEARCH = {"requestedText": SWITCH, "brand": "Anchor",
+                        "category": "Switch", "specification": "SP 32A",
+                        "uom": "PIECE"}
+HISTORIC_LENGTH_LEAK = {"requestedText": SWITCH, "brand": "Anchor",
                         "category": "Switch", "specification": "1-Way 10A",
                         "length": "90m", "uom": "PIECE"}
 GOOD_SWITCH_SEARCH = {"requestedText": SWITCH, "brand": "Anchor",
@@ -167,6 +181,23 @@ def test_the_guard_invents_no_sku(seeded):
 # ---------------------------------------------------------------------------
 # A. NOT_FOUND + resolved items -> cannot be QUOTED
 # ---------------------------------------------------------------------------
+
+def test_the_historic_length_leak_no_longer_reaches_the_matcher(seeded):
+    """The ₹20,740.48 quote began here. The leak is now caught one step earlier.
+
+    This does not replace the completeness guard and does not make it
+    optional - every other test in this file still holds. It records that the
+    specific contamination that produced an invalid partial quotation is now
+    removed from the search before it runs, so the guard is no longer the only
+    thing standing between it and a customer.
+    """
+    payload = search(seeded, **HISTORIC_LENGTH_LEAK)
+
+    assert payload["status"] == "RESOLVED"
+    assert payload["skuId"] == "SW-ANC-1W10A"
+    assert [c["filter"] for c in payload["lineIsolation"]["changes"]] == ["length"]
+    assert payload["lineIsolation"]["changes"][0]["to"] is None
+
 
 def test_a_not_found_line_blocks_the_quote(seeded):
     matches = [search(seeded, **LEAKED_SWITCH_SEARCH),
@@ -262,11 +293,21 @@ def test_a_quote_with_no_searches_is_untouched(seeded):
     the prompt and the model quotes it directly. calculate_quote already
     refuses a skuId that is not in the catalogue, so the SKU is still real.
     """
+    quote = calculate_quote(seeded, CANONICAL_ITEMS).as_dict()
+    assert unsatisfied_lines([], quote) == []
+
+
+def test_a_quote_no_order_text_supports_is_held_for_its_quantity(seeded):
+    """The same no-search quote, run end to end against an order text that
+    states no quantities. This used to be QUOTED. Nothing in "order" says 20,
+    3 or 2, so those numbers came from the model alone, and a quantity only
+    the model vouches for is not one a customer is billed for."""
     fake = FakeBedrock([tool_use("calculate_quote", {"items": CANONICAL_ITEMS})])
     result = run_order_agent(seeded, "order", client=fake)
 
-    assert result.status == STATUS_QUOTED
-    assert result.quote["total"] == CANONICAL_TOTAL
+    assert result.status == STATUS_NEEDS_CLARIFICATION
+    assert result.quote is None
+    assert result.clarification["clarifyingAttribute"] == "quantity"
 
 
 # ---------------------------------------------------------------------------
@@ -438,3 +479,78 @@ def test_the_guard_works_on_an_unrelated_product(seeded):
     assert bell["status"] == "RESOLVED"
     assert bell["skuId"] not in {l["skuId"] for l in socket_quote["lines"]}
     assert len(unsatisfied_lines([bell], socket_quote)) == 1
+
+
+# ---------------------------------------------------------------------------
+# G. a line the model never searched for at all
+# ---------------------------------------------------------------------------
+# The hole this file did not cover. Every check above reads `matches`, which
+# is the model's own account of the order, so a line it simply skipped is
+# invisible to all of them and they all agree the quote is complete.
+#
+# Found live: a six-line order came back QUOTED with five lines on it. The
+# arithmetic was right, no SKU was invented and nothing was ambiguous - the
+# customer would simply have been billed for five of the six things they
+# asked for. That is the Rs 20,740.48 defect arriving by a different road.
+
+def test_a_product_named_in_the_order_but_never_searched_blocks_the_quote(seeded):
+    fake = FakeBedrock([
+        tool_uses(("search_catalog", GOOD_SWITCH_SEARCH),
+                  ("search_catalog", WIRE_SEARCH)),
+        tool_uses(("calculate_quote", {"items": [
+            {"skuId": "SW-ANC-1W10A", "quantity": 20},
+            {"skuId": "W-FIN-1.5-RED-90M", "quantity": 3, "uom": "COIL"},
+        ]})),
+    ])
+    order = f"Anna, {SWITCH}, {WIRE}, {MCB}"
+    result = run_order_agent(seeded, order, client=fake)
+
+    assert result.status == STATUS_NEEDS_CLARIFICATION
+    assert result.quote is None
+    assert "Havells" in result.clarification["question"]
+
+
+def test_the_question_does_not_say_the_product_is_unstocked(seeded):
+    """Havells is on the shelf. Nobody looked for it - that is a different thing."""
+    fake = FakeBedrock([
+        tool_uses(("search_catalog", GOOD_SWITCH_SEARCH),
+                  ("search_catalog", WIRE_SEARCH)),
+        tool_uses(("calculate_quote", {"items": [
+            {"skuId": "SW-ANC-1W10A", "quantity": 20},
+            {"skuId": "W-FIN-1.5-RED-90M", "quantity": 3, "uom": "COIL"},
+        ]})),
+    ])
+    question = run_order_agent(
+        seeded, f"Anna, {SWITCH}, {WIRE}, {MCB}",
+        client=fake).clarification["question"]
+
+    assert "not in the catalogue" not in question
+    assert "no product was looked up" in question
+
+
+def test_a_fully_searched_order_is_not_blocked_by_the_coverage_check(seeded):
+    """The check may only ever fire on something that was genuinely skipped."""
+    fake = FakeBedrock([
+        tool_uses(("search_catalog", GOOD_SWITCH_SEARCH),
+                  ("search_catalog", WIRE_SEARCH),
+                  ("search_catalog", {"requestedText": MCB, "brand": "Havells",
+                                      "category": "MCB",
+                                      "specification": "SP 32A"})),
+        tool_uses(("calculate_quote", {"items": CANONICAL_ITEMS})),
+    ])
+    result = run_order_agent(seeded, f"Anna, {SWITCH}, {WIRE}, {MCB}",
+                             client=fake)
+
+    assert result.status == STATUS_QUOTED
+    assert result.quote["total"] == CANONICAL_TOTAL
+    assert len(result.quote["lines"]) == 3
+
+
+def test_the_coverage_check_reads_only_real_catalogue_words(seeded):
+    """A greeting or an adjective may not become a missing product."""
+    from agent.line_guard import uncovered_terms
+
+    matches = [search(seeded, **GOOD_SWITCH_SEARCH)]
+    order = ("Anna, please, urgently, best quality, 20 Anchor modular "
+             "switches 1-Way 10A White for the new site")
+    assert uncovered_terms(seeded, order, matches) == []

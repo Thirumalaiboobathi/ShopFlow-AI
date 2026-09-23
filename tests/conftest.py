@@ -109,3 +109,35 @@ def make_order(
 @pytest.fixture(scope="session")
 def seeded() -> Dataset:
     return build_dataset()
+
+
+# The canonical order as a customer writes it, and one model turn that reads
+# it properly: a search per line, then the quotation, all in the same turn.
+#
+# A scripted quotation needs both halves now. The quote is held to the
+# quantities the customer wrote (agent.quantity_guard), and to a search for
+# every product the customer named (agent.line_guard.uncovered_terms), so a
+# quote scripted against the placeholder text "order", or against the real
+# order with nothing searched, is correctly withheld.
+CANONICAL_ORDER = ("Anna, 20 Anchor modular switches 1-Way 10A, "
+                   "3 coils Finolex 1.5 sq mm red wire 90m, 2 Havells MCB SP 32A.")
+
+CANONICAL_SEARCHES = [
+    {"requestedText": "20 Anchor modular switches 1-Way 10A",
+     "brand": "Anchor", "category": "Switch", "specification": "1-Way 10A"},
+    {"requestedText": "3 coils Finolex 1.5 sq mm red wire 90m",
+     "brand": "Finolex", "category": "Wire", "colour": "Red", "length": "90m",
+     "uom": "COIL"},
+    {"requestedText": "2 Havells MCB SP 32A",
+     "brand": "Havells", "category": "MCB", "specification": "SP 32A"},
+]
+
+
+def canonical_quote_turn(items, prefix: str = "c") -> dict:
+    """One assistant turn: the three canonical searches, then calculate_quote."""
+    content = [{"toolUse": {"toolUseId": f"{prefix}{i}", "name": "search_catalog",
+                            "input": search}}
+               for i, search in enumerate(CANONICAL_SEARCHES)]
+    content.append({"toolUse": {"toolUseId": f"{prefix}q", "name": "calculate_quote",
+                                "input": {"items": items}}})
+    return {"role": "assistant", "content": content}
