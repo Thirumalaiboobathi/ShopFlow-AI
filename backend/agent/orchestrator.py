@@ -318,6 +318,8 @@ def run_order_agent(
         result.failureKind = FAILURE_AGENT
 
     result.matches = matches
+    if result.status == STATUS_FAILED:
+        result = _clarify_rejected_quantity(result, trace)
     if result.status == STATUS_NEEDS_CLARIFICATION:
         result = _prefer_unit_question(result, data)
     if result.status == STATUS_QUOTED:
@@ -327,6 +329,59 @@ def run_order_agent(
     result.trace = trace
     result.elapsedMs = (time.perf_counter() - started) * 1000
     result.modelId = model_id
+    return result
+
+
+def _clarify_rejected_quantity(result: AgentResult, trace: List[dict]) -> AgentResult:
+    """An order that failed only because the engine refused its quantity.
+
+    "0 Havells MCB" is an ordinary thing for a customer to write by mistake.
+    The engine refuses a quantity of zero, as it should, and the model then
+    either gave up in prose or sent the same refused call again until the loop
+    stopped it. Both ended as FAILED - which told the shop owner the system
+    had broken, when the honest answer is that nobody knows how many breakers
+    the customer wants.
+
+    The evidence is the engine's, never the model's: `calculate_quote` raised
+    INVALID_QUANTITY, and that rejection is on the trace. The model's prose is
+    not read.
+
+    Deliberately narrow. It applies only when the run would otherwise FAIL,
+    and only when every tool rejection in the run was a quantity rejection -
+    if anything else also went wrong, a quantity question would be a false
+    account of what happened, so the failure stands. It produces no quote and
+    names no number: it can only turn a failure into a question, which is the
+    one direction the quantity guard permits.
+    """
+    rejected = [e for e in trace if e.get("ok") is False]
+    if not rejected or any(e.get("errorKind") != "INVALID_QUANTITY"
+                           for e in rejected):
+        return result
+
+    # The customer's own words for the refused line, when the matcher has them.
+    refused = {item.get("skuId")
+               for entry in rejected
+               for item in ((entry.get("input") or {}).get("items") or [])
+               if isinstance(item, dict)}
+    requested = ""
+    for match in result.matches or []:
+        if match.get("status") == RESOLVED and match.get("skuId") in refused:
+            requested = (match.get("requestedText") or "").strip()
+            break
+
+    question = (f'Please confirm how many are wanted for "{requested}".'
+                if requested else "Please confirm the quantity wanted.")
+    result.status = STATUS_NEEDS_CLARIFICATION
+    result.quote = None
+    result.clarification = {
+        "requestedText": requested,
+        "clarifyingAttribute": "quantity",
+        "question": question,
+        "options": [],
+    }
+    result.summary = question
+    result.message = ""
+    result.failureKind = None
     return result
 
 

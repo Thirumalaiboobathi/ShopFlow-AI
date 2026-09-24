@@ -17,6 +17,7 @@ quotation at the model's number.
 from __future__ import annotations
 
 import random
+import re
 
 import pytest
 
@@ -139,11 +140,16 @@ def test_requested_two_model_sends_zero_is_rejected_by_the_tool(seeded):
     assert exc.value.kind == "INVALID_QUANTITY"
 
     # And a model that keeps sending it never reaches a quotation.
+    #
+    # This used to end FAILED. The only thing wrong was the quantity, and the
+    # engine said so, so the order now goes back to the owner as a quantity
+    # question - never as a quote, which is the part this test exists for.
     zero = quote_call((MCB, 0))
     result = run_order_agent(seeded, "2 Havells MCB SP 32A", client=FakeBedrock(
         [turn(("search_catalog", MCB_SEARCH))] + [turn(zero)] * 3))
     assert_not_quoted(result)
-    assert result.status == STATUS_FAILED
+    assert result.status == STATUS_NEEDS_CLARIFICATION
+    assert result.clarification["clarifyingAttribute"] == "quantity"
 
 
 def test_requested_twenty_model_sends_two_hundred_is_withheld(seeded):
@@ -464,3 +470,93 @@ def test_the_worker_passes_the_customers_own_text(monkeypatch):
         })
     assert seen["customer_text"] == "3 coils Finolex 1.5 sq mm wire"
     assert "confirmed as SKU" in seen["order_text"]
+
+
+# ---------------------------------------------------------------------------
+# Quantity zero: a question, not a failure
+# ---------------------------------------------------------------------------
+# A live evaluator sent a zero-quantity order and got FAILED. The invariant
+# that matters held - no quotation - but FAILED told the shop owner the system
+# had broken, when the honest answer is that nobody knows how many are wanted.
+# The engine's own INVALID_QUANTITY rejection is the evidence; the model's
+# prose is never read.
+
+def _prose(text):
+    return {"role": "assistant", "content": [{"text": text}]}
+
+
+ZERO_SEARCH = {"requestedText": "0 Havells MCB SP 32A", "brand": "Havells",
+               "category": "MCB", "specification": "SP 32A"}
+
+
+@pytest.mark.parametrize("label,tail", [
+    ("gives up in prose", [turn(quote_call((MCB, 0))),
+                           _prose("Zero is not a valid quantity.")]),
+    ("repeats the refused call", [turn(quote_call((MCB, 0)))] * 3),
+    ("sends a negative quantity", [turn(quote_call((MCB, -2))),
+                                   _prose("That quantity is negative.")]),
+])
+def test_a_refused_zero_quantity_becomes_a_quantity_question(seeded, label, tail):
+    result = run_order_agent(seeded, "0 Havells MCB SP 32A", client=FakeBedrock(
+        [turn(("search_catalog", ZERO_SEARCH))] + tail))
+
+    assert_not_quoted(result)
+    assert result.status == STATUS_NEEDS_CLARIFICATION, label
+    assert result.clarification["clarifyingAttribute"] == "quantity"
+    assert result.clarification["options"] == []
+    # The customer's own words, from the matcher - never a number invented here.
+    assert "0 Havells MCB SP 32A" in result.clarification["question"]
+
+
+def test_a_zero_quantity_question_names_no_quantity_of_its_own(seeded):
+    """It may ask how many. It may not suggest an answer."""
+    result = run_order_agent(seeded, "0 Havells MCB SP 32A", client=FakeBedrock(
+        [turn(("search_catalog", ZERO_SEARCH)), turn(quote_call((MCB, 0))),
+         _prose("I will quote 1 instead.")]))
+
+    question = result.clarification["question"]
+    assert not re.search(r"\b[1-9]\d*\b", question.replace("32A", "")), question
+    assert "quote 1" not in result.summary
+
+
+def test_a_model_that_quotes_one_for_a_zero_order_is_still_withheld(seeded):
+    """Turning zero into one is the model guessing. The guard still holds."""
+    result = run_order_agent(seeded, "0 Havells MCB SP 32A", client=FakeBedrock(
+        [turn(("search_catalog", ZERO_SEARCH)), turn(quote_call((MCB, 1)))]))
+    assert_not_quoted(result)
+    assert result.clarification["clarifyingAttribute"] == "quantity"
+
+
+def test_a_quantity_rejection_mixed_with_another_error_still_fails(seeded):
+    """Narrow on purpose: a quantity question would misdescribe this run."""
+    result = run_order_agent(seeded, "0 Havells MCB SP 32A", client=FakeBedrock(
+        [turn(("search_catalog", ZERO_SEARCH)), turn(quote_call((MCB, 0))),
+         turn(quote_call(("SW-FAKE-999", 2))), _prose("I cannot do this.")]))
+
+    assert_not_quoted(result)
+    assert result.status == STATUS_FAILED
+
+
+def test_the_zero_quantity_change_leaves_the_duplicate_guard_alone(seeded):
+    """2 + 2, three times over, is untouched by the quantity-zero change.
+
+    A duplicate is refused as DUPLICATE_SKU, not INVALID_QUANTITY, so the new
+    quantity question does not apply to it and this run behaves exactly as
+    it did before: no quotation, never four, and the refusal on the trace.
+    """
+    duplicate = quote_call((MCB, 2), (MCB, 2))
+    result = run_order_agent(seeded, "2 Havells MCB SP 32A", client=FakeBedrock(
+        [turn(("search_catalog", MCB_SEARCH))] + [turn(duplicate)] * 3))
+
+    assert_not_quoted(result)
+    assert result.status == STATUS_FAILED
+    assert {t["errorKind"] for t in result.trace if not t.get("ok")} == {
+        "DUPLICATE_SKU"}
+
+
+def test_an_unrelated_failure_is_not_relabelled_as_a_quantity_question(seeded):
+    """The turn limit, with no quantity rejection at all, stays FAILED."""
+    result = run_order_agent(seeded, "2 Havells MCB SP 32A", client=FakeBedrock(
+        [turn(("search_catalog", MCB_SEARCH))] * 6))
+    assert result.status == STATUS_FAILED
+    assert result.clarification is None

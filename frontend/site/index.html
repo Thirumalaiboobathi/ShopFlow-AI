@@ -1136,6 +1136,24 @@
 </div>
 
 <script>
+// The demo-owner marker, defined once and before anything uses it.
+//
+// Both scripts below are wrapped in their own function, so a variable declared
+// inside one of them does not exist in the other. This used to be declared in
+// the second, and the Intelligence page - in the first - failed with
+// "OWNER_HEADERS is not defined" before it ever called /api/intelligence.
+// Declaring it here, above both, is what makes it the same object in each.
+//
+// Owner routes answer the shop owner about their own business: supplier cost,
+// margin, purchasing and khata accounts. The API keeps them out of a plain
+// public request, and the demo workspace marks its own requests with this.
+//
+// This is a demo gate, not authentication. The value is not a secret and
+// anyone reading this page can send it. Real protection needs an
+// authenticated owner session, which this demo does not have.
+var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" });
+</script>
+<script>
 // >>> workspace
 // The demo workspace shell: login, routing, shop context, inventory table.
 //
@@ -2059,17 +2077,14 @@
   // the owner's own language rather than flashing English at them.
   initLanguages();
 
-  // Owner routes answer the shop owner about their own business: supplier
-  // cost, margin, purchasing and khata accounts. The API keeps them out of a
-  // plain public request, and the demo workspace marks its own requests here.
-  //
-  // This is a demo gate, not authentication. The value below is not a secret
-  // and anyone reading this page can send it. Real protection needs an
-  // authenticated owner session, which this demo does not have.
-  var OWNER_HEADERS = { "x-shopflow-demo-owner": "demo-workspace" };
+  // OWNER_HEADERS is declared once, in the script above the workspace, so
+  // that both halves of the page share it. See the note there.
   function ownerJson() {
-    return { "content-type": "application/json",
-             "x-shopflow-demo-owner": "demo-workspace" };
+    var headers = { "content-type": "application/json" };
+    Object.keys(OWNER_HEADERS).forEach(function (k) {
+      headers[k] = OWNER_HEADERS[k];
+    });
+    return headers;
   }
 
   // Khata accounts, so the selector is never hard-coded. Every account is
@@ -2146,7 +2161,7 @@
   function poll(jobId, attempt) {
     if (attempt > 45) { fail("This is taking longer than expected. Please try again."); return; }
     polling = setTimeout(function () {
-      fetch("/api/jobs/" + encodeURIComponent(jobId))
+      fetch("/api/jobs/" + encodeURIComponent(jobId), { headers: OWNER_HEADERS })
         .then(function (r) { return r.json(); })
         .then(function (job) {
           if (job.status === "QUEUED" || job.status === "PROCESSING") {
@@ -2534,7 +2549,7 @@
   function pollPrices(jobId, attempt) {
     if (attempt > 45) { priceFail("This is taking longer than expected. Please try again."); return; }
     setTimeout(function () {
-      fetch("/api/jobs/" + encodeURIComponent(jobId))
+      fetch("/api/jobs/" + encodeURIComponent(jobId), { headers: OWNER_HEADERS })
         .then(function (r) { return r.json(); })
         .then(function (job) {
           if (job.status === "QUEUED" || job.status === "PROCESSING") {
@@ -3141,7 +3156,7 @@
         return;
       }
       setTimeout(function () {
-        fetch("/api/jobs/" + encodeURIComponent(jobId))
+        fetch("/api/jobs/" + encodeURIComponent(jobId), { headers: OWNER_HEADERS })
           .then(function (r) { return r.json(); })
           .then(function (job) {
             if (cancelled) return;

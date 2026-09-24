@@ -1192,6 +1192,147 @@ def _create_whatsapp_send(event) -> dict:
     })
 
 
+# ---------------------------------------------------------------------------
+# The customer's view of a job
+# ---------------------------------------------------------------------------
+# `GET /api/jobs/{jobId}` is customer-facing: anybody holding a job id can poll
+# it. A live evaluation confirmed an owner's supplier price at Rs 6,300, placed
+# a fresh order, polled it anonymously - and read back the shop's previous and
+# confirmed supplier cost, its old and new margin, and a suggested selling
+# price. The worker attaches those to the stored result for the owner's
+# benefit, and this route returned the stored result whole. The same route was
+# also returning a khata customer's credit limit and outstanding balance.
+#
+# The fix is here, at the response boundary, and nowhere else. The stored
+# result is left intact because the owner is meant to see it; what changes is
+# what leaves this function when the caller is not the owner.
+#
+# Two layers, deliberately:
+#
+#   1. An ALLOW-list of the fields a customer's order result may carry. A
+#      field the worker adds tomorrow is absent from the customer view until
+#      somebody decides it belongs there. Default-deny is the only version of
+#      this that survives the next feature.
+#   2. A recursive scrub of owner-only keys at EVERY depth, applied to what
+#      the allow-list let through. It should find nothing. It exists so that
+#      an owner figure nested inside an allowed object - a cost on a quote
+#      line, say - cannot ride out inside it.
+#
+# The owner still receives everything, through the same demo gate as every
+# other owner route. That gate is not authentication; see OWNER_ROUTES.
+
+# Top-level fields of an order result a customer may receive.
+#
+# `trace` is deliberately absent. It is the raw record of every tool call -
+# the model's arguments and the tools' own error strings, "These SKU ids do
+# not exist ... Use only ids returned by search_catalog" - which is an audit
+# record for the owner, kept intact in storage and in the owner view, and not
+# something to hand a customer. `decisionTrace` is the customer's account of
+# how the quotation was worked out.
+CUSTOMER_RESULT_FIELDS = frozenset({
+    "status", "summary", "message", "quote", "clarification", "matches",
+    "grounded", "ungroundedNumbers", "modelId", "turns", "elapsedMs",
+    "decisionTrace", "localized",
+})
+
+# Top-level fields of a voice-transcript result a customer may receive.
+#
+# A transcript result is produced in exactly one place, `_poll_transcription`,
+# and carries the caller's own words and which service read them. It holds no
+# owner data today; the allow-list makes sure it never can by accident. The
+# voice interface reads `transcript` and nothing else.
+#
+# `decisionTrace` is deliberately absent: the job route builds one for any
+# stored result that lacks it, and for a transcript that produces an ORDER
+# trace - "Order received. 0 product line(s) detected." - for something that
+# was never an order. A customer is not shown it.
+CUSTOMER_TRANSCRIPT_FIELDS = frozenset({
+    "transcript", "provider", "handledBy", "detectedLanguage", "localized",
+})
+
+# Which allow-list governs which job type. A job type with no entry here gets
+# no result at all in the customer view: default-deny applies to job types as
+# well as to fields. (A supplier price list never reaches the customer view -
+# `_get_job` refuses it outright without the owner marker.)
+CUSTOMER_FIELDS_BY_JOB = {
+    JOB_ORDER: CUSTOMER_RESULT_FIELDS,
+    JOB_TRANSCRIPT: CUSTOMER_TRANSCRIPT_FIELDS,
+}
+
+# Text written for the MODEL, not for a person. `search_catalog` tells the
+# model what to do next - "Do not invent a skuId", "call
+# request_clarification and ask the shop owner" - and those instructions ride
+# along inside each match. They are removed from the customer view at any
+# depth. The match's verdict, its options and its line-isolation facts stay.
+MODEL_FACING_KEYS = frozenset({"instruction", "diagnostic", "blocking"})
+
+# What a customer is told when an order failed. The same sentence the agent
+# already uses when it has nothing better to say, so no new wording is
+# introduced - just the internal explanation ("the agent repeatedly produced
+# invalid tool arguments") kept for the owner.
+CUSTOMER_FAILURE_MESSAGE = "ShopFlow could not complete this order."
+
+# Whole objects that are the owner's, whatever they are nested in.
+OWNER_ONLY_OBJECTS = frozenset({
+    "marginProtection", "credit", "plan", "review", "decisions",
+    "confirmedCosts", "whatIf", "customerId", "customerName",
+})
+
+# Fragments of a key name that mark it as owner economics or customer PII.
+# Matched against the key with case and separators removed, so
+# `previousSupplierCost`, `unit_cost` and `MarginPct` are all caught.
+OWNER_KEY_FRAGMENTS = (
+    "supplier", "cost", "margin", "suggestedselling", "creditlimit",
+    "outstanding", "phone", "budget", "plannedspend", "restock",
+)
+
+
+def _owner_key(key) -> bool:
+    if key in OWNER_ONLY_OBJECTS or key in MODEL_FACING_KEYS:
+        return True
+    flat = re.sub(r"[^a-z]", "", str(key).lower())
+    return any(fragment in flat for fragment in OWNER_KEY_FRAGMENTS)
+
+
+def _scrub_owner_keys(value):
+    """Every owner-only key removed, at any depth. Values are not rewritten."""
+    if isinstance(value, dict):
+        return {k: _scrub_owner_keys(v) for k, v in value.items()
+                if not _owner_key(k)}
+    if isinstance(value, list):
+        return [_scrub_owner_keys(v) for v in value]
+    return value
+
+
+def customer_job_view(body: dict) -> dict:
+    """The job exactly as a customer may see it.
+
+    Takes the job body as `_get_job` assembled it and returns a new one. The
+    input is not modified, so nothing stored is changed by being viewed.
+    """
+    view = {k: v for k, v in body.items() if not _owner_key(k)}
+    result = body.get("result")
+    if isinstance(result, dict):
+        allowed = CUSTOMER_FIELDS_BY_JOB.get(view.get("jobType", JOB_ORDER))
+        if allowed is None:
+            # A job type nobody has decided a customer view for.
+            view.pop("result", None)
+            return _scrub_owner_keys(view)
+        result = {k: v for k, v in result.items() if k in allowed}
+        if result.get("status") == "FAILED" and result.get("message"):
+            result["message"] = CUSTOMER_FAILURE_MESSAGE
+        view["result"] = _scrub_owner_keys(result)
+    return _scrub_owner_keys(view)
+
+
+def _job_response(event, body: dict) -> dict:
+    """Send a job to whoever asked, marked with who it was built for."""
+    owner = _is_demo_owner(event)
+    response = _response(200, body if owner else customer_job_view(body))
+    response["headers"]["x-shopflow-audience"] = "owner" if owner else "customer"
+    return response
+
+
 def _get_job(event) -> dict:
     job_id = (event.get("pathParameters") or {}).get("jobId") or ""
     if not re.fullmatch(r"[0-9a-f]{32}", job_id):
@@ -1236,7 +1377,7 @@ def _get_job(event) -> dict:
     if body["jobType"] == JOB_TRANSCRIPT and item["status"] in ("QUEUED", "PROCESSING"):
         # Transcribe is doing the waiting. Each poll asks it once; there is no
         # loop in a Lambda and no background process that can outlive a tab.
-        return _response(200, _poll_transcription(item, body))
+        return _job_response(event, _poll_transcription(item, body))
 
     if body["jobType"] == JOB_PRICE_LIST:
         # A price-list result IS supplier cost: every matched row carries what
@@ -1274,7 +1415,7 @@ def _get_job(event) -> dict:
         # exactly as it was at extraction time.
         _apply_review_states(body, body["decisions"])
 
-    return _response(200, body)
+    return _job_response(event, body)
 
 
 def _apply_review_states(body: dict, decisions: list) -> None:
