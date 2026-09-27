@@ -32,12 +32,21 @@ Tier 2 - discretionary restocking.
 
 Both tiers allow partial fills: if the budget cannot cover a whole line, it
 buys the units it can afford and reports the line as PARTIAL.
+
+Tier 2 is funded only when EVERY Tier 1 line is bought in full. A live
+evaluation found that at Rs 12,947.99 - one paisa short of the Rs 12,948
+the commitments cost - the second Finolex coil for a customer went unbought
+and the Rs 6,299.99 left over was spent on discretionary restock. Money is
+never spent on the shelf while a customer promise is short, by any amount.
+Affordability is counted in whole paise, so a one-paisa shortfall is a
+shortfall and not a rounding error.
 """
 
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Dict, List, Optional
 
 from .models import ALL_OR_NOTHING, Dataset, money
@@ -51,6 +60,20 @@ SAFETY_WEEKS = 2.0
 REORDER_COVER_WEEKS = 4.0
 # Float tolerance for rupee comparisons.
 EPSILON = 1e-6
+
+
+def _paise(rupees: float) -> int:
+    """Rupees as a whole number of paise, rounded half-up."""
+    return int((Decimal(str(rupees)) * 100).quantize(Decimal("1"),
+                                                     rounding=ROUND_HALF_UP))
+
+
+def _affordable(requested: int, remaining_paise: int, unit_cost: float) -> int:
+    """Whole units the remaining paise can buy, never more than requested."""
+    unit = _paise(unit_cost)
+    if unit <= 0:
+        return requested
+    return max(0, min(requested, remaining_paise // unit))
 
 BUY = "BUY"
 PARTIAL = "PARTIAL"
@@ -278,6 +301,7 @@ def allocate_budget(data: Dataset, budget: float) -> BudgetPlan:
 
     lines: List[PlanLine] = []
     remaining = float(budget)
+    remaining_paise = _paise(budget)
 
     # ---- Tier 1: committed customer orders ----
     short_list = [s for s in shortages(data) if s.isShort]
@@ -288,10 +312,7 @@ def allocate_budget(data: Dataset, budget: float) -> BudgetPlan:
         requested = s.shortageQty
         full_cost = unit_cost * requested
 
-        affordable = requested
-        if unit_cost > 0:
-            affordable = min(requested, int((remaining + EPSILON) // unit_cost))
-        affordable = max(0, affordable)
+        affordable = _affordable(requested, remaining_paise, unit_cost)
 
         # A product that cannot be usefully part-delivered is funded in full or
         # not at all - buying half a matched set helps nobody.
@@ -340,7 +361,8 @@ def allocate_budget(data: Dataset, budget: float) -> BudgetPlan:
                 f"{s.committedQty} units cannot be delivered."
             )
 
-        remaining = money(remaining - line_cost)
+        remaining_paise -= _paise(unit_cost) * affordable
+        remaining = remaining_paise / 100
         lines.append(
             PlanLine(
                 skuId=s.skuId,
@@ -357,10 +379,14 @@ def allocate_budget(data: Dataset, budget: float) -> BudgetPlan:
         )
 
     # ---- Tier 2: discretionary restocking ----
+    # Only once every customer commitment is bought in full. While any is
+    # short, the money that is left belongs to that commitment, and no
+    # restock is bought - it is deferred, and says why.
+    commitments_short = any(l.decision != BUY for l in lines)
     for c in restock_candidates(data):
         requested = c.reorderQty
-        affordable = min(requested, int((remaining + EPSILON) // c.unitCost))
-        affordable = max(0, affordable)
+        affordable = (0 if commitments_short
+                      else _affordable(requested, remaining_paise, c.unitCost))
         line_cost = money(c.unitCost * affordable)
 
         evidence = {
@@ -384,12 +410,18 @@ def allocate_budget(data: Dataset, budget: float) -> BudgetPlan:
                 f"Partial restock: budget covers {affordable} of {requested} units."
             )
             risk = _deferral_risk(c)
+        elif commitments_short:
+            decision = DEFER
+            reason = ("Deferred: a customer commitment is not fully funded, so "
+                      "no discretionary restock is bought.")
+            risk = _deferral_risk(c)
         else:
             decision = DEFER
             reason = "Deferred: remaining budget cannot fund this restock."
             risk = _deferral_risk(c)
 
-        remaining = money(remaining - line_cost)
+        remaining_paise -= _paise(c.unitCost) * affordable
+        remaining = remaining_paise / 100
         lines.append(
             PlanLine(
                 skuId=c.skuId,
