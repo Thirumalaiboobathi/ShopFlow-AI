@@ -520,11 +520,11 @@ def _read_document(job_id: str, image_bytes: bytes, content_type: str):
     row so an owner can see how their document was read.
     """
     try:
-        rows, supplier, doc_date = read_price_list(
-            image_bytes, bucket="", key="")
+        rows, supplier, doc_date, excluded = read_price_list(
+            image_bytes, bucket="", key="", with_excluded=True)
         metrics.emit(metrics.DOCUMENTS_EXTRACTED, job_id=job_id,
                      dimensions={"Reader": TEXTRACT}, rowCount=len(rows))
-        return supplier, doc_date, rows, {}, TEXTRACT
+        return supplier, doc_date, rows, {}, TEXTRACT, excluded
     except Exception as exc:  # noqa: BLE001 - fall back, do not fail
         # Textract being unavailable, throttled or unable to find a table is
         # not the end of the document: it is a reason to try the other reader.
@@ -545,7 +545,8 @@ def _read_document(job_id: str, image_bytes: bytes, content_type: str):
             row.setdefault("source", NOVA_PRO)
     metrics.emit(metrics.DOCUMENTS_EXTRACTED, job_id=job_id,
                  dimensions={"Reader": NOVA_PRO}, rowCount=len(items))
-    return supplier, doc_date, items, usage, NOVA_PRO
+    # The model reader's unusable rows are excluded by the review itself.
+    return supplier, doc_date, items, usage, NOVA_PRO, []
 
 
 def _process_price_list(job_id: str, item: dict) -> dict:
@@ -560,9 +561,10 @@ def _process_price_list(job_id: str, item: dict) -> dict:
             Bucket=UPLOADS_BUCKET, Key=item["imageKey"])
         image_bytes = obj["Body"].read()
 
-        supplier, doc_date, items, usage, reader = _read_document(
+        supplier, doc_date, items, usage, reader, excluded = _read_document(
             job_id, image_bytes, item.get("imageContentType") or "image/png")
-        review = review_price_list(cached_dataset(), supplier, doc_date, items)
+        review = review_price_list(cached_dataset(), supplier, doc_date, items,
+                                   excluded_rows=excluded)
     except (ExtractionError, InvalidSupplierLineError) as exc:
         # A document we could not read is a real answer, not a crash - and a
         # terminal one: the same photograph will not read any better on a
@@ -601,6 +603,8 @@ def _process_price_list(job_id: str, item: dict) -> dict:
         "matchedCount": payload["matchedCount"],
         "ambiguousCount": payload["ambiguousCount"],
         "unmatchedCount": payload["unmatchedCount"],
+        "conflictCount": payload["conflictCount"],
+        "excludedCount": payload["excludedCount"],
         "materialChangeCount": payload["materialChangeCount"],
         "reviewRequiredCount": payload["reviewRequiredCount"],
         "reader": reader,

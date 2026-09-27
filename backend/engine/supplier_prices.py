@@ -25,6 +25,12 @@ from .pricing import PRICE_ALERT_THRESHOLD_PERCENT, current_cost
 MATCHED = "MATCHED"
 AMBIGUOUS = "AMBIGUOUS"
 UNMATCHED = "UNMATCHED"
+# The same product more than once on one document. At different prices the
+# document contradicts itself: every one of those rows is a CONFLICT, none has
+# a comparison, and so none can raise an alert or be confirmed as a cost. At
+# the same price the first row stands and the repeats are DUPLICATE.
+CONFLICT = "CONFLICT"
+DUPLICATE = "DUPLICATE"
 
 # Price movement classification.
 INCREASE = "INCREASE"
@@ -192,9 +198,10 @@ class SupplierLineResult:
     candidates: List[dict] = field(default_factory=list)
     comparison: Optional[PriceComparison] = None
     reviewState: str = STATE_EXTRACTED
+    conflictingPrices: Optional[List[float]] = None
 
     def as_dict(self) -> dict:
-        return {
+        out = {
             "line": self.line.as_dict(),
             "status": self.status,
             "reviewState": self.reviewState,
@@ -204,6 +211,9 @@ class SupplierLineResult:
             "candidates": self.candidates,
             "comparison": self.comparison.as_dict() if self.comparison else None,
         }
+        if self.conflictingPrices is not None:
+            out["conflictingPrices"] = self.conflictingPrices
+        return out
 
 
 def build_supplier_line(raw: Dict) -> SupplierLine:
@@ -365,6 +375,7 @@ class PriceListReview:
     documentDate: Optional[str]
     results: List[SupplierLineResult]
     threshold: float = PRICE_ALERT_THRESHOLD_PERCENT
+    excluded: List[dict] = field(default_factory=list)
 
     @property
     def matched(self) -> List[SupplierLineResult]:
@@ -378,6 +389,9 @@ class PriceListReview:
         ]
 
     def as_dict(self) -> dict:
+        conflicts = sorted({r.skuId for r in self.results
+                            if r.status == CONFLICT})
+        excluded = len(self.excluded)
         return {
             "supplierName": self.supplierName,
             "documentDate": self.documentDate,
@@ -386,6 +400,19 @@ class PriceListReview:
             "matchedCount": len(self.matched),
             "ambiguousCount": sum(1 for r in self.results if r.status == AMBIGUOUS),
             "unmatchedCount": sum(1 for r in self.results if r.status == UNMATCHED),
+            "conflictCount": len(conflicts),
+            "conflictRowCount": sum(1 for r in self.results
+                                    if r.status == CONFLICT),
+            "duplicateCount": sum(1 for r in self.results
+                                  if r.status == DUPLICATE),
+            "conflictNotice": (
+                f"{len(conflicts)} product(s) appear more than once on this "
+                f"document at different prices. No price decision or alert "
+                f"was made for them. Confirm the correct price with the "
+                f"supplier." if conflicts else None),
+            "excludedCount": excluded,
+            "excludedRows": list(self.excluded),
+            "exclusionNotice": exclusion_notice(excluded),
             "materialChangeCount": len(self.materialChanges),
             "reviewRequiredCount": sum(
                 1 for r in self.results if r.reviewState == STATE_REVIEW_REQUIRED),
@@ -406,28 +433,97 @@ def review_price_list(
     document_date: Optional[str],
     raw_lines: List[Dict],
     threshold: float = PRICE_ALERT_THRESHOLD_PERCENT,
+    excluded_rows: Optional[List[Dict]] = None,
 ) -> PriceListReview:
-    """Turn extracted rows into a reviewed, priced, evidence-carrying result."""
+    """Turn extracted rows into a reviewed, priced, evidence-carrying result.
+
+    `excluded_rows` are rows the reader saw but could not price. They are
+    carried through, with any row this function itself rejects, so the owner
+    is told how many rows were left out of the analysis and which.
+    """
     if not isinstance(raw_lines, list) or not raw_lines:
         raise InvalidSupplierLineError("the document produced no usable lines")
     if len(raw_lines) > MAX_SUPPLIER_LINES:
         raise InvalidSupplierLineError(
             f"a price list may carry at most {MAX_SUPPLIER_LINES} lines")
 
+    excluded = [dict(row) for row in excluded_rows or []
+                if isinstance(row, dict)]
     results = []
     for raw in raw_lines:
-        result = match_supplier_line(data, build_supplier_line(raw), threshold)
+        try:
+            line = build_supplier_line(raw)
+        except InvalidSupplierLineError as exc:
+            # One unreadable row is not a reason to refuse the rest of the
+            # document, and not a row to guess at. It is reported.
+            row = raw if isinstance(raw, dict) else {}
+            price = row.get("price")
+            excluded.append({
+                "description": str(row.get("description") or "")[:200],
+                "printedPrice": "" if price is None else str(price)[:40],
+                "reason": "INVALID_ROW",
+                "detail": str(exc)[:200],
+                "source": row.get("source"),
+            })
+            continue
+        result = match_supplier_line(data, line, threshold)
         # No decisions exist yet at extraction time, so this is the state the
         # row starts in. The API recomputes it once the owner's rulings are
         # known, which is why it is derived rather than stored.
         result.reviewState = review_state(result)
         results.append(result)
+    if not results:
+        raise InvalidSupplierLineError("the document produced no usable lines")
+
+    _mark_repeats(results)
     return PriceListReview(
         supplierName=supplier_name or "Unknown supplier",
         documentDate=document_date,
         results=results,
         threshold=threshold,
+        excluded=excluded,
     )
+
+
+def exclusion_notice(count: int) -> Optional[str]:
+    """The owner-facing sentence for rows left out of the price analysis."""
+    if not count:
+        return None
+    if count == 1:
+        return ("1 row could not be interpreted and was excluded from price "
+                "analysis.")
+    return (f"{count} rows could not be interpreted and were excluded from "
+            f"price analysis.")
+
+
+def _mark_repeats(results: List[SupplierLineResult]) -> None:
+    """The same SKU on more than one row of one document.
+
+    Different prices: the document contradicts itself, and none of its
+    figures is more believable than another. Every row for that SKU becomes a
+    CONFLICT with no comparison - so no alert, no material change and no
+    confirmable cost - and waits for the owner. The same price: the first row
+    stands and the others are DUPLICATE, so the change is judged once.
+    """
+    by_sku: Dict[str, List[SupplierLineResult]] = {}
+    for result in results:
+        if result.status == MATCHED and result.skuId:
+            by_sku.setdefault(result.skuId, []).append(result)
+    for rows in by_sku.values():
+        if len(rows) < 2:
+            continue
+        prices = sorted({float(r.line.price) for r in rows})
+        if len(prices) > 1:
+            for r in rows:
+                r.status = CONFLICT
+                r.comparison = None
+                r.conflictingPrices = prices
+                r.reviewState = STATE_REVIEW_REQUIRED
+        else:
+            for r in rows[1:]:
+                r.status = DUPLICATE
+                r.comparison = None
+                r.reviewState = rows[0].reviewState
 
 
 def build_decision_record(

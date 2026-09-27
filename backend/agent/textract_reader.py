@@ -77,6 +77,15 @@ def parse_price(text: str) -> Optional[float]:
     return value if value > 0 else None
 
 
+# Why a table row is not in the price analysis. Each excluded row is shown to
+# the owner with its own text.
+PRICE_MISSING = "PRICE_MISSING"
+PRICE_NOT_A_NUMBER = "PRICE_NOT_A_NUMBER"
+PRICE_NOT_POSITIVE = "PRICE_NOT_POSITIVE"
+DESCRIPTION_MISSING = "DESCRIPTION_MISSING"
+_SIGNED_PRICE = re.compile(r"^\s*[-−–]\s*(.+)$")
+
+
 def _index(blocks: List[Dict]) -> Dict[str, Dict]:
     return {b["Id"]: b for b in blocks if b.get("Id")}
 
@@ -133,14 +142,44 @@ def _column_roles(header: Dict[int, Tuple]) -> Tuple[Optional[int], Optional[int
     return description_col, price_col
 
 
+def _exclusion_reason(description: str, price_text: str) -> str:
+    """Why a row on the page could not be priced. Reads, never repairs."""
+    if not description:
+        return DESCRIPTION_MISSING
+    text = (price_text or "").strip()
+    if not text:
+        return PRICE_MISSING
+    signed = _SIGNED_PRICE.match(text)
+    if signed and parse_price(signed.group(1)) is not None:
+        return PRICE_NOT_POSITIVE
+    try:
+        if float(text.replace(",", "")) <= 0:
+            return PRICE_NOT_POSITIVE
+    except ValueError:
+        pass
+    return PRICE_NOT_A_NUMBER
+
+
 def rows_from_blocks(blocks: List[Dict]) -> Tuple[List[Dict], str, Optional[str]]:
     """Turn a Textract response into (rows, supplier name, document date).
 
-    A row is emitted only when it has both a description and something that
-    parses as a price. Everything else - headings, totals, tax notes, the
-    footer - simply produces no row, which is the same thing the model reader
-    was asked to do and is here a consequence of the parse rather than an
-    instruction somebody has to follow.
+    Priced rows only. `extract_rows` also returns the table rows that were on
+    the page and could not be priced.
+    """
+    rows, _excluded, supplier_name, document_date = extract_rows(blocks)
+    return rows, supplier_name, document_date
+
+
+def extract_rows(blocks: List[Dict]) -> Tuple[List[Dict], List[Dict], str,
+                                              Optional[str]]:
+    """(priced rows, excluded rows, supplier name, document date).
+
+    A row is priced only when it has both a description and something that
+    parses as a price. Headings, totals, tax notes and the footer sit outside
+    the table body and produce nothing. A table row that has text but no
+    usable price - "N/A", a blank rate, "-148.00" - is not guessed at, and it
+    is not dropped silently either: it is returned as excluded, with its own
+    text and the reason, so the owner sees what was left out of the analysis.
     """
     by_id = _index(blocks)
     tables = [b for b in blocks if b.get("BlockType") == "TABLE"]
@@ -159,6 +198,7 @@ def rows_from_blocks(blocks: List[Dict]) -> Tuple[List[Dict], str, Optional[str]
             break
 
     rows: List[Dict] = []
+    excluded: List[Dict] = []
     for table in tables:
         table_rows = _table_rows(table, by_id)
         if not table_rows:
@@ -169,11 +209,13 @@ def rows_from_blocks(blocks: List[Dict]) -> Tuple[List[Dict], str, Optional[str]
         for row in body:
             description, confidences = "", []
             price, price_confidences = None, []
+            price_text = ""
 
             if description_col is not None and description_col in row:
                 description, confidences = row[description_col]
             if price_col is not None and price_col in row:
                 text, price_confidences = row[price_col]
+                price_text = text
                 price = parse_price(text)
 
             if not description or price is None:
@@ -197,6 +239,17 @@ def rows_from_blocks(blocks: List[Dict]) -> Tuple[List[Dict], str, Optional[str]
                             break
 
             if not description or price is None:
+                cells = [t for t, _c in (row[c] for c in sorted(row)) if t]
+                if cells:
+                    if not price_text and len(cells) > 1 \
+                            and cells[-1] != description:
+                        price_text = cells[-1]
+                    excluded.append({
+                        "description": description,
+                        "printedPrice": price_text,
+                        "reason": _exclusion_reason(description, price_text),
+                        "source": TEXTRACT,
+                    })
                 continue
 
             all_confidences = confidences + price_confidences
@@ -212,7 +265,7 @@ def rows_from_blocks(blocks: List[Dict]) -> Tuple[List[Dict], str, Optional[str]
             if len(rows) >= MAX_ROWS:
                 break
 
-    return rows, supplier_name, document_date
+    return rows, excluded, supplier_name, document_date
 
 
 def analyze_document(image_bytes: bytes = b"", *, client=None,
@@ -243,13 +296,20 @@ def analyze_document(image_bytes: bytes = b"", *, client=None,
 
 
 def read_price_list(image_bytes: bytes = b"", *, client=None,
-                    bucket: str = "", key: str = "") -> Tuple[List[Dict], str, Optional[str]]:
-    """Read one price list with Textract. Raises `TextractError` if unusable."""
+                    bucket: str = "", key: str = "",
+                    with_excluded: bool = False):
+    """Read one price list with Textract. Raises `TextractError` if unusable.
+
+    Returns (rows, supplier, date); with `with_excluded`, also the table rows
+    that were on the page but could not be priced.
+    """
     blocks = analyze_document(image_bytes, client=client, bucket=bucket, key=key)
-    rows, supplier_name, document_date = rows_from_blocks(blocks)
+    rows, excluded, supplier_name, document_date = extract_rows(blocks)
     if not rows:
         raise TextractError(
             "Textract found no priced product rows in this document")
+    if with_excluded:
+        return rows, supplier_name, document_date, excluded
     return rows, supplier_name, document_date
 
 

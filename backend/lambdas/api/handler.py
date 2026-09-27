@@ -516,8 +516,17 @@ def _create_price_decision(event) -> dict:
     # The comparison is taken from the stored job, never from the request, so
     # a caller cannot post figures the engine did not produce.
     result = json.loads(job["result"])
+    lines = result.get("review", {}).get("lines", [])
+    if any(line.get("skuId") == sku_id and line.get("status") == "CONFLICT"
+           for line in lines):
+        # The document gives this product more than one price. None of them
+        # may become the shop's cost until the supplier says which is right.
+        return _response(409, {
+            "error": "this price list gives more than one price for that "
+                     "product; confirm the correct price with the supplier",
+            "status": "CONFLICT"})
     comparison = None
-    for line in result.get("review", {}).get("lines", []):
+    for line in lines:
         if line.get("skuId") == sku_id and line.get("comparison"):
             comparison = line["comparison"]
             break

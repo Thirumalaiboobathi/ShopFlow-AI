@@ -307,6 +307,8 @@
   .decided{padding:0 16px 14px; font-size:.87rem; color:var(--ok); font-weight:600}
   .decided.no{color:var(--muted)}
   .note{padding:0 16px 14px; font-size:.87rem; color:var(--muted)}
+  .warnnote{padding:10px 16px; color:var(--bad)}
+  .warnnote .excluded{margin:6px 0 0; padding-left:18px; color:var(--muted)}
 
   .cash{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:16px}
   .cash label{color:var(--muted); font-size:.88rem}
@@ -3008,7 +3010,23 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
       '<span class="cnt">' + review.lineCount + ' lines read &middot; ' +
       review.matchedCount + ' matched &middot; ' +
       review.ambiguousCount + ' need a decision &middot; ' +
-      review.unmatchedCount + ' not stocked</span></div>';
+      review.unmatchedCount + ' not stocked' +
+      (review.conflictCount ? ' &middot; ' + review.conflictCount + ' conflicting' : '') +
+      '</span></div>';
+
+    // Rows the document contradicts itself on, and rows that could not be
+    // read at all, are said out loud - never silently left out.
+    if (review.conflictNotice) {
+      html += '<div class="note warnnote">' + esc(review.conflictNotice) + '</div>';
+    }
+    if (review.exclusionNotice) {
+      html += '<div class="note warnnote">' + esc(review.exclusionNotice) +
+        '<ul class="excluded">' + (review.excludedRows || []).map(function (r) {
+          return '<li>' + esc(r.description || "(no description)") +
+            (r.printedPrice ? ' &middot; printed rate &ldquo;' + esc(r.printedPrice) + '&rdquo;' : ' &middot; no rate') +
+            '</li>';
+        }).join("") + '</ul></div>';
+    }
 
     html += '<div class="lines">';
     review.lines.forEach(function (l) {
@@ -3024,6 +3042,14 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
       } else if (l.status === "AMBIGUOUS") {
         html += '<span class="badge b-note">Matches ' + l.candidates.length +
           ' products &middot; differs by ' + esc(l.clarifyingAttribute) + '</span>';
+      } else if (l.status === "CONFLICT") {
+        html += '<div class="sku mono">' + esc(l.skuId) + '</div>' +
+          '<span class="badge b-short">Conflicting prices: ' +
+          (l.conflictingPrices || []).map(rupees).join(" vs ") +
+          ' &middot; confirm with supplier</span>';
+      } else if (l.status === "DUPLICATE") {
+        html += '<div class="sku mono">' + esc(l.skuId) + '</div>' +
+          '<span class="badge b-note">Listed again at the same price</span>';
       } else {
         html += '<span class="badge b-note">Not in your catalogue</span>';
       }
