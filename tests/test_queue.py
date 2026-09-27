@@ -771,42 +771,53 @@ def test_8i_the_dlq_alarm_fires_on_a_single_message(template):
     assert alarm["Properties"]["ComparisonOperator"] == "GreaterThanThreshold"
 
 
-def test_8j_every_alarm_notifies_the_owner_alerts_topic(template):
-    """Every alarm has an action, and the action is the stack's one topic.
+def _topic_ids(template):
+    return {t["Properties"]["TopicName"]: logical for logical, t in
+            template.find_resources("AWS::SNS::Topic").items()}
 
-    This used to assert the opposite - that no alarm notified anybody - and an
-    independent evaluator rightly called the alarms decorative. The topic is
-    the existing owner-alerts topic; no second topic and no subscription are
-    created here, so deploying still emails nobody until someone subscribes.
+
+def test_8j_every_alarm_notifies_the_ops_topic_and_never_the_owner(template):
+    """Every alarm has an action, and it is the OPERATIONAL topic.
+
+    Alarms used to share the owner-alerts topic, so subscribing the owner to
+    price alerts would also have sent them "worker errors sustained". Now the
+    two are separate: operational alarms -> shopflow-ops-alarms, business
+    alerts -> shopflow-owner-alerts. Neither is subscribed by default.
     """
-    topics = template.find_resources("AWS::SNS::Topic")
-    assert {t["Properties"]["TopicName"] for t in topics.values()} == {
-        "shopflow-owner-alerts"}
-    topic_id = next(iter(topics))
+    ids = _topic_ids(template)
+    assert set(ids) == {"shopflow-owner-alerts", "shopflow-ops-alarms"}
 
     alarms = _resources(template, "AWS::CloudWatch::Alarm")
     assert len(alarms) == 4
     for alarm in alarms:
-        assert alarm["Properties"]["AlarmActions"] == [{"Ref": topic_id}],             alarm["Properties"]["AlarmName"]
+        actions = alarm["Properties"]["AlarmActions"]
+        assert actions == [{"Ref": ids["shopflow-ops-alarms"]}], \
+            alarm["Properties"]["AlarmName"]
+        assert {"Ref": ids["shopflow-owner-alerts"]} not in actions
 
 
-def test_8j1_cloudwatch_may_publish_to_the_topic(template):
+def test_8j1_cloudwatch_publishes_only_to_the_ops_topic(template):
     """An alarm action is refused at publish time unless the topic policy
-    admits CloudWatch.
-
-    The EventBridge target replaces SNS's default topic policy with one that
-    admits events.amazonaws.com only - which is exactly the policy on the live
-    topic today. Both principals must be present, CloudWatch's scoped to this
-    account's ShopFlow alarms.
+    admits CloudWatch - so the ops topic's policy admits it, scoped to this
+    account's ShopFlow alarms. The owner topic's policy admits EventBridge and
+    nothing else: CloudWatch can no longer publish to it at all.
     """
-    policies = _resources(template, "AWS::SNS::TopicPolicy")
-    statements = [st for p in policies
-                  for st in p["Properties"]["PolicyDocument"]["Statement"]]
-    principals = {st["Principal"]["Service"] for st in statements
-                  if st.get("Effect") == "Allow"
-                  and "sns:Publish" in json.dumps(st.get("Action"))}
-    assert {"events.amazonaws.com", "cloudwatch.amazonaws.com"} <= principals
+    ids = _topic_ids(template)
+    by_topic = {}
+    for policy in _resources(template, "AWS::SNS::TopicPolicy"):
+        for ref in policy["Properties"]["Topics"]:
+            by_topic.setdefault(ref["Ref"], []).extend(
+                policy["Properties"]["PolicyDocument"]["Statement"])
 
+    def publishers(topic):
+        return {st["Principal"]["Service"] for st in by_topic.get(topic, [])
+                if st.get("Effect") == "Allow"
+                and "sns:Publish" in json.dumps(st.get("Action"))}
+
+    assert publishers(ids["shopflow-owner-alerts"]) == {"events.amazonaws.com"}
+    assert publishers(ids["shopflow-ops-alarms"]) == {"cloudwatch.amazonaws.com"}
+
+    statements = by_topic[ids["shopflow-ops-alarms"]]
     cloudwatch = [st for st in statements
                   if st["Principal"]["Service"] == "cloudwatch.amazonaws.com"][0]
     condition = json.dumps(cloudwatch["Condition"])
@@ -866,7 +877,8 @@ def test_8l_no_service_is_added_that_nothing_uses(template):
 
 
 def test_8m_there_is_exactly_one_bus_one_topic_and_one_rule(template):
-    """Small on purpose. One bus, one topic, one routing rule between them -
+    """Small on purpose. One bus, one owner topic, one routing rule between
+    them, one operational topic for CloudWatch alarms -
     and one schedule, for the daily brief, which cannot live on a custom bus."""
     buses = _resources(template, "AWS::Events::EventBus")
     rules = _resources(template, "AWS::Events::Rule")
@@ -874,8 +886,9 @@ def test_8m_there_is_exactly_one_bus_one_topic_and_one_rule(template):
 
     assert [b["Properties"]["Name"] for b in buses] == \
         ["shopflow-business-events"]
-    assert [t["Properties"]["TopicName"] for t in topics] == \
-        ["shopflow-owner-alerts"]
+    # Two topics, two audiences: owner business alerts, operational alarms.
+    assert sorted(t["Properties"]["TopicName"] for t in topics) == \
+        ["shopflow-ops-alarms", "shopflow-owner-alerts"]
     routing = [r for r in rules if "EventPattern" in r["Properties"]]
     schedules = [r for r in rules if "ScheduleExpression" in r["Properties"]]
     assert len(routing) == 1

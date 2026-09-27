@@ -157,19 +157,34 @@ class ShopFlowStack(Stack):
             display_name="ShopFlow owner alerts",
         )
 
-        # CloudWatch alarms publish here too (see Alarms below).
+        # Operational alarms have a topic of their own.
         #
-        # The EventBridge target further down attaches a topic policy that
-        # admits events.amazonaws.com and nothing else - and a topic policy
-        # REPLACES the default one. Without this statement an alarm action
-        # would be wired, visible in the console, and refused with
-        # AccessDenied at the one moment it mattered. Scoped to this account's
-        # own ShopFlow alarms.
-        alerts_topic.add_to_resource_policy(iam.PolicyStatement(
+        # They used to publish to the owner-alerts topic. With nobody
+        # subscribed that changed nothing, but the day the owner subscribed
+        # for price alerts they would also have been sent "worker errors
+        # sustained" and "orders queue backlog" - infrastructure alarms mixed
+        # into business notifications. The owner topic now receives exactly
+        # the two business events its rule routes, and nothing else.
+        #
+        # No subscription is made here either: whoever operates the stack
+        # subscribes to this one deliberately.
+        ops_topic = sns.Topic(
+            self, "OpsAlarms",
+            topic_name=f"{PREFIX}-ops-alarms",
+            display_name="ShopFlow operational alarms",
+        )
+
+        # A topic policy is written for CloudWatch explicitly, scoped to this
+        # account's own ShopFlow alarms. (On the owner topic the EventBridge
+        # target's policy replaced the default one and admitted
+        # events.amazonaws.com only; an alarm action there needed this
+        # statement to publish at all. It now lives on the topic the alarms
+        # actually use.)
+        ops_topic.add_to_resource_policy(iam.PolicyStatement(
             sid="AllowShopFlowAlarms",
             principals=[iam.ServicePrincipal("cloudwatch.amazonaws.com")],
             actions=["sns:Publish"],
-            resources=[alerts_topic.topic_arn],
+            resources=[ops_topic.topic_arn],
             conditions={
                 "StringEquals": {"aws:SourceAccount": self.account},
                 "ArnLike": {"aws:SourceArn":
@@ -849,7 +864,8 @@ class ShopFlowStack(Stack):
             treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
         )
 
-        alarm_action = cloudwatch_actions.SnsAction(alerts_topic)
+        # Operational alarms notify the operational topic - never the owner's.
+        alarm_action = cloudwatch_actions.SnsAction(ops_topic)
         for alarm in (ordersDlqNotEmpty_alarm, workerErrorsSustained_alarm,
                       ordersQueueBacklog_alarm, orderAgentFailures_alarm):
             alarm.add_alarm_action(alarm_action)
