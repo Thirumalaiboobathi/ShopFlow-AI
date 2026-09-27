@@ -56,6 +56,12 @@ EVENT_PUBLISH_FAILURES = "ShopFlowEventPublishFailures"
 ALERT_PUBLISH_FAILURES = "ShopFlowAlertPublishFailures"
 DOCUMENTS_EXTRACTED = "ShopFlowDocumentsExtracted"
 DOCUMENT_EXTRACTION_FAILURES = "ShopFlowDocumentExtractionFailures"
+# Emitted as EMF like the rest, so they appear in CloudWatch under this
+# namespace without any infrastructure change. No dashboard widget or alarm
+# is attached to them in this change.
+WHATIF_SIMULATIONS = "ShopFlowWhatIfSimulations"
+GST_CALCULATIONS = "ShopFlowGstCalculations"
+MODEL_ERRORS = "ShopFlowModelErrors"
 
 _UNITS: Dict[str, str] = {
     ORDERS_QUEUED: "Count",
@@ -70,6 +76,9 @@ _UNITS: Dict[str, str] = {
     ALERT_PUBLISH_FAILURES: "Count",
     DOCUMENTS_EXTRACTED: "Count",
     DOCUMENT_EXTRACTION_FAILURES: "Count",
+    WHATIF_SIMULATIONS: "Count",
+    GST_CALCULATIONS: "Count",
+    MODEL_ERRORS: "Count",
 }
 
 # Deliberately two, and deliberately low-cardinality. Every distinct dimension
@@ -107,9 +116,13 @@ _ALLOWED_VALUES = {
     # NO_PRODUCT: a message naming nothing the shop sells, answered without
     # an order - not a failure. THROTTLED: a retryable failure caused by the
     # Bedrock request-rate quota, counted apart from other transient errors.
+    # MODEL_ERROR: Bedrock said the model's own turn was unusable; retried.
+    # SIMULATED / REFUSED: a What-If answer, or a scenario it declined.
+    # PURCHASE_PLAN: GST worked out beside a purchase plan.
     "Outcome": {"QUOTED", "NEEDS_CLARIFICATION", "NOT_FOUND", "REVIEWED",
                 "FAILED", "DUPLICATE", "RETRYABLE", "THROTTLED", "TERMINAL",
-                "NO_PRODUCT", "UNKNOWN"},
+                "NO_PRODUCT", "UNKNOWN", "MODEL_ERROR", "SIMULATED", "REFUSED",
+                "PURCHASE_PLAN"},
     # The closed set of business events. A typo becomes a dropped dimension
     # rather than a new billed metric, exactly as with the two above.
     "EventType": {"SupplierPriceChanged", "StockoutDetected",

@@ -109,6 +109,34 @@ RETRYABLE_ERROR_CODES = frozenset({
     "TransactionInProgressException",
 })
 
+# Bedrock's own "the model produced something unusable" errors. A live
+# evaluation lost a Tamil-script order to one of these - "Model produced
+# invalid sequence as part of ToolUse" - on its first attempt, and the same
+# order answered correctly when it was simply sent again. The model call is
+# not deterministic enough for one bad turn to be a verdict on the order, so
+# these are retried like a throttle: through SQS, at most MAX_RECEIVES times
+# in total, and then the job ends FAILED with an answer. They are NOT in
+# RETRYABLE_ERROR_CODES because they are counted and worded separately.
+MODEL_TRANSIENT_ERROR_CODES = frozenset({
+    "ModelErrorException", "ModelStreamErrorException",
+})
+
+# Errors that say the REQUEST is wrong. Retrying cannot fix any of them, and
+# they are listed so the classification below names them rather than letting
+# them fall through to the default.
+NON_RETRYABLE_ERROR_CODES = frozenset({
+    "ValidationException", "AccessDeniedException",
+    "ResourceNotFoundException", "UnrecognizedClientException",
+    "ConditionalCheckFailedException",
+})
+
+# How a failure is classified, for logs and metrics. See `failure_class`.
+TRANSIENT_PROVIDER = "TRANSIENT_PROVIDER"   # throttle, 5xx, network
+TRANSIENT_MODEL = "TRANSIENT_MODEL"         # the model produced an unusable turn
+NON_RETRYABLE_INPUT = "NON_RETRYABLE_INPUT" # the request itself is wrong
+BUSINESS_VALIDATION = "BUSINESS_VALIDATION" # the order breaks a business rule
+UNKNOWN_FAILURE = "UNKNOWN"                 # anything else: terminal, safely
+
 # Exception CLASS names that mean the same thing, for the botocore errors that
 # are not ClientError and so carry no response code.
 RETRYABLE_EXCEPTION_NAMES = frozenset({
@@ -141,6 +169,10 @@ RETRY_BACKOFF_SECONDS = (30, 90)
 BUSY_MESSAGE = ("ShopFlow is busy and could not process this order after "
                 f"{MAX_RECEIVES} attempts. Nothing was quoted. Please send the "
                 "order again.")
+MODEL_ERROR_MESSAGE = ("ShopFlow could not read this order after "
+                       f"{MAX_RECEIVES} attempts. Nothing was quoted. Please "
+                       "send it again, or write the product names as they "
+                       "appear on the box.")
 
 
 class RetryableFailure(RuntimeError):
@@ -160,16 +192,49 @@ def is_retryable(exc: BaseException) -> bool:
         return True
     if type(exc).__name__ in RETRYABLE_EXCEPTION_NAMES:
         return True
+    if is_model_error(exc):
+        return True
     response = getattr(exc, "response", None)
     if isinstance(response, dict):
         code = (response.get("Error") or {}).get("Code")
         if code in RETRYABLE_ERROR_CODES:
             return True
+        if code in NON_RETRYABLE_ERROR_CODES:
+            return False
         status = (response.get("ResponseMetadata") or {}).get("HTTPStatusCode")
         # 5xx is the service's problem; 4xx is ours and will not improve.
         if isinstance(status, int) and status >= 500:
             return True
     return False
+
+
+def _error_code(exc: BaseException):
+    response = getattr(exc, "response", None)
+    if isinstance(response, dict):
+        return (response.get("Error") or {}).get("Code")
+    return None
+
+
+def is_model_error(exc: BaseException) -> bool:
+    """Bedrock reported that the model's own output was unusable."""
+    return (_error_code(exc) in MODEL_TRANSIENT_ERROR_CODES
+            or type(exc).__name__ in MODEL_TRANSIENT_ERROR_CODES)
+
+
+def failure_class(exc: BaseException) -> str:
+    """One word for what kind of failure this was. For logs and metrics only;
+    `is_retryable` is what decides."""
+    from agent.orchestrator import OrderTooLongError
+
+    if isinstance(exc, OrderTooLongError):
+        return BUSINESS_VALIDATION
+    if is_model_error(exc):
+        return TRANSIENT_MODEL
+    if is_retryable(exc):
+        return TRANSIENT_PROVIDER
+    if _error_code(exc) in NON_RETRYABLE_ERROR_CODES:
+        return NON_RETRYABLE_INPUT
+    return UNKNOWN_FAILURE
 
 
 def is_throttle(exc: BaseException) -> bool:
@@ -521,22 +586,34 @@ def _process_message(message: dict, delivery: dict | None = None) -> dict:
         return _process_order(job_id, item)
     except Exception as exc:  # noqa: BLE001
         receives = (delivery or {}).get("receives") or 1
+        kind = failure_class(exc)
+        if kind == TRANSIENT_MODEL:
+            metrics.emit(metrics.MODEL_ERRORS, job_id=job_id,
+                         dimensions={"JobType": job_type,
+                                     "Outcome": ("RETRYABLE"
+                                                 if receives < MAX_RECEIVES
+                                                 else "TERMINAL")})
         if is_retryable(exc) and receives < MAX_RECEIVES:
             # Left exactly as it is - still PROCESSING, still recoverable.
             # Re-raised so SQS redelivers it, sooner than the visibility
-            # timeout would.
+            # timeout would. `_claim` on the next delivery accepts a job at
+            # PROCESSING, so the retry re-runs the agent once; a job that has
+            # meanwhile reached DONE or FAILED is never run again.
             throttled = is_throttle(exc)
             print(json.dumps({
                 "event": "retryable_failure",
                 "jobId": job_id,
                 "jobType": job_type,
                 "error": type(exc).__name__,
+                "failureClass": kind,
                 "throttled": throttled,
                 "attempt": receives,
             }))
             metrics.emit(metrics.WORKER_FAILURES, job_id=job_id,
                          dimensions={"JobType": job_type,
                                      "Outcome": ("THROTTLED" if throttled
+                                                 else "MODEL_ERROR"
+                                                 if kind == TRANSIENT_MODEL
                                                  else "RETRYABLE")})
             _back_off(delivery)
             raise
@@ -549,10 +626,13 @@ def _process_message(message: dict, delivery: dict | None = None) -> dict:
                 "jobId": job_id,
                 "jobType": job_type,
                 "error": type(exc).__name__,
+                "failureClass": kind,
                 "throttled": is_throttle(exc),
                 "attempt": receives,
             }))
-            _update(job_id, status=STATUS_FAILED, error=BUSY_MESSAGE,
+            _update(job_id, status=STATUS_FAILED,
+                    error=(MODEL_ERROR_MESSAGE if kind == TRANSIENT_MODEL
+                           else BUSY_MESSAGE),
                     finishedAt=int(time.time()))
             metrics.emit(metrics.WORKER_FAILURES, job_id=job_id,
                          dimensions={"JobType": job_type, "Outcome": "TERMINAL"})
@@ -562,7 +642,7 @@ def _process_message(message: dict, delivery: dict | None = None) -> dict:
                            jobId=job_id, jobType=job_type,
                            reason="retries_exhausted")
             return {"ok": False, "reason": "retries-exhausted"}
-        print(f"ERROR terminal failure for {job_id}: "
+        print(f"ERROR terminal failure for {job_id} ({kind}): "
               f"{type(exc).__name__}: {exc}")
         # Worded for the job that actually failed. This message is returned by
         # GET /api/jobs/{id} and shown to the owner, so a price list failing
@@ -722,6 +802,10 @@ def _process_order(job_id: str, item: dict) -> dict:
     # the top of observability/metrics.py for why that line is drawn hard.
     metrics.emit(metrics.WORKER_PROCESSING_SECONDS, elapsed / 1000.0,
                  job_id=job_id, dimensions={"JobType": JOB_ORDER})
+    if ((payload.get("quote") or {}).get("gst") or {}).get("available"):
+        # A count of quotations that carried a GST block. Never the tax.
+        metrics.emit(metrics.GST_CALCULATIONS, job_id=job_id,
+                     dimensions={"JobType": JOB_ORDER, "Outcome": "QUOTED"})
     # ShopFlowOrdersFailed is what the agent-failure alarm watches, so only a
     # genuine agent failure may reach it. A clarification is a completed
     # order. A FAILED result for a message that named no product is recorded
