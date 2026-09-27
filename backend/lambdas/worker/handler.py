@@ -63,6 +63,7 @@ from agent.orchestrator import (
     run_order_agent,
 )
 from agent.brief_summary import summarize_brief
+from agent.negotiation_draft import draft_counter_offer
 from agent.decision_trace import build as build_decision_trace
 from agent.textract_reader import (NOVA_PRO, TEXTRACT, TextractError,
                                    read_price_list)
@@ -89,6 +90,7 @@ TASK_DAILY_BRIEF = "DAILY_BRIEF"
 
 JOB_ORDER = "ORDER"
 JOB_PRICE_LIST = "PRICE_LIST"
+JOB_COUNTER_OFFER = "COUNTER_OFFER"
 
 # Statuses. DONE is this codebase's completed state and has been since the
 # first stage - the browser polls for it and the API returns it. It is named
@@ -645,6 +647,57 @@ def _process_price_list(job_id: str, item: dict) -> dict:
     return {"ok": True, "status": "REVIEWED"}
 
 
+def _process_counter_offer(job_id: str, item: dict, client=None) -> dict:
+    """Word one supplier counter-offer. Never retried, never sent.
+
+    The terms were written onto the job by the API from the engines; they are
+    worded here, checked by `engine.negotiation.validate_draft`, and replaced
+    by the fixed template if the model fails or strays. A model failure is
+    therefore not a reason to redeliver: the template is a correct answer.
+    """
+    started = time.perf_counter()
+    try:
+        terms = json.loads(item.get("terms") or "null")
+    except (TypeError, ValueError):
+        terms = None
+    if not isinstance(terms, dict) or not terms.get("skuId"):
+        print(json.dumps({"event": "counter_offer_invalid_job", "jobId": job_id}))
+        _update(job_id, status=STATUS_FAILED,
+                error="counter-offer draft failed", finishedAt=int(time.time()))
+        return {"ok": False, "reason": "terminal"}
+
+    if client is None:
+        try:
+            from agent.orchestrator import _bedrock_client
+            client = _bedrock_client()
+        except Exception as exc:  # noqa: BLE001 - the template stands
+            print(json.dumps({"event": "counter_offer_client_unavailable",
+                              "jobId": job_id, "error": type(exc).__name__}))
+    outcome = draft_counter_offer(cached_dataset(), terms, client, MODEL_ID)
+    elapsed = round((time.perf_counter() - started) * 1000, 1)
+    print(json.dumps({"event": "counter_offer_drafted", "jobId": job_id,
+                      "skuId": terms["skuId"], "source": outcome["source"],
+                      "fallbackReason": outcome["fallbackReason"],
+                      "valid": outcome["validation"]["valid"],
+                      "elapsedMs": elapsed}))
+    _update(job_id, status=STATUS_DONE, finishedAt=int(time.time()),
+            result=json.dumps({
+                "status": "DRAFTED",
+                "jobType": JOB_COUNTER_OFFER,
+                "terms": terms,
+                "draft": outcome["draft"],
+                "draftSource": outcome["source"],
+                "fallbackReason": outcome["fallbackReason"],
+                "validation": outcome["validation"],
+                "modelProblems": outcome["problems"],
+                "ownerApprovalRequired": True,
+                "sent": False,
+                "stateChanged": False,
+                "elapsedMs": elapsed,
+            }))
+    return {"ok": True, "status": "DRAFTED"}
+
+
 def handler(event, context):
     """The SQS entry point.
 
@@ -730,6 +783,8 @@ def _process_message(message: dict, delivery: dict | None = None) -> dict:
     try:
         if job_type == JOB_PRICE_LIST:
             return _process_price_list(job_id, item)
+        if job_type == JOB_COUNTER_OFFER:
+            return _process_counter_offer(job_id, item)
         return _process_order(job_id, item)
     except Exception as exc:  # noqa: BLE001
         receives = (delivery or {}).get("receives") or 1
@@ -797,6 +852,8 @@ def _process_message(message: dict, delivery: dict | None = None) -> dict:
         _update(job_id, status=STATUS_FAILED,
                 error=("price list processing failed"
                        if job_type == JOB_PRICE_LIST
+                       else "counter-offer draft failed"
+                       if job_type == JOB_COUNTER_OFFER
                        else "order processing failed"))
         metrics.emit(metrics.WORKER_FAILURES, job_id=job_id,
                      dimensions={"JobType": job_type, "Outcome": "TERMINAL"})

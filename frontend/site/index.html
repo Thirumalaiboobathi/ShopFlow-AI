@@ -226,6 +226,21 @@
   .primary:disabled{opacity:.55; cursor:default}
   .ghost{background:transparent; color:var(--muted); border-color:var(--line)}
   .ghost:hover{color:var(--ink)}
+  .negobox{margin-top:18px}
+  .negobox h3{margin:0 0 4px}
+  .nego{border:1px solid var(--line); border-radius:10px; padding:14px 16px;
+    margin-top:12px; background:var(--bg)}
+  .nego .nlabel{margin:0; font-size:.75rem; font-weight:700; letter-spacing:.06em;
+    color:var(--muted)}
+  .nego .nprod{margin:2px 0 10px; font-weight:600}
+  .nego dl{display:grid; grid-template-columns:auto 1fr; gap:4px 14px; margin:0 0 12px;
+    font-size:.9rem}
+  .nego dt{color:var(--muted)}
+  .nego dd{margin:0; font-variant-numeric:tabular-nums; overflow-wrap:anywhere}
+  .nego button{padding:8px 14px; font-size:.87rem}
+  .nego .nbadge{margin:12px 0 6px; font-weight:600; font-size:.88rem}
+  .nego textarea{min-height:120px}
+  .nego .nmsg{margin:10px 0 0; font-size:.88rem}
   .hint{color:var(--muted); font-size:.87rem; margin:10px 0 0}
 
   .status{display:flex; gap:11px; align-items:center; margin-top:18px;
@@ -929,6 +944,7 @@
         </table>
       </div>
       <p id="alertNote" class="note"></p>
+      <div id="negoBox" class="negobox" hidden></div>
     </div>
 
     <div id="tpOps" class="wstabpane">
@@ -1717,6 +1733,7 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
         "opinion: margin, reorder point and supplier comparison are all " +
         "deterministic. "
       : "") + ((intel && intel.alertDelivery && intel.alertDelivery.note) || "");
+    paintNegotiation(alerts);
     // With no document to show, open on what needs attention instead of an
     // empty table. Once: after that the owner's own choice of tab stands.
     if (!intelDefaulted) {
@@ -1734,6 +1751,156 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
       : "Business events are not configured in this environment. Orders, " +
         "quotations and purchase plans are unaffected.";
   }
+
+  // ---- Supplier negotiation ---------------------------------------------
+  //
+  // A counter-offer DRAFT for the owner to review. Every figure on the card
+  // and in the draft is the server's (engine.negotiation): this code sends a
+  // SKU and shows what comes back. Nothing is sent to a supplier - there is
+  // no send button, only Copy.
+  function negoFacts(rows) {
+    return "<dl>" + rows.map(function (r) {
+      return "<dt>" + esc(r[0]) + "</dt><dd>" + esc(r[1]) + "</dd>";
+    }).join("") + "</dl>";
+  }
+
+  function paintNegotiation(alerts) {
+    var box = el("negoBox");
+    var list = alerts.filter(function (a) {
+      return a.kind === "SUPPLIER_PRICE_CHANGED" && a.priceAlert;
+    });
+    box.hidden = !list.length;
+    if (!list.length) { box.innerHTML = ""; return; }
+    box.innerHTML = "<h3>Supplier negotiation</h3>" +
+      '<p class="note">ShopFlow can draft a counter-offer for you to review. ' +
+      "It never sends one.</p>" +
+      list.map(function (a) {
+        var pa = a.priceAlert, w = pa.walkAway || {};
+        var rows = [
+          ["Previous supplier cost", briefMoney(pa.oldCost)],
+          ["Current supplier cost", briefMoney(pa.newCost)],
+          ["Increase", (pa.percentageDelta >= 0 ? "+" : "") +
+            pa.percentageDelta.toFixed(2) + "%"],
+          ["Walk-away", briefMoney(w.price)],
+          ["Gap", w.currentCostAboveWalkAway
+            ? briefMoney(w.differenceFromCurrentCost) + " above walk-away"
+            : "within walk-away"]
+        ];
+        return '<div class="nego" data-sku="' + esc(a.skuId) + '">' +
+          '<p class="nlabel">PRICE SHOCK</p><p class="nprod">' +
+          esc(pa.product) + "</p>" + negoFacts(rows) +
+          '<button type="button" class="primary nego-draft">Draft counter-offer' +
+          '</button><div class="nego-out" aria-live="polite"></div></div>';
+      }).join("");
+  }
+
+  var NEGO_FALLBACK_NOTES = {
+    MODEL_ERROR: "the language model was unavailable",
+    MODEL_UNAVAILABLE: "the language model was unavailable",
+    VALIDATION_FAILED: "its wording did not pass ShopFlow's figure check"
+  };
+
+  function negoDraftHtml(res) {
+    var t = res.terms || {};
+    var model = res.draftSource === "MODEL";
+    var qty = t.quantity
+      ? t.quantity + " " + t.uom + (t.quantitySource === "CUSTOMER_COMMITMENT"
+          ? " (customer commitment)" : " (planned restock)")
+      : "not stated — no committed or planned quantity";
+    return '<p class="nbadge">' + (model
+        ? "AI-generated draft — review before sending."
+        : "Template draft — review before sending.") + "</p>" +
+      (model ? "" : '<p class="note">The fixed template was used because ' +
+        esc(NEGO_FALLBACK_NOTES[res.fallbackReason] || "no model draft was kept") +
+        ". Its figures are the same.</p>") +
+      negoFacts([
+        ["Current supplier price", briefMoney(t.currentSupplierPrice)],
+        ["Walk-away price", briefMoney(t.walkAwayPrice)],
+        ["Target counter-offer", briefMoney(t.targetCounterOffer)],
+        ["Quantity", qty],
+        ["Price gap", briefMoney(t.priceGap)],
+        ["Supplier", t.supplierName || "not on record"]
+      ]) +
+      '<textarea class="nego-text" readonly aria-label="Counter-offer draft">' +
+      esc(res.draft) + "</textarea>" +
+      '<div class="row"><button type="button" class="ghost nego-draft">' +
+      'Regenerate draft</button><button type="button" class="primary nego-copy">' +
+      "Copy message</button></div>" +
+      '<p class="nmsg">No message has been sent. ShopFlow does not contact ' +
+      "suppliers: copy this and send it yourself if you approve it.</p>";
+  }
+
+  function negoPoll(out, jobId, attempt) {
+    fetch("/api/jobs/" + encodeURIComponent(jobId), { headers: OWNER_HEADERS })
+      .then(function (r) { return r.json().then(function (b) { return { ok: r.ok, body: b }; }); })
+      .then(function (res) {
+        var job = res.body || {};
+        if (res.ok && job.status === "DONE" && job.result) {
+          out.innerHTML = negoDraftHtml(job.result);
+        } else if (!res.ok || job.status === "FAILED" || attempt >= 40) {
+          out.innerHTML = '<p class="nmsg">The draft could not be prepared. ' +
+            "Nothing was sent. Try again.</p>";
+        } else {
+          setTimeout(function () { negoPoll(out, jobId, attempt + 1); }, 1500);
+        }
+      })
+      .catch(function () {
+        out.innerHTML = '<p class="nmsg">The draft could not be prepared. ' +
+          "Nothing was sent. Try again.</p>";
+      });
+  }
+
+  function negoRequest(card) {
+    var out = card.querySelector(".nego-out");
+    Array.prototype.forEach.call(card.querySelectorAll(".nego-draft"),
+      function (b) { b.disabled = true; });
+    out.innerHTML = '<p class="nmsg">Checking the figures…</p>';
+    fetch("/api/shop-queries", {
+      method: "POST",
+      headers: Object.assign({ "content-type": "application/json" }, OWNER_HEADERS),
+      body: JSON.stringify({ kind: "COUNTER_OFFER", skuId: card.getAttribute("data-sku") })
+    })
+      .then(function (r) { return r.json().then(function (b) { return { status: r.status, body: b }; }); })
+      .then(function (res) {
+        var b = res.body || {};
+        if (res.status === 202 && b.jobId) {
+          out.innerHTML = '<p class="nmsg">Wording the draft…</p>';
+          negoPoll(out, b.jobId, 0);
+        } else if (res.status === 200 && b.message) {
+          out.innerHTML = '<p class="nmsg">' + esc(b.message) + "</p>";
+        } else {
+          out.innerHTML = '<p class="nmsg">' + esc(b.error ||
+            "The draft could not be prepared.") + " Nothing was sent.</p>";
+        }
+      })
+      .catch(function () {
+        out.innerHTML = '<p class="nmsg">The draft could not be prepared. ' +
+          "Nothing was sent. Try again.</p>";
+      })
+      .then(function () {
+        var first = card.querySelector("button.primary.nego-draft");
+        if (first) first.disabled = false;
+      });
+  }
+
+  el("negoBox").addEventListener("click", function (e) {
+    var btn = e.target.closest("button");
+    var card = btn && btn.closest(".nego");
+    if (!card) return;
+    if (btn.classList.contains("nego-draft")) { negoRequest(card); return; }
+    if (btn.classList.contains("nego-copy")) {
+      var text = card.querySelector(".nego-text");
+      var done = function () {
+        card.querySelector(".nmsg").textContent =
+          "Copied. No message has been sent — paste it to the supplier yourself.";
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text.value).then(done, function () {
+          text.select(); document.execCommand("copy"); done();
+        });
+      } else { text.select(); document.execCommand("copy"); done(); }
+    }
+  });
 
   // The tabs. No routing: they are one pane's internal state.
   Array.prototype.forEach.call(

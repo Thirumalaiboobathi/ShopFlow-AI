@@ -123,6 +123,7 @@ from engine.voice import MAX_TRANSCRIPT_CHARS, answer_shop_query
 from engine import gst, whatif
 from engine.brief import brief_signature, build_brief
 from engine.price_alerts import evaluate_price_change
+from engine import negotiation
 
 MAX_ORDER_CHARS = 1000
 # A customer id is an internal key, not free text. Bounded and pattern-checked
@@ -144,6 +145,7 @@ IMAGE_EXTENSIONS = {"image/png": "png", "image/jpeg": "jpg",
 JOB_ORDER = "ORDER"
 JOB_PRICE_LIST = "PRICE_LIST"
 JOB_TRANSCRIPT = "TRANSCRIPT"
+JOB_COUNTER_OFFER = "COUNTER_OFFER"
 
 # The shape of the message this API puts on the queue. Carried so a consumer
 # reading an unfamiliar message can say so instead of guessing at it.
@@ -740,6 +742,96 @@ def _create_what_if(event, payload: dict) -> dict:
     return _response(200, result)
 
 
+COUNTER_OFFER_KIND = "COUNTER_OFFER"
+
+# Figures a caller may not supply. The server reads every one of them from the
+# engines; a request that carries one is refused rather than half-trusted.
+COUNTER_OFFER_SERVER_FIELDS = frozenset({
+    "walkAwayPrice", "targetPrice", "targetCounterOffer", "supplierCost",
+    "currentSupplierPrice", "previousSupplierPrice", "margin", "discount",
+    "quantity", "price", "supplierName",
+})
+
+
+def _documents_since(sku_id: str, since: int) -> list:
+    """Supplier price-list rows for one SKU, from documents read after `since`.
+
+    A document read after the owner confirmed a cost may contradict it; a
+    CONFLICT row there puts the supplier's price in doubt. Reads only.
+    """
+    rows = []
+    for job in _recent_jobs():
+        if str(job.get("jobType")) != JOB_PRICE_LIST \
+                or int(job.get("createdAt") or 0) <= since:
+            continue
+        try:
+            review = (json.loads(job.get("result") or "null") or {}).get(
+                "review") or {}
+        except (TypeError, ValueError):
+            continue
+        rows += [line for line in review.get("lines") or []
+                 if isinstance(line, dict) and line.get("skuId") == sku_id]
+    return rows
+
+
+def _create_counter_offer(payload: dict) -> dict:
+    """Supplier counter-offer draft: the terms now, the words from the worker.
+
+    Reached through `POST /api/shop-queries` with `kind: "COUNTER_OFFER"` and
+    a `skuId`, behind the owner gate. Every figure is `engine.negotiation`'s,
+    read from the shop's confirmed costs and the catalogue here; the caller
+    supplies an identifier and nothing else.
+
+    Not eligible: 200 with the fixed reason, and nothing is written. Eligible:
+    202 with the terms, and a COUNTER_OFFER job - a 24-hour working row like
+    every other job - is queued so the worker, the one function allowed to
+    reach Bedrock, can word it. No business state is changed either way, and
+    no message is sent to anyone.
+    """
+    supplied = sorted(COUNTER_OFFER_SERVER_FIELDS & set(payload))
+    if supplied:
+        return _response(400, {
+            "error": "these values are calculated by ShopFlow and cannot be "
+                     "supplied: " + ", ".join(supplied)})
+    data = cached_dataset()
+    sku_id = payload.get("skuId")
+    if not isinstance(sku_id, str) or not sku_id:
+        return _response(400, {"error": "skuId is required"})
+
+    confirmed = _confirmed_costs()
+    entry = confirmed.get(sku_id) or {}
+    result = negotiation.negotiation_terms(
+        data, sku_id, {sku: e["cost"] for sku, e in confirmed.items()},
+        budget=BRIEF_BUDGET,
+        document_rows=(_documents_since(sku_id, int(entry.get("confirmedAt")
+                                                    or 0))
+                       if entry else ()))
+    print(json.dumps({"event": "counter_offer_requested", "skuId": sku_id,
+                      "eligibility": result["reason"]}))
+    if not result["eligible"]:
+        return _response(200, result)
+
+    job_id = uuid.uuid4().hex
+    now = int(time.time())
+    failed = _queue_job(job_id, JOB_COUNTER_OFFER, {
+        **_job_key(job_id),
+        **_job_index(job_id, JOB_COUNTER_OFFER, now),
+        "jobId": job_id,
+        "jobType": JOB_COUNTER_OFFER,
+        "status": "QUEUED",
+        "skuId": sku_id,
+        # Written by this server from the engines, never taken from the
+        # request. The worker words exactly these figures.
+        "terms": json.dumps(result["terms"]),
+        "createdAt": now,
+        "expiresAt": now + JOB_TTL_SECONDS,
+    })
+    if failed:
+        return failed
+    return _response(202, {**result, "status": "QUEUED", "jobId": job_id,
+                           "jobType": JOB_COUNTER_OFFER, "sent": False})
+
+
 def _confirmed_costs() -> dict:
     """The shop's durable confirmed purchase costs, keyed by SKU.
 
@@ -806,6 +898,11 @@ def _create_shop_query(event) -> dict:
     if isinstance(payload, dict) and \
             str(payload.get("kind") or "").upper() == WHAT_IF_KIND:
         return _create_what_if(event, payload)
+    # A supplier counter-offer draft, on the same owner route for the same
+    # reason. Selected explicitly, never guessed.
+    if isinstance(payload, dict) and \
+            str(payload.get("kind") or "").upper() == COUNTER_OFFER_KIND:
+        return _create_counter_offer(payload)
 
     # Same contract as orderText: a transcript is text, not a coerced object.
     raw_transcript = payload.get("transcript")
@@ -1695,6 +1792,22 @@ def _get_job(event) -> dict:
         # Transcribe is doing the waiting. Each poll asks it once; there is no
         # loop in a Lambda and no background process that can outlive a tab.
         return _job_response(event, _poll_transcription(item, body))
+
+    if body["jobType"] == JOB_COUNTER_OFFER:
+        # A counter-offer carries the supplier cost and the walk-away price.
+        # Owner data, behind the same gate as a supplier price list.
+        if not _is_demo_owner(event):
+            owner_only = _response(401, {
+                "error": "owner route",
+                "message": ("A supplier counter-offer is owner data. Poll this "
+                            "job with the ShopFlow demo workspace."),
+                "demoGate": True,
+                "isAuthentication": False,
+                "note": OWNER_GATE_NOTE,
+            })
+            owner_only.setdefault("headers", {})["x-shopflow-audience"] = "owner"
+            return owner_only
+        body["skuId"] = item.get("skuId")
 
     if body["jobType"] == JOB_PRICE_LIST:
         # A price-list result IS supplier cost: every matched row carries what
