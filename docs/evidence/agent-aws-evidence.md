@@ -79,6 +79,34 @@ serves is identical to `frontend/site/index.html`.
 `scripts/smoke_test_p1_regressions.py` then passed 15/15 against the public
 URL.
 
+### After the P2-fix deploy
+
+Stack `UPDATE_COMPLETE` 2026-09-27 14:30:08 UTC through `scripts/deploy.sh`.
+Read back with boto3 from the deployed resources:
+
+```
+shopflow-api / shopflow-order-worker / shopflow-health
+  LastModified 2026-09-27T14:30:14  CodeSha256 1qrqv/rAQCHw5tCivoXzJSW1I3Pdcx4zN5uHmrpK9Ss=
+package downloaded and compared with backend/: 74 files, 0 differences
+CloudFront index.html (Last-Modified 14:30:18 GMT) = frontend/site/index.html
+
+owner rule shopflow-owner-alerts ENABLED
+  {"detail-type":["SupplierPriceChanged","DailyShopBriefGenerated"],"source":["shopflow.business"]}
+  target arn:aws:sns:ap-south-1:675613597178:shopflow-owner-alerts
+alarms (all 4) -> arn:aws:sns:ap-south-1:675613597178:shopflow-ops-alarms
+topic shopflow-owner-alerts  subscriptions 0/0  publishers: events.amazonaws.com
+topic shopflow-ops-alarms    subscriptions 0/0  publishers: cloudwatch.amazonaws.com
+account Lambda concurrency 10 (unchanged); orders queue 0, DLQ 0
+```
+
+`scripts/smoke_test_p2_regressions.py` passed 12 of its 14 checks against the
+public URL. The two that failed are one canonical order that returned a
+clarification: in that run the model searched the Havells MCB line with an
+empty `requestedText`, and the completeness guard withheld the quote. Eight
+more canonical orders after it, three direct and five through the page and
+smokes, quoted ₹22,306.48 with the correct GST.
+`scripts/smoke_test_p1_regressions.py` passed 15/15 on the same release.
+
 ### Owner-alert routing after the P1-fix deploy
 
 Read from the deployed resources after the deploy:

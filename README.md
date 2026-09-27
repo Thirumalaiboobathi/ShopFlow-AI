@@ -48,6 +48,12 @@ Checked against the public URL after the last deploy, not against local tests.
 | Price list with the same MCB at ₹358 and ₹400 | both rows **CONFLICT**, no comparison, no alert; confirming the price answers **409** |
 | Price list rows "N/A" and "-148.00" | "2 rows could not be interpreted and were excluded from price analysis." with each row's own text |
 | Promise-keeping cost | commitments: 2 × Finolex at ₹6,300.00 = ₹12,600.00, funded, ₹705.60 above the walk-away price; discretionary: do not restock Finolex at ₹6,300.00 because it exceeds ₹5,947.20 |
+| Supplier price +4.99% / +5.00% / +5.01% (live Textract) | material: no / **yes** / yes - the review rule is "material when \|change\| >= 5.0%", the same function the price alert uses |
+| What-If "increases by -₹500" | **not simulated** - "The increase amount cannot be negative. Did you mean an increase of ₹500 or a decrease of ₹500?"; "decreases by ₹500" simulates ₹6,300 → ₹5,800 |
+| Budget ₹12,948.00 / ₹12,947.99 / ₹12,948.01 | commitments funded / **not funded, restock ₹0, ₹6,299.99 left** / funded, ₹0.01 left - no discretionary restock while a commitment is short |
+| Voice "2 Hels MCB SP 32 amp C curve" | normalised to "2 Havells MCB …", shown to the owner as `Hels -> Havells` |
+| AI assistant page | workspace navigation and Log out stay on screen (desktop and 390 px), 0 console errors; the quote shows "Prepared in 3.2 s", no model id |
+| Alarm routing | the 4 CloudWatch alarms publish to `shopflow-ops-alarms`; `shopflow-owner-alerts` admits EventBridge only and its rule routes only `SupplierPriceChanged` and `DailyShopBriefGenerated` |
 
 ---
 
@@ -493,7 +499,7 @@ Textract rows → supplier price engine (match + compare) → engine.price_alert
 
 | Trigger (only on an increase) | Default | Configured by |
 |---|---|---|
-| Percentage rise | ≥ 5% | `engine.pricing.PRICE_ALERT_THRESHOLD_PERCENT` (the supplier engine's own), env `SHOPFLOW_PRICE_ALERT_PERCENT` |
+| Percentage rise | ≥ 5% | `engine.pricing.PRICE_ALERT_THRESHOLD_PERCENT`, judged by `engine.pricing.is_material_change` - the same function the price review uses, on a Decimal percentage rounded half-up to 0.01, so +5.00% is material in the review and an alert trigger alike. Env `SHOPFLOW_PRICE_ALERT_PERCENT` |
 | Absolute rise | ≥ ₹250 | env `SHOPFLOW_PRICE_ALERT_ABSOLUTE_INR` |
 | Margin falls through the floor | 10% | `engine.margin.MARGIN_WARNING_PERCENT`, env `SHOPFLOW_MARGIN_FLOOR_PERCENT` |
 | Margin enters the zone just above the floor | 2 points | env `SHOPFLOW_MARGIN_APPROACH_POINTS` |
@@ -1311,13 +1317,14 @@ a question, a prompt injection - is recorded as the `NO_PRODUCT` outcome and
 does not publish `OrderProcessingFailed`. An evaluator's injection test once
 put this alarm into ALARM for correct behaviour.
 
-> **Every alarm publishes to the `shopflow-owner-alerts` SNS topic.** The
-> topic policy admits CloudWatch as well as EventBridge (the EventBridge target
-> had replaced SNS's default policy, which would have refused an alarm's
-> publish). **Delivery to a person still needs a subscription**, which is
-> opt-in (`enableBusinessAlerts`), so on a default deployment an alarm
-> notification is published and reaches nobody. Subscribing in the console
-> starts delivery with no redeploy. Delivery has not been tested end to end.
+> **Every alarm publishes to the `shopflow-ops-alarms` SNS topic** - an
+> operational topic of its own, never the owner's business-alert topic. Its
+> policy admits CloudWatch, scoped to this account's `shopflow-*` alarms; the
+> owner topic's policy admits EventBridge only. **Delivery to a person still
+> needs a subscription**, and none is made by the stack, so on a default
+> deployment an alarm notification is published and reaches nobody.
+> Subscribing in the console starts delivery with no redeploy. Delivery has
+> not been tested end to end.
 
 ### The AI / deterministic boundary
 
@@ -1363,7 +1370,7 @@ model. It runs offline, in a unit test, in milliseconds.
 | **Amazon Textract** | Reads photographed supplier price lists (`AnalyzeDocument`, tables) |
 | **Amazon Transcribe** | Voice orders → text, then the same order workflow |
 | **Amazon EventBridge** | Custom bus `shopflow-business-events`; one rule routes **only** `SupplierPriceChanged` (de-duplicated price alerts) and `DailyShopBriefGenerated` to SNS. Stock-out, low-margin, plan and failure events stay on the bus and are counted, not sent to a person. One schedule rule on the default bus runs the daily brief on the worker at 08:00 IST |
-| **Amazon SNS** | `shopflow-owner-alerts` topic for that rule and the alarms. **No subscriber by default** - events and alarms are published and reach nobody until someone subscribes |
+| **Amazon SNS** | `shopflow-owner-alerts` for owner business alerts (price alerts and the daily brief, via that rule); `shopflow-ops-alarms` for the CloudWatch alarms. **No subscriber on either by default** - messages are published and reach nobody until someone subscribes |
 | **Amazon CloudWatch** | 4 log groups, 14-day retention; 4 alarms; `shopflow-operations` dashboard |
 | **AWS Budgets** | $25/month cost guard with 50/80/100% alerts |
 | **AWS CloudFormation / CDK** | One stack, Python CDK |
@@ -1805,19 +1812,24 @@ Stated plainly, because the system is only useful if its claims are reliable.
   needs the `enableBusinessAlerts` context. No SMS or WhatsApp notification
   exists. Only price alerts and the daily brief are routed to the topic;
   stock-out, low-margin, plan and failure events stay on the bus and are
-  counted. CloudWatch alarm actions still target the same topic - they are
-  operational, rare, and reach nobody while it has no subscriber.
-- **Price alerts treat an exact 5.00% rise as an alert** while the price
-  review marks the same line "not a material change" (the review threshold
-  is strictly greater than 5%). Known inconsistency, not fixed in this
-  release.
+  counted. CloudWatch alarms publish to a separate operational topic,
+  `shopflow-ops-alarms`, never to the owner's.
 - **The daily brief is a morning snapshot.** The scheduled summary is shown
   only while the figures are unchanged; the structured brief is rebuilt on
   every visit. It has run live once, triggered by hand exactly as the
   schedule does; the first scheduled run is the next 08:00 IST.
 - **Alarms notify nobody by default.** CloudWatch alarm actions are
-  configured; notification delivery requires an SNS subscription, and none
-  is configured in this demo. The new metrics (`ShopFlowWhatIfSimulations`,
+  configured (to `shopflow-ops-alarms`); notification delivery requires an
+  SNS subscription, and none is configured in this demo.
+- **Throughput is bounded by account quotas, not code.** The account's
+  Lambda concurrency limit is 10 and Amazon Nova Pro's cross-region quota is
+  25 requests a minute. Throttling is handled - a throttled Bedrock call is
+  classified `TRANSIENT_PROVIDER` and retried through SQS (360 s visibility,
+  3 receives, then the dead-letter queue), and the page retries a 503/429 at
+  submit - but under ~15+ concurrent orders the first attempt is refused and
+  a quotation can take minutes. Raising either limit is an AWS Support /
+  Service Quotas request for the account; nothing in this repository changes
+  them. The new metrics (`ShopFlowWhatIfSimulations`,
   `ShopFlowGstCalculations`, `ShopFlowModelErrors`) are emitted as EMF, but no
   dashboard widget or alarm was added for them - that would be an
   infrastructure change this milestone deliberately did not make.
