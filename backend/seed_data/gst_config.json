@@ -1,0 +1,69 @@
+{
+  "_about": "DEMO TAX CONFIGURATION. Not tax advice and not a filing record. GST treatment is configurable per catalogue category and per SKU; a real shop must confirm every rate and HSN classification with its tax adviser before relying on it. Rates are strings so they are read into Decimal exactly.",
+  "configVersion": "2026-09-24",
+  "status": "DEMO_CONFIGURATION",
+  "priceBasis": "EXCLUSIVE",
+  "priceBasisNote": "The demo catalogue's sellingPrice and every supplier cost are treated as GST-exclusive (taxable value). A quotation's existing total is therefore the taxable subtotal, and GST is added on top. No selling price is changed by enabling GST.",
+  "shop": {
+    "state": "Tamil Nadu",
+    "stateCode": "33"
+  },
+  "defaultTaxMode": "INTRA_STATE",
+  "categories": {
+    "Wire": {
+      "rate": "18",
+      "treatment": "TAXABLE",
+      "hsnHeading": "8544",
+      "confidence": "STANDARD_RATE_NOT_IN_CHANGE_LIST",
+      "note": "Insulated wire and cable. Not listed in any rate-change table of the 56th GST Council press release; carried at the 18% standard rate."
+    },
+    "Switch": {
+      "rate": "18",
+      "treatment": "TAXABLE",
+      "hsnHeading": "8536",
+      "confidence": "STANDARD_RATE_NOT_IN_CHANGE_LIST",
+      "note": "Electrical apparatus for switching circuits. Not listed in any rate-change table of the 56th GST Council press release; carried at the 18% standard rate."
+    },
+    "MCB": {
+      "rate": "18",
+      "treatment": "TAXABLE",
+      "hsnHeading": "8536",
+      "confidence": "STANDARD_RATE_NOT_IN_CHANGE_LIST",
+      "note": "Circuit breakers fall under heading 8536. Not listed in any rate-change table of the 56th GST Council press release; carried at the 18% standard rate."
+    },
+    "Ceiling Fan": {
+      "rate": "18",
+      "treatment": "TAXABLE",
+      "hsnHeading": "8414",
+      "confidence": "STANDARD_RATE_NOT_IN_CHANGE_LIST",
+      "note": "Electric fans. The only 8414 entry in the press release's change tables is hand pumps (8414 20 20); ceiling fans are carried at the 18% standard rate."
+    },
+    "LED Lamp": {
+      "rate": "18",
+      "treatment": "TAXABLE",
+      "hsnHeading": "8539",
+      "confidence": "NOT_CONFIRMED",
+      "note": "NOT CONFIRMED from a primary source. LED lamps were in the 12% slab before 22 September 2025 and that slab was removed; the press release reviewed does not name heading 8539. A secondary source lists 18%. Verify before relying on it."
+    },
+    "Accessory": {
+      "rate": "18",
+      "treatment": "TAXABLE",
+      "hsnHeading": null,
+      "confidence": "NOT_CONFIRMED",
+      "note": "NOT CONFIRMED. This demo category spans several HSN headings (conduit, tape, junction boxes, plugs, testers, bells). Each accessory SKU needs its own classification before a real shop relies on this rate."
+    }
+  },
+  "skuOverrides": {},
+  "sources": [
+    {
+      "title": "Recommendations of the 56th Meeting of the GST Council (PIB press release, 3 September 2025)",
+      "url": "https://gstcouncil.gov.in/sites/default/files/2025-09/press_release_press_information_bureau_0.pdf",
+      "used_for": "Rate structure: a Standard Rate of 18% and a Merit Rate of 5%, effective 22 September 2025; the headings above do not appear in its rate-change tables."
+    },
+    {
+      "title": "Notification No. 9/2025-Central Tax (Rate), 17 September 2025 (consolidated HSN-wise schedule, effective 22 September 2025)",
+      "url": "https://taxguru.in/goods-and-service-tax/notification-9-2025-ctrate-complete-hsn-wise-gst-rate-chart-effective-22nd-sept-2025.html",
+      "used_for": "Secondary summary only - not the government text. Lists 8544, 8536, 8539, 9405 and 8414 at 18% (CGST 9%)."
+    }
+  ]
+}
