@@ -100,3 +100,25 @@ def test_three_mcbs_is_still_quoted(seeded):
         client=FakeBedrock(search_then_quote((MCB, 3), search=MCB_SEARCH)))
     assert result.status == STATUS_QUOTED
     assert result.quote["lines"][0]["quantity"] == 3
+
+
+def test_model_question_about_an_unmatched_kg_line_becomes_the_unit_question(seeded):
+    """The live path: the model searched "3 kg Havells MCB...", matched
+    nothing, and asked its own question. The template now asks about the unit,
+    which is the actual problem, instead of saying the product is unknown."""
+    from test_quantity_integrity import turn
+    search = {"requestedText": "3 kg Havells MCB SP 32A C-curve",
+              "brand": "Havells", "category": "MCB", "specification": "32A kg"}
+    ask = ("request_clarification", {
+        "requestedText": "3 kg Havells MCB SP 32A C-curve",
+        "clarifyingAttribute": "specification",
+        "question": "Did you mean 3 kg of MCBs? We will quote 3.", "options": []})
+    result = run_order_agent(seeded, "3 kg Havells MCB SP 32A C-curve",
+                             client=FakeBedrock([turn(("search_catalog", search)),
+                                                 turn(ask)]))
+    assert_not_quoted(result)
+    assert result.status == STATUS_NEEDS_CLARIFICATION
+    assert result.clarification["clarifyingAttribute"] == "uom"
+    assert "3 kg" in result.clarification["question"]
+    assert "not by weight or volume" in result.clarification["question"]
+    assert "We will quote" not in result.summary

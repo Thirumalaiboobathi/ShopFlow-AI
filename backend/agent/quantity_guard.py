@@ -250,6 +250,19 @@ def order_lines(text: str) -> List[Dict]:
     return lines
 
 
+def foreign_unit_lines(text: str) -> List[Dict]:
+    """The customer's lines whose count is in a weight or volume unit."""
+    return [l for l in order_lines(text) if l.get("foreignUnit")]
+
+
+def unit_question(line: Dict) -> str:
+    """The question for "3 kg of <product>", from the customer's own words."""
+    return (f'The order asks for {line["quantity"]} {line["foreignUnit"]} of '
+            f'"{line["text"]}", but ShopFlow sells these items by count, not by '
+            f"weight or volume. Nothing has been quoted. Please confirm how "
+            f"many are wanted.")
+
+
 def _line(text: str, quantity: Optional[int], unit: Optional[str],
           unclear: bool, foreign: Optional[str] = None) -> Dict:
     return {"text": text, "quantity": quantity, "unit": unit,

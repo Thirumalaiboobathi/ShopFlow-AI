@@ -25,7 +25,7 @@ from .grounding import (collect_numbers, deterministic_quote_summary,
                         unsupported_prices, validate_summary)
 from .line_guard import stated_identity, uncovered_terms
 from .quantity_guard import (UNIT_NOT_SOLD, VERIFIED, check_quantities,
-                             question_for)
+                             foreign_unit_lines, question_for, unit_question)
 from .tools import (
     CALCULATE_QUOTE,
     REQUEST_CLARIFICATION,
@@ -740,7 +740,17 @@ def _ground_clarification(result: AgentResult, data: Dataset,
     options = clarification.get("options") or []
     label = _grounded_label(data, requested, words, options)
 
-    if clarification.pop("_modelAuthored", False):
+    authored = clarification.pop("_modelAuthored", False)
+    foreign = foreign_unit_lines(words) if authored else []
+    if authored and foreign and not _option_products(data, options):
+        # The product could not be pinned down AND the customer counted in a
+        # unit the shop never sells in. The unit is the real question: "3 kg
+        # MCB" matched nothing because of the "kg", not because of the MCB.
+        clarification["clarifyingAttribute"] = "uom"
+        clarification["question"] = unit_question(foreign[0])
+        clarification["requestedText"] = foreign[0]["text"]
+        clarification["questionSource"] = "TEMPLATE"
+    elif authored:
         attribute = _grounded_attribute(
             data, options, clarification.get("clarifyingAttribute"))
         clarification["clarifyingAttribute"] = attribute
