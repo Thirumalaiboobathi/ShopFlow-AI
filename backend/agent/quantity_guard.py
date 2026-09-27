@@ -61,6 +61,7 @@ MISMATCH = "MISMATCH"          # the line says one number, the quote another
 CONFLICTING = "CONFLICTING"    # more than one line states a quantity for it
 UNSTATED = "UNSTATED"          # no line states a quantity it can be held to
 UNIT_NOT_SOLD = "UNIT_NOT_SOLD"  # the count is in a unit the shop never sells in
+NEGATIVE = "NEGATIVE"          # the line subtracts: "minus 2", "less 2", "-2"
 
 # Units of weight and volume. Nothing in an electrical shop is sold by them,
 # so "3 kg MCB" is not three breakers - it is a question. Before this set the
@@ -84,6 +85,19 @@ _SPEC_WORDS = frozenset({
     "yrs", "rupee", "rupees", "rs", "inr", "am", "pm", "floor", "floors",
     "bhk", "x", "×",
 })
+
+# Words that make the number after them a subtraction, not a count. "minus 2
+# Havells MCB" was read as 2 and quoted as two breakers: the one word that
+# reversed the customer's meaning was simply not looked at. A signed count is
+# never quoted - not as 2, not as -2 - it is a question. "reduce by 2" and
+# "less by 2" are caught through the "by".
+_SIGN_BEFORE = frozenset({
+    "minus", "less", "negative", "subtract", "subtracted", "deduct",
+    "deducted", "remove", "reduce", "reduced", "−",
+})
+# "-2" written against the number. A dash standing alone ("MCB 32A - 2 nos")
+# is a separator in a WhatsApp order, not a sign, and is not matched here.
+_SIGNED = re.compile(r"^[-−–](\d+)([^\W\d_]*)$")
 
 # Words that make the number after them money. "Rs 1", "price 450", "@ 58".
 _MONEY_BEFORE = frozenset({
@@ -161,6 +175,19 @@ def _candidates(segment: str) -> List[Dict]:
         if before in _MONEY_BEFORE or before.endswith("₹") or word.startswith("₹"):
             continue
 
+        signed = _SIGNED.match(word)
+        before2 = words[i - 2] if i > 1 else ""
+        negative = bool(signed) or before in _SIGN_BEFORE or (
+            before == "by" and before2 in _SIGN_BEFORE)
+        if negative and (signed or _NUMERAL.match(word)
+                         or word in _NUMBER_WORDS):
+            value = (int(signed.group(1)) if signed
+                     else int(_NUMERAL.match(word).group(1))
+                     if _NUMERAL.match(word) else _NUMBER_WORDS[word])
+            out.append({"at": start, "value": value, "kind": STRONG,
+                        "unit": None, "negative": True})
+            continue
+
         numeral = _NUMERAL.match(word)
         if numeral:
             value = int(numeral.group(1))
@@ -231,11 +258,13 @@ def order_lines(text: str) -> List[Dict]:
                 part = segment[lo:hi].strip()
                 count = next(c for c in strong if lo <= c["at"] < hi)
                 lines.append(_line(part, count["value"], count["unit"], False,
-                                   count.get("foreign")))
+                                   count.get("foreign"),
+                                   count.get("negative", False)))
             continue
         if strong:
             lines.append(_line(segment, strong[0]["value"], strong[0]["unit"],
-                               False, strong[0].get("foreign")))
+                               False, strong[0].get("foreign"),
+                               strong[0].get("negative", False)))
             continue
         measures = [c for c in found if c["kind"] == MEASURE]
         weak = [c for c in found if c["kind"] == WEAK]
@@ -263,10 +292,16 @@ def unit_question(line: Dict) -> str:
             f"many are wanted.")
 
 
+def negative_lines(text: str) -> List[Dict]:
+    """The customer's lines whose count is a subtraction or a negative."""
+    return [l for l in order_lines(text) if l.get("negative")]
+
+
 def _line(text: str, quantity: Optional[int], unit: Optional[str],
-          unclear: bool, foreign: Optional[str] = None) -> Dict:
+          unclear: bool, foreign: Optional[str] = None,
+          negative: bool = False) -> Dict:
     return {"text": text, "quantity": quantity, "unit": unit,
-            "unclear": unclear, "foreignUnit": foreign,
+            "unclear": unclear, "foreignUnit": foreign, "negative": negative,
             "tokens": {t for t in _tokens(text) if not t.isdigit()}}
 
 
@@ -328,7 +363,13 @@ def check_quantities(data: Dataset, customer_text: str,
         entry = {"skuId": sku, "quotedQuantity": quantity,
                  "requestedQuantity": None, "requestedText": "",
                  "statedQuantities": [l["quantity"] for l in stated]}
-        if unclear or not stated:
+        signed = [l for l in stated if l.get("negative")]
+        if signed:
+            # Checked first: a subtraction is never a quantity to quote, even
+            # beside a line that states a positive count for the same SKU.
+            entry["status"] = NEGATIVE
+            entry["requestedText"] = signed[0]["text"]
+        elif unclear or not stated:
             entry["status"] = UNSTATED
             source = (unclear or claimed[sku] or [{"text": ""}])[0]
             entry["requestedText"] = source["text"]
@@ -349,6 +390,15 @@ def check_quantities(data: Dataset, customer_text: str,
             entry["status"] = (VERIFIED if stated[0]["quantity"] == quantity
                                else MISMATCH)
         results.append(entry)
+
+    # A signed line that no quoted SKU claimed still withholds the quotation:
+    # an order containing "minus 2" is not quoted until the owner has said
+    # what it means, whichever product the words turn out to name.
+    placed = {id(l) for sku in claimed for l in claimed[sku] + tied[sku]}
+    stray = [l for l in lines if l.get("negative") and id(l) not in placed]
+    if stray and results and all(r["status"] != NEGATIVE for r in results):
+        results[0]["status"] = NEGATIVE
+        results[0]["requestedText"] = stray[0]["text"]
     return results
 
 
@@ -379,6 +429,11 @@ def question_for(violation: Dict, name: str) -> str:
                 f'{violation.get("requestedUnit")} of "{name}", but it is sold '
                 f"by the {sold_by}, not by weight or volume. Nothing has been "
                 f"quoted. Please confirm how many {sold_by}s are wanted.")
+    if violation["status"] == NEGATIVE:
+        return (f'The order says "{violation["requestedText"]}", which asks '
+                f'for a negative quantity of "{name}". A quantity cannot be '
+                f"negative, so nothing has been quoted. Please confirm how "
+                f"many are wanted.")
     if violation["status"] == CONFLICTING:
         stated = " and ".join(str(q) for q in violation["statedQuantities"])
         return (f'The order states more than one quantity for "{name}" '
