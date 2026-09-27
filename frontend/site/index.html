@@ -1803,8 +1803,11 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
   function negoDraftHtml(res) {
     var t = res.terms || {};
     var model = res.draftSource === "MODEL";
+    // Plural as engine.negotiation's template writes it.
+    var unit = t.quantity === 1 || /s$/.test(t.uom) ? t.uom
+      : t.uom + (/(x|ch|sh)$/.test(t.uom) ? "es" : "s");
     var qty = t.quantity
-      ? t.quantity + " " + t.uom + (t.quantitySource === "CUSTOMER_COMMITMENT"
+      ? t.quantity + " " + unit + (t.quantitySource === "CUSTOMER_COMMITMENT"
           ? " (customer commitment)" : " (planned restock)")
       : "not stated — no committed or planned quantity";
     return '<p class="nbadge">' + (model

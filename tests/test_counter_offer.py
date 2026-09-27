@@ -663,6 +663,12 @@ def test_the_page_has_no_send_path():
     assert "skuId" in body and "Price" not in body and "quantity" not in body
 
 
+def test_the_page_pluralises_the_unit_like_the_template():
+    # Found live: the facts list read "2 coil" beside a draft saying "2 coils".
+    assert 't.quantity + " " + unit' in SCRIPT
+    assert 't.quantity + " " + t.uom' not in SCRIPT
+
+
 def test_the_page_uses_the_owner_gate():
     assert SCRIPT.count("OWNER_HEADERS") >= 2
     assert 'id="negoBox"' in PAGE
