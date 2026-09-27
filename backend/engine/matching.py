@@ -50,10 +50,26 @@ _SYNONYMS = {
 
 _STOPWORDS = {"", "the", "a", "of", "for", "and", "with", "me", "give", "get"}
 
+# A number and the word it qualifies are one specification, however they are
+# written: "1-Way", "1 way" and "1way" are all "1way"; "3 pin" is "3pin".
+#
+# Split apart, "1-Way" became the tokens "1" and "way", and a bare "2" - the
+# customer's COUNT - scored as a hit on "2-Way". An evaluator's order "2 Anchor
+# modular switches 1-Way 10A White and 3 coils Finolex..." tied 1-Way with
+# 2-Way and asked "1-Way 10A or 2-Way 10A?" three times out of three, although
+# the customer had said 1-Way. Joined, a specification carries its number
+# inside it and a count cannot touch it.
+_COMPOUND = re.compile(
+    r"\b(\d+)\s*-?\s*(way|pin|plate|core|module|gang)s?\b")
+
+
+def _compound(text: str) -> str:
+    return _COMPOUND.sub(r"\1\2", (text or "").lower())
+
 
 def _tokens(text: str) -> List[str]:
     out = []
-    for raw in _WORD.findall((text or "").lower()):
+    for raw in _WORD.findall(_compound(text)):
         word = _SYNONYMS.get(raw, raw)
         if word in _STOPWORDS:
             continue
@@ -65,6 +81,34 @@ def _product_tokens(p: Product) -> List[str]:
     parts = [p.name, p.brand, p.category, p.specification or "",
              p.colour or "", p.length or "", p.skuId.replace("-", " ")]
     return _tokens(" ".join(parts))
+
+
+def _is_count(token: str) -> bool:
+    """A bare whole number. In an order line that is a quantity, never a
+    product attribute: every specification in this catalogue carries a unit
+    or a qualifier ("32a", "90m", "1.5", "1way", "4x4")."""
+    return token.isdigit()
+
+
+_SKU_PARTS = re.compile(r"[a-z0-9.]+")
+
+
+def _sku_named(data: Dataset, query: str) -> List[Product]:
+    """Products whose SKU id is written, part for part, in the query.
+
+    Checked before free-text scoring because a SKU id is an identifier, not a
+    description: "ACC-CONDUIT-20" names one conduit, and its "20" is part of
+    the name rather than a count.
+    """
+    words = _SKU_PARTS.findall((query or "").lower())
+    found = []
+    for p in data.products.values():
+        parts = _SKU_PARTS.findall(p.skuId.lower())
+        n = len(parts)
+        if n and any(words[i:i + n] == parts
+                     for i in range(len(words) - n + 1)):
+            found.append(p)
+    return found
 
 
 @dataclass
@@ -163,7 +207,17 @@ def search_catalog(
         if all(_attr_matches(p, attr, val) for attr, val in filters.items()):
             pool.append(p)
 
-    q_tokens = [t for t in _tokens(query) if t]
+    named = [p for p in _sku_named(data, query) if p in pool]
+    if len(named) == 1:
+        return [MatchCandidate(named[0], 1.0)]
+
+    # Quantity never reaches product matching. The free text is scored on
+    # its product words only; a bare number in it is the customer's count.
+    all_tokens = [t for t in _tokens(query) if t]
+    q_tokens = [t for t in all_tokens if not _is_count(t)]
+    if all_tokens and not q_tokens and not filters:
+        # Only numbers: there is no product description to match.
+        return []
     scored: List[MatchCandidate] = []
     for p in pool:
         p_tokens = set(_product_tokens(p))

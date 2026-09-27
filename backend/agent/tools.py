@@ -29,6 +29,7 @@ from engine.quote import (
 from engine.uom import METER, STOCKING_UOMS, SUPPORTED_UOMS, normalize_uom
 
 from .line_guard import isolate_line
+from .quantity_guard import order_lines
 
 SEARCH_CATALOG = "search_catalog"
 GET_INVENTORY = "get_inventory"
@@ -350,6 +351,31 @@ def _diagnose_no_match(data: Dataset, args: Dict) -> Dict:
 def _tool_search_catalog(data: Dataset, args: Dict,
                          order_text: str = "") -> Dict:
     requested = (args.get("requestedText") or "").strip()
+
+    # One search is one order line. A requestedText that states two counts -
+    # "2 Anchor ... 1-Way 10A White and 3 coils Finolex ..." - is two lines,
+    # and scoring them together lets one line's words pick the other line's
+    # product. The same line splitter the quantity check uses decides it.
+    counted = [line for line in order_lines(requested)
+               if line["quantity"] is not None]
+    if len(counted) > 1:
+        return {
+            "status": NEEDS_CORRECTION,
+            "requestedText": requested,
+            "skuId": None,
+            "resolvedBy": None,
+            "clarifyingAttribute": None,
+            "options": [],
+            "candidates": [],
+            "lineIsolation": {"blocking": [
+                f"requestedText holds {len(counted)} order lines."],
+                "changes": []},
+            "instruction": (
+                "This search was not run: requestedText holds more than one "
+                "order line. Call search_catalog once for each line, with "
+                "only that line's words. Do not invent a skuId."
+            ),
+        }
 
     # One line's search may only carry one line's attributes. When the stated
     # filters contradict the customer's own words for this product, the
