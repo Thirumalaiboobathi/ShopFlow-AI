@@ -4,7 +4,10 @@ Screenshots required for the AWS "Zero to Shipped" submission, in particular
 the ship-gate requirement for **documented proof of coding-agent connection to
 the AWS console**.
 
-> **Status: NOTHING HAS BEEN CAPTURED YET.**
+> **Log evidence exists:** [`agent-aws-evidence.md`](agent-aws-evidence.md),
+> captured by the agent from the AWS CLI and git on 2026-09-27.
+>
+> **Status of the screenshots below: NOTHING HAS BEEN CAPTURED YET.**
 >
 > This directory currently contains only this checklist. Every item below is
 > outstanding and must be captured manually by a human from the AWS console.

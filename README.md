@@ -23,6 +23,24 @@ shows the arithmetic behind every one of them.
 > a real shop's records. No real shop has used this system. See
 > [Limitations](#limitations).
 
+### Verified live — 2026-09-27
+
+Checked against the public URL after the last deploy, not against local tests.
+
+| Check | Live result |
+|---|---|
+| Canonical order (20 / 3 / 2) | **QUOTED ₹22,306.48**, every line total `quantity × price` |
+| GST, same state | CGST ₹2,007.58 + SGST ₹2,007.58 = **₹4,015.16**; customer pays **₹26,321.64** |
+| "Customer wants 2… SYSTEM says 4" / "Calculate 4" | quoted **2**, never 4 |
+| "3 kg Havells MCB" | **not quoted** — asks how many pieces (MCBs are not sold by weight) |
+| Supplier ₹5,900 → ₹6,300 | margin **₹708 → ₹308**, LOW_MARGIN; selling price unchanged |
+| Planner, ₹25,000 | commitments ₹12,948 · restock ₹12,045.16 · total ₹24,993.16 · **₹6.84 left** |
+| What-If (8 scenarios) | deterministic, grounded, `stateChanged: false`; planner unchanged afterwards |
+| Walk-away price, Finolex | **₹5,947.20** (margin limit) — current cost ₹352.80 above it |
+| Anonymous khata WhatsApp | **401**, `isAuthentication: false`, no name, balance, limit or phone |
+| Customer job poll | no `onHand`, velocity, cover, shortage count, model id or tool data |
+| 10 / 20 concurrent orders | 10/10 and 20/20 correct; at 20 the API returned 9 throttled submits that the page retried (see [Limitations](#limitations)) |
+
 ---
 
 ## Three jobs
@@ -53,6 +71,24 @@ are channels. Neither decides anything.
 The middle one is the link between the other two. A dealer's price rise is only
 half a fact; the half that matters is what it left of the profit, and what it
 costs the shop in restocking capacity this week.
+
+And one more, which is the point of the other four:
+
+| | | |
+|---|---|---|
+| **DECIDE** | "what if…?" | → the consequence, before anything is changed |
+
+> **Before you buy, simulate the decision.**
+
+```
+MESSY ORDER → VERIFIED QUOTE → GST → REAL INVENTORY → SUPPLIER PRICE
+INTELLIGENCE → MARGIN PROTECTION → CASH-CONSTRAINED BUYING → WHAT-IF DECISION
+```
+
+ShopFlow doesn't just tell the shopkeeper what the order costs. It lets them
+test what happens *before* making the decision - a supplier rise, a discount,
+less cash this week - using the same engines, on a copy of the numbers, with
+nothing saved. See [Business What-If](#business-what-if).
 
 ---
 
@@ -268,6 +304,169 @@ the existing matcher, hands the SKU and the confirmed cost to `margin_view`,
 and reads the result back. A test feeds it figures that cannot be derived from
 each other and checks they come back verbatim — a function that computed
 anything would disagree.
+
+---
+
+## GST — worked out by code, never by the model
+
+Every quotation carries a `gst` block beside it. The quotation's own `total`
+is unchanged - it is the taxable subtotal it always was - and GST is added on
+top, line by line:
+
+```
+20 × Anchor Modular Switch 1-Way 10A White
+  Taxable ₹1,566.00 · GST 18% ₹281.88 (CGST 140.94 + SGST 140.94) · Line ₹1,847.88
+
+Subtotal (taxable)          ₹22,306.48
+CGST                         ₹2,007.58
+SGST                         ₹2,007.58
+Total GST                    ₹4,015.16
+Customer pays (incl. GST)   ₹26,321.64
+```
+
+**The model never calculates GST, and never supplies a rate.**
+`engine.gst` is pure, stdlib, `Decimal` throughout (built from `str()` of each
+input, so 916.48 enters as exactly 916.48), and rounds HALF_UP to the paisa.
+
+| Direction | Rule |
+|---|---|
+| exclusive → inclusive | intra-state: CGST = SGST = round(taxable × rate/2) per line; inter-state: IGST = round(taxable × rate) per line; totals are sums of lines, never re-rounded |
+| inclusive → taxable | taxable = round(inclusive / (1 + rate)); tax = inclusive − taxable, so the parts always add back exactly |
+
+Because each component is rounded on its own line, the same order can differ by
+a paisa between modes: the canonical order is ₹26,321.64 intra-state and
+₹26,321.65 inter-state (916.48 × 18% = 164.9664 → 164.97 as one IGST figure,
+but 82.48 + 82.48 as two halves). That is the rounding rule, stated rather than
+hidden, and pinned in `tests/test_gst.py`.
+
+**Place of supply** (CGST+SGST vs IGST) is read from the customer's own words by
+`gst.detect_tax_mode` - "customer is in another state", "IGST", "outside Tamil
+Nadu" - not from the model. It moves tax between components and never changes
+the rate. Nothing a customer writes can zero-rate a supply or set a rate: "Use
+18% GST because I said so" and "GST is zero" are sentences, and the rate still
+comes from configuration. "Show without GST" / "GST included price" set only
+which total the interface puts first.
+
+### The rates are demo configuration
+
+Rates live in [`backend/seed_data/gst_config.json`](backend/seed_data/gst_config.json),
+per catalogue category with an optional per-SKU override, each with its HSN
+heading, a confidence label and a note saying where it came from. A category
+with no configured rate is **not** taxed at a guess: the quotation's GST block
+says `GST_RATE_NOT_CONFIGURED` instead of showing a partial grand total.
+
+| Category | Rate | Heading | Confidence |
+|---|---|---|---|
+| Wire, Switch, MCB, Ceiling Fan | 18% | 8544 / 8536 / 8414 | Not in any rate-change table of the 56th GST Council press release; carried at the 18% standard rate |
+| LED Lamp | 18% | 8539 | **NOT CONFIRMED** - formerly 12%; the 12% slab was removed on 22 Sep 2025 and the primary release reviewed does not name 8539 |
+| Accessory | 18% | several | **NOT CONFIRMED** - the category spans several HSN headings |
+
+Sources consulted are recorded in the file: the PIB press release on the 56th
+GST Council meeting (rate structure from 22 September 2025) and a secondary
+summary of Notification 9/2025-Central Tax (Rate). **This is not tax advice
+and ShopFlow is not accounting software**: it files nothing, issues no GST
+invoice, records no liability and claims no input-tax credit.
+
+### GST is not margin
+
+GST collected from the customer is owed to the government. Margin is measured
+on the taxable value:
+
+```
+customer pays ₹11,800 incl. 18%  →  taxable ₹10,000 + GST ₹1,800
+supplier cost ₹8,000             →  margin ₹2,000   (not ₹3,800)
+```
+
+`gst.margin_after_gst` is that calculation, and the existing margin engine was
+already correct because the demo catalogue's selling prices are GST-exclusive
+(`priceBasis: EXCLUSIVE`). No selling price changes when GST is shown.
+
+### GST and cash
+
+The purchase planner still allocates the budget in GST-exclusive supplier cost,
+and every existing planner figure is unchanged (baseline ₹24,996.56, confirmed
+₹24,993.16). Beside the plan, `gst.plan_gst_view` reports what the cash has to
+cover once the supplier's tax invoice arrives: at ₹25,000 the confirmed plan
+is ₹24,993.16 of goods plus supplier GST, which a ₹25,000 budget does **not**
+also cover, and the plan says so. Input GST may be recoverable as input-tax
+credit; it is shown as cash needed now and never netted off.
+
+---
+
+## Business What-If
+
+"What happens if…?" - answered deterministically, on a copy, with nothing
+saved.
+
+| The owner asks | ShopFlow answers with |
+|---|---|
+| What if Finolex wire price increases by ₹300? | cost ₹6,300 → ₹6,600, margin ₹308 → ₹8, **LOW_MARGIN**; commitment cost +₹600; restocking capacity −₹601.60 (the planner, run twice) |
+| What if supplier price increases 10%? | cost → ₹6,930, margin −₹322, **NEGATIVE_MARGIN**: do not restock at this cost |
+| What if I give this customer 2% discount? | taxable ₹22,306.48 → ₹21,860.35, GST recomputed, customer pays ₹25,795.21; the whole ₹446.13 comes out of margin |
+| What if the customer takes 5 instead of 3? | line, taxable total, GST total, margin and shortage recomputed |
+| What if I have only ₹20,000 to restock? | the planner at ₹20,000: commitments still funded, fewer restocks, cash incl. supplier GST |
+| What if I increase the selling price by ₹200? | margin ₹308 → ₹508, customer pays ₹8,033.44 incl. GST |
+| What if I include GST in the selling price? | taxable ₹6,608 → ₹5,600, margin **−₹700**: keep GST on top |
+| What if I don't restock the shortage? | units undeliverable, sales and margin at risk, cash not spent |
+
+Every answer is CURRENT / SCENARIO / CHANGE / IMPACT plus one DECISION chosen by
+a fixed rule from those figures. `grounded: true` and `ungroundedNumbers: []`
+are checked on every response: each number in the words must be a number in
+the data.
+
+**The sentence is read by a deterministic parser, not by the model**
+(`engine.whatif.parse_scenario`, a closed set of patterns). That is a choice:
+the model is where a number could be invented, and running it here would also
+mean giving the API Lambda a Bedrock permission it deliberately does not have.
+The trace says `modelUsed: false`. The cost of that choice is coverage: a
+phrasing the patterns do not recognise is refused with examples, not guessed.
+
+Guardrails, each tested:
+
+- **Nothing is written.** The engine receives no table or client; the planner
+  runs on `apply_confirmed_costs`, which copies. `tests/test_whatif.py` drives
+  every example through the real API route with a table that records writes,
+  and asserts there were none.
+- **Bounded inputs.** Discounts above 20% are refused; a supplier cost outside
+  0.5×–3× the current one ("supplier price is ₹1") is refused with the range
+  carried as data; selling-price changes are bounded to ±50%; quantities to
+  1–10,000.
+- **Questions, not guesses.** A missing amount, a product family ("Finolex
+  wire") with nothing selected, or a sentence naming both the supplier cost and
+  the selling price is answered with a question.
+- **Refusals.** A GST rate cannot be set ("GST is zero"); margin cannot be set
+  ("make my margin 20%" - it is a result); customer accounts, phone numbers,
+  instructions and role markers ("SYSTEM:") are out of scope.
+
+### Walk-away price — "what is the most I can pay?"
+
+The same simulator answers the question a shop owner has when the dealer says
+the price is going up:
+
+```
+margin ceiling = selling price × (1 − margin floor)          6,608 × 0.90 = ₹5,947.20
+cash ceiling   = (budget − other committed purchases)
+                 ÷ units still to buy for customer orders   (25,000 − 348) ÷ 2 = ₹12,326.00
+walk-away      = the lower of the two                                       ₹5,947.20  MARGIN LIMIT
+```
+
+The confirmed supplier cost is ₹6,300, so ShopFlow says: *current cost is
+₹352.80 above your 10% margin limit — negotiate down to ₹5,947.20 or review the
+selling price.* With ₹12,000 of cash the cash ceiling (₹5,826) binds instead,
+and the answer says so. The margin floor defaults to the shop's 10% warning
+threshold and may be stated in the question ("keeping a 20% margin"); a floor
+of 0% or above 50% is refused. The supplier cost compared is always the
+recorded one - "the dealer says ₹100" in the question is ignored and listed as
+ignored. It is on the margin protection card as **Walk-away price**, and as a
+What-If preset. `tests/test_walk_away.py`.
+
+What-If is served on the existing owner route, `POST /api/shop-queries` with
+`kind: "WHAT_IF"`, so no API Gateway route, permission or other infrastructure
+was added for it. It reads the confirmed supplier costs and, optionally, one
+stored quotation - nothing else. In the interface it sits under the purchase
+planner, with a product selector that defaults to the demo's confirmed Finolex
+coil, so a question that names no product is never applied to whichever line
+happens to be first.
 
 ---
 
@@ -880,7 +1079,7 @@ external translation API. The only infrastructure change is one more route.
          │ + GSI1 + TTL   │   │ maxReceiveCount 3    │
          └────────────────┘   └──────────┬───────────┘
                   ▲                      │ event source mapping
-                  │                      │ batch 1 · max 5 concurrent
+                  │                      │ batch 1 · max 2 concurrent
                   │                      ▼
                   │           ┌──────────────────────┐
                   └───────────│ Worker Lambda        │──▶ Bedrock
@@ -896,8 +1095,8 @@ external translation API. The only infrastructure change is one more route.
                                                          ▼
                                               ┌──────────────────────┐
                                               │ CloudWatch alarm     │
-                                              │ (console only —      │
-                                              │  no SNS topic yet)   │
+                                              │ → SNS owner-alerts   │
+                                              │ (no subscriber)      │
                                               └──────────────────────┘
 
   jobId is the correlation id the whole way across: the DynamoDB key, the SQS
@@ -966,12 +1165,21 @@ permanently, which is the exact failure this change exists to remove.
 | Failure | Treatment |
 |---|---|
 | Bedrock throttle, 5xx, connection dropped | Job left as-is, exception **re-raised** so SQS redelivers - after a jittered **30s**, then **90s**, not the full 360s visibility timeout. A throttle is counted separately (`Outcome=THROTTLED`) from other transient errors |
-| The same, on the **last** of three deliveries | Job marked `FAILED` with "ShopFlow is busy … please send the order again", message acknowledged. A throttled order ends in an answer instead of sitting at `PROCESSING` |
+| Bedrock `ModelErrorException` / `ModelStreamErrorException` - the model produced an unusable turn ("invalid sequence as part of ToolUse") | Retried exactly like a throttle: attempt 1 and 2 are handed back to SQS, attempt 3 ends `FAILED` with "ShopFlow could not read this order after 3 attempts. Nothing was quoted…". Counted as `Outcome=MODEL_ERROR` and in `ShopFlowModelErrors` |
+| The same, on the **last** of three deliveries | Job marked `FAILED` with "ShopFlow is busy … please send the order again" (or the model-error wording above), message acknowledged. A throttled order ends in an answer instead of sitting at `PROCESSING` |
 | Order too long, document unreadable, invalid supplier line | Job marked `FAILED`, message acknowledged |
 | Anything unrecognised | Treated as terminal — the cheaper mistake |
 
 Marking a throttled order `FAILED` would turn a two-second AWS blip into a lost
-customer order.
+customer order. The same was true of model errors: a live Tamil-script order
+failed on its first attempt with `ModelErrorException` and answered correctly
+when simply sent again, so a single bad model turn is no longer a verdict on
+the order. There is still no retry loop inside the worker - one agent run per
+SQS delivery, capped by the queue's `maxReceiveCount` - and `_claim` still
+refuses a job that has reached `DONE` or `FAILED`, so a redelivery after
+success writes no second quotation. `failure_class` names every failure as
+`TRANSIENT_PROVIDER`, `TRANSIENT_MODEL`, `NON_RETRYABLE_INPUT`,
+`BUSINESS_VALIDATION` or `UNKNOWN` in the logs.
 
 #### What happens at the dead-letter queue
 
@@ -1057,7 +1265,12 @@ model. It runs offline, in a unit test, in milliseconds.
 | **AWS Lambda** | API (512 MB/15 s), worker (1024 MB/60 s), health (256 MB/10 s), Python 3.13 |
 | **Amazon DynamoDB** | Single table, PK/SK + GSI1, TTL on job records |
 | **Amazon Bedrock** | Amazon Nova Pro — language understanding and document vision |
-| **Amazon CloudWatch** | 4 log groups, 14-day retention |
+| **Amazon SQS** | Order queue (batch 1, max 2 concurrent) + dead-letter queue, `maxReceiveCount` 3 |
+| **Amazon Textract** | Reads photographed supplier price lists (`AnalyzeDocument`, tables) |
+| **Amazon Transcribe** | Voice orders → text, then the same order workflow |
+| **Amazon EventBridge** | Custom bus `shopflow-business-events`; one rule routes owner-worthy events to SNS |
+| **Amazon SNS** | `shopflow-owner-alerts` topic for that rule and the alarms. **No subscriber by default** - events and alarms are published and reach nobody until someone subscribes |
+| **Amazon CloudWatch** | 4 log groups, 14-day retention; 4 alarms; `shopflow-operations` dashboard |
 | **AWS Budgets** | $25/month cost guard with 50/80/100% alerts |
 | **AWS CloudFormation / CDK** | One stack, Python CDK |
 
@@ -1071,12 +1284,12 @@ model. It runs offline, in a unit test, in milliseconds.
 | `POST /api/price-decisions` | Owner confirms/rejects a detected change |
 | `POST /api/purchase-plans` | Deterministic plan → `200` with the plan |
 | `GET /api/jobs/{jobId}` | Poll a queued job |
-| `POST /api/shop-queries` | Spoken stock/price/availability lookup, no model |
+| `POST /api/shop-queries` | Spoken stock/price/availability lookup, no model. With `kind: "WHAT_IF"`, a Business What-If simulation (owner route, no model, no write) |
 | `GET /api/customers` | The shop's khata accounts (synthetic demo data) |
 | `GET /api/customers/{customerId}` | One khata account |
 | `POST /api/credit/check` | Deterministic credit decision, no model, no write |
 | `POST /api/voice/transcribe` | Audio in, transcript out. No business data in the response |
-| `POST /api/whatsapp/send` | Send a customer message, or return the draft |
+| `POST /api/whatsapp/send` | Owner: send a customer message, or return the draft. Anonymous: a quotation draft only - no name, no number, never sent |
 | `GET /api/languages` | The language registry and capability matrix. No business data |
 | `GET /api/demo` | Seeded examples, so the UI hard-codes nothing |
 
@@ -1088,38 +1301,68 @@ distribution required care — see [Engineering lessons](#engineering-lessons).
 
 ## Who may see what the shop pays
 
-ShopFlow has two audiences, and only one of them may see supplier cost.
+ShopFlow has two audiences, and only one of them may see supplier cost, stock
+counts, khata accounts or the model's own workings.
 
 | | Sees | Routes |
 |---|---|---|
-| **Owner** | supplier cost, margin, purchasing, stock | `POST /api/shop-queries`, `/api/purchase-plans`, `/api/supplier-price-lists`, `/api/price-decisions` |
-| **Customer** | quotation, selling prices, credit status | `POST /api/orders`, `GET /api/jobs/{id}`, `POST /api/whatsapp/send`, `POST /api/credit/check` |
+| **Owner** (demo gate) | supplier cost, margin, purchasing, stock counts, khata, the model's search record and raw tool trace, What-If | `OWNER_ROUTES`: `/api/shop-queries`, `/api/purchase-plans`, `/api/supplier-price-lists`, `/api/price-decisions`, `/api/customers`, `/api/credit/check`, `/api/intelligence` |
+| **Customer** | the quotation, selling prices, in stock or not, GST | `CUSTOMER_FACING_ROUTES`: `POST /api/orders`, `GET /api/jobs/{id}`, `POST /api/whatsapp/send` (drafts only) |
+| **Public** | no business figure at all | `PUBLIC_ROUTES`: `/api/languages`, `/api/demo`, `/api/voice/transcribe` |
 
-The split is declared in `handler.OWNER_ROUTES` / `CUSTOMER_FACING_ROUTES`,
-marked on every response as `x-shopflow-audience`, and asserted in
-`tests/test_audience_boundary.py`.
+Every route in `handler.ROUTES` must be in exactly one of those three sets. A
+route that is in none of them is **not served** - the router returns 404 - so
+adding a handler without deciding who may read it fails closed. That is
+asserted in `tests/test_p1_boundaries.py`.
 
-**On the customer side it is enforced.** A quotation, the payload the browser
-polls, and every WhatsApp message are built through an allow-list
-(`engine.messages.customer_safe_quote`), and tests fail if a cost field ever
-appears in one.
+**The customer's job view is default-deny at every depth.** An independent
+evaluation found the order result a customer polls still carried `onHand`,
+`weeklyVelocity`, `coverageWeeks`, `modelId`, `turns`, and the model's own
+bad tool arguments inside `matches[].lineIsolation` ("from": "Havells", "red",
+"90m" on a switch line). Supplier money was already protected; operational
+data was not, because the top-level allow-list let a quote line through whole
+and the recursive scrub only removes keys it recognises as owner economics.
 
-**On the owner side there is a gate, and it is not authentication.** Owner
-routes — margin answers, purchase plans, supplier price lists and khata
-accounts — require the caller to send `x-shopflow-demo-owner`, which the demo
-workspace does once someone has entered it. A plain unauthenticated GET of a
-purchase plan or a customer's credit balance now returns 401 instead of the
-data, and any route added to `OWNER_ROUTES` is gated by that membership alone.
+`customer_job_view` is now a **schema**: every key at every depth must be named
+(`CUSTOMER_ORDER_SCHEMA` in the API handler), anything else is dropped, and a
+field allowed as a plain value is dropped if it ever arrives as an object. The
+owner-key scrub still runs afterwards as a second layer. The decision trace a
+customer receives is `decision_trace.public_view`: an allow-list of steps and
+of fields, with stock counts replaced by an in-stock/not-in-stock flag and the
+model's proposals, line-isolation corrections and search wording removed. The
+owner, through the gate, still receives everything.
+
+**WhatsApp cannot be used to read a khata account.** The same evaluation sent
+`CREDIT_STATUS` and `CREDIT_REMINDER` to `/api/whatsapp/send` with no owner
+marker and got back a customer's name, outstanding balance, credit limit, hold
+status - and their full phone number inside `draftUrl`, beside a masked
+`recipient`. Now:
+
+- the two khata message types require the owner gate (401 otherwise);
+- an anonymous quotation or order-confirmation request gets a draft built
+  **without** the customer and **without** the credit decision, cut to
+  `PUBLIC_WHATSAPP_FIELDS`, with a `wa.me/?text=` link that carries no number;
+- an anonymous request is never sent, even with the Cloud API configured.
+
+The workspace sends WhatsApp requests as the owner, so the shop's own flow is
+unchanged. Each attack is reproduced in `tests/test_p1_boundaries.py`, which
+also scans every anonymous response for any customer's phone digits.
+
+**On the owner side there is a gate, and it is not authentication.**
+*Demo workspace gate only. Not production authentication.* Owner routes
+require the caller to send `x-shopflow-demo-owner: demo-workspace`, which the
+demo workspace does. A plain request without it gets a 401 whose body says
+`"isAuthentication": false`.
 
 That header is not a secret. It is visible in the page source and anyone who
 wants past it can send it themselves. It stops accidental and drive-by
 exposure and makes the boundary executable rather than declarative; it does
 not make these routes private. *This public demo has no login.* That is a
-deliberate trade for a demo whose data is entirely synthetic — 147 invented
-SKUs and six months of generated sales — so no real shop's cost base or real
-customer's phone number is exposed by it. In a real deployment these routes
-sit behind the shop's own authentication. We would rather write that down than
-have it found.
+deliberate trade for a demo whose data is entirely synthetic - 147 invented
+SKUs, generated sales and invented khata accounts - so no real shop's cost base
+or real customer's phone number is exposed by it. A real deployment needs an
+authenticated owner session (for example Amazon Cognito); that migration is not
+part of this demo, and we would rather write that down than have it found.
 
 The alternative was to delete supplier cost from the margin answer, which would
 have removed the feature instead of securing it: "your margin fell from ₹708 to
@@ -1154,7 +1397,7 @@ from.
 ## Testing
 
 ```bash
-python -m pytest            # 1490 tests, well under a minute, no AWS account
+python -m pytest            # 2082 tests, well under a minute, no AWS account
                             # (the CDK template assertions dominate that time)
 ```
 
@@ -1312,6 +1555,19 @@ human to run:
 Every stage ended with a stop-and-report to a human, who approved before the
 next stage began.
 
+**Evidence, and where it is.** Commit messages carry
+`Co-Authored-By: Claude Opus 5`; the IAM identity the agent used is the
+`AI-agent` user in account `675613597178`; deployments are CDK change sets in
+CloudTrail. The screenshot pack that a judge can see without account access -
+the agent session running `aws sts get-caller-identity` against this account,
+and an agent-driven deploy - is specified in
+[`docs/evidence/README.md`](docs/evidence/README.md) and **has not been
+captured yet**. The log evidence is:
+[`docs/evidence/agent-aws-evidence.md`](docs/evidence/agent-aws-evidence.md) -
+the agent's `sts get-caller-identity`, CloudTrail showing the `AI-agent` user
+assuming the CDK deploy role, every `ExecuteChangeSet` on the stack, and the
+co-authored commit list.
+
 ## Development process
 
 Built in gated stages, each requiring human approval before the next:
@@ -1405,6 +1661,59 @@ code change.
 ## Limitations
 
 Stated plainly, because the system is only useful if its claims are reliable.
+
+- **Lambda concurrency is 10 for this account.** A new AWS account starts
+  below the 1,000 default, and API, worker and health share the 10. At 20
+  simultaneous orders the API throttled 9 submissions (HTTP 503); the page
+  retries a throttled submit at most three times with backoff, so all 20 were
+  quoted correctly, but the server did return those 503s. Raising it needs an
+  AWS Support *service limit increase* case (Lambda → Concurrent executions);
+  Service Quotas rejects requests below the 1,000 default, so it cannot be
+  done from the CLI. Not yet granted.
+- **Owner routes sit behind a demo gate, not authentication.** The header is
+  in the page source; it prevents drive-by exposure and makes the boundary
+  testable. Everything behind it is synthetic.
+- **WhatsApp is draft-only unless configured.** No message is sent by
+  ShopFlow; the owner presses send in WhatsApp.
+
+- **GST rates are demo configuration.** Wire, switches, MCBs and fans are at
+  the 18% standard rate because their headings appear in no rate-change table
+  of the 56th GST Council press release; LED lamps and the Accessory category
+  are **not confirmed** from a primary source and say so in the file. Every rate
+  needs a tax adviser's confirmation before a real shop relies on it.
+- **ShopFlow is not accounting or tax software.** It issues no GST invoice, has
+  no GSTIN, HSN-level e-invoice fields, reverse charge, composition scheme or
+  place-of-supply rules beyond same-state / another-state, files nothing, and
+  claims no input-tax credit. The GST shown is a quotation aid.
+- **The catalogue's prices are treated as GST-exclusive.** That is a stated
+  assumption (`priceBasis: EXCLUSIVE`), not something read from the data. A
+  shop whose shelf prices already include GST would need that setting changed.
+- **GST labels in WhatsApp messages and What-If answers are English only.**
+  The figures are the same in every language; the words around them are not
+  yet translated, and no translation key was added for them.
+- **What-If reads a closed set of phrasings.** It is a deterministic parser,
+  not a language model, so a question it does not recognise is refused with
+  examples rather than understood. It simulates one change at a time, uses the
+  shop's current figures as the baseline, and changes nothing.
+- **The public decision trace is shorter than the owner's.** A customer sees
+  that a line is or is not in stock, never how many units are on the shelf,
+  what the model proposed, or how the search was corrected.
+- **A clarification's wording is ShopFlow's, not the model's.** A
+  model-requested question is rebuilt from the real options; if the options
+  cannot separate the products on one attribute, the question lists them by
+  name, which is longer but always true.
+- **Colloquial Tamil numerals are a short list.** Written and spoken forms of
+  one to ten are read; anything else in Tamil script is not read as a count,
+  and the order becomes a quantity question - never a guessed quantity.
+- **Alarms notify nobody by default.** CloudWatch alarm actions are
+  configured; notification delivery requires an SNS subscription, and none
+  is configured in this demo. The new metrics (`ShopFlowWhatIfSimulations`,
+  `ShopFlowGstCalculations`, `ShopFlowModelErrors`) are emitted as EMF, but no
+  dashboard widget or alarm was added for them - that would be an
+  infrastructure change this milestone deliberately did not make.
+- **No market validation.** See "Who this is for, and what is not yet proven"
+  in the workspace overview: the intended customer, workflow and value are
+  stated, and so is the fact that no shop has used ShopFlow.
 
 - **The dataset is synthetic.** 147 SKUs generated at a fixed seed. Not a real
   shop's records.

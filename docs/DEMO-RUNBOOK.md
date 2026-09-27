@@ -333,6 +333,23 @@ that would."*
 
 ---
 
+## E3. Walk-away price *(20 seconds — the memorable line)*
+
+On the margin protection card, press **Walk-away price**.
+
+Expected, from the engine:
+
+- Walk-away price **₹5,947.20** — MARGIN LIMIT (6,608 × 0.90)
+- Current supplier cost ₹6,300.00; cash ceiling ₹12,326.00 at ₹25,000
+- "Current cost is **₹352.80 above** your 10% margin limit. Negotiate down to
+  ₹5,947.20 or review the selling price before buying more."
+
+Say: *"This is what the owner tells the dealer. Not an opinion — two
+formulas, both on screen, and nothing was changed."*
+
+Optional: set the budget to ₹12,000 and press it again — the **cash limit**
+(₹5,826.00) binds instead.
+
 ## F. "I only have ₹25,000"
 
 Scroll to **Purchase planner**. Budget already defaults to **25,000**. Click
