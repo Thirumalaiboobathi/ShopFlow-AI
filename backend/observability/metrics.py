@@ -62,6 +62,12 @@ DOCUMENT_EXTRACTION_FAILURES = "ShopFlowDocumentExtractionFailures"
 WHATIF_SIMULATIONS = "ShopFlowWhatIfSimulations"
 GST_CALCULATIONS = "ShopFlowGstCalculations"
 MODEL_ERRORS = "ShopFlowModelErrors"
+# Supplier shock alerts, by Severity (WARNING / CRITICAL). One metric
+# with a dimension rather than three metrics. And the scheduled daily brief,
+# by Outcome (SUMMARIZED: a grounded model summary was attached;
+# DETERMINISTIC: the structured brief only).
+SUPPLIER_ALERTS = "ShopFlowSupplierAlerts"
+DAILY_BRIEFS = "ShopFlowDailyBriefs"
 
 _UNITS: Dict[str, str] = {
     ORDERS_QUEUED: "Count",
@@ -79,13 +85,15 @@ _UNITS: Dict[str, str] = {
     WHATIF_SIMULATIONS: "Count",
     GST_CALCULATIONS: "Count",
     MODEL_ERRORS: "Count",
+    SUPPLIER_ALERTS: "Count",
+    DAILY_BRIEFS: "Count",
 }
 
 # Deliberately two, and deliberately low-cardinality. Every distinct dimension
 # VALUE creates a separate billed metric, so a dimension carrying a job id
 # would create one metric per order. `jobId` belongs in the log line beside
 # the metric - searchable, free, and not retained as a metric forever.
-_SAFE_DIMENSIONS = ("JobType", "Outcome", "EventType", "Reader")
+_SAFE_DIMENSIONS = ("JobType", "Outcome", "EventType", "Reader", "Severity")
 
 # Metrics that are ALSO published with no dimensions at all.
 #
@@ -122,14 +130,17 @@ _ALLOWED_VALUES = {
     "Outcome": {"QUOTED", "NEEDS_CLARIFICATION", "NOT_FOUND", "REVIEWED",
                 "FAILED", "DUPLICATE", "RETRYABLE", "THROTTLED", "TERMINAL",
                 "NO_PRODUCT", "UNKNOWN", "MODEL_ERROR", "SIMULATED", "REFUSED",
-                "PURCHASE_PLAN"},
+                "PURCHASE_PLAN", "SUMMARIZED", "DETERMINISTIC"},
     # The closed set of business events. A typo becomes a dropped dimension
     # rather than a new billed metric, exactly as with the two above.
     "EventType": {"SupplierPriceChanged", "StockoutDetected",
                   "LowMarginDetected", "PurchasePlanGenerated",
-                  "OrderNeedsClarification", "OrderProcessingFailed"},
+                  "OrderNeedsClarification", "OrderProcessingFailed",
+                  "DailyShopBriefGenerated"},
     # Which reader produced a document's rows.
     "Reader": {"TEXTRACT", "NOVA_PRO", "NONE"},
+    # A supplier alert's severity, as the alert engine judged it.
+    "Severity": {"INFO", "WARNING", "CRITICAL"},
 }
 
 

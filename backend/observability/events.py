@@ -12,6 +12,11 @@ closed:
     PurchasePlanGenerated    the planner produced a plan within a budget
     OrderNeedsClarification  an order ended as a question rather than a quote
     OrderProcessingFailed    an order failed inside the agent
+    DailyShopBriefGenerated  the scheduled daily brief was built (counts only)
+
+A SupplierPriceChanged event from a price list carries the price shock
+alert's figures (engine.price_alerts): old and new cost, the deltas, the
+margin before and after, the walk-away price and a severity.
 
 An event is not a log line and not a trace. It is emitted when a business fact
 changes, never once per function call, and it carries the minimum that a
@@ -43,13 +48,14 @@ from typing import Dict, List, Optional
 
 from . import metrics
 
-# The six, and only the six.
+# The closed list.
 SUPPLIER_PRICE_CHANGED = "SupplierPriceChanged"
 STOCKOUT_DETECTED = "StockoutDetected"
 LOW_MARGIN_DETECTED = "LowMarginDetected"
 PURCHASE_PLAN_GENERATED = "PurchasePlanGenerated"
 ORDER_NEEDS_CLARIFICATION = "OrderNeedsClarification"
 ORDER_PROCESSING_FAILED = "OrderProcessingFailed"
+DAILY_SHOP_BRIEF_GENERATED = "DailyShopBriefGenerated"
 
 EVENT_TYPES = (
     SUPPLIER_PRICE_CHANGED,
@@ -58,6 +64,7 @@ EVENT_TYPES = (
     PURCHASE_PLAN_GENERATED,
     ORDER_NEEDS_CLARIFICATION,
     ORDER_PROCESSING_FAILED,
+    DAILY_SHOP_BRIEF_GENERATED,
 )
 
 # EventBridge's own field, used by rules to route. One source for this app.
@@ -68,7 +75,7 @@ DEFAULT_SHOP_ID = "SHOP#demo"
 # A detail is a handful of scalars. This bounds what can ever be put on a bus
 # that other systems subscribe to - a whole quotation, a match list or a raw
 # model trace cannot fit through it.
-MAX_DETAIL_KEYS = 12
+MAX_DETAIL_KEYS = 16
 MAX_STRING_LENGTH = 200
 
 # Keys that may never appear in an event, whatever a caller passes.
@@ -220,6 +227,48 @@ def supplier_price_changed(comparison: Dict, shop_id: str = DEFAULT_SHOP_ID,
         "changePercent": comparison.get("percentageDelta"),
         "direction": comparison.get("direction"),
         "materialChange": bool(comparison.get("materialChange")),
+        **extra,
+    }
+
+
+def supplier_price_alert(alert: Dict, **extra) -> Dict:
+    """From `engine.price_alerts.evaluate_price_change(...)`.
+
+    The alert's own figures, copied. Supplier cost is owner data and is
+    allowed here because this event goes to the owner's alert topic; no
+    customer, no model text and no prompt is ever part of it.
+    """
+    return {
+        "skuId": alert.get("skuId"),
+        "product": alert.get("product"),
+        "supplier": alert.get("supplier"),
+        "oldCost": alert.get("oldCost"),
+        "newCost": alert.get("newCost"),
+        "absoluteDelta": alert.get("absoluteDelta"),
+        "percentageDelta": alert.get("percentageDelta"),
+        "oldMargin": alert.get("oldMargin"),
+        "newMargin": alert.get("newMargin"),
+        "marginDelta": alert.get("marginDelta"),
+        "severity": alert.get("severity"),
+        "walkAwayPrice": (alert.get("walkAway") or {}).get("price"),
+        "alertId": alert.get("alertId"),
+        **extra,
+    }
+
+
+def daily_shop_brief_generated(brief: Dict, **extra) -> Dict:
+    """From `engine.brief.build_brief(...)`. Counts and the plan's totals."""
+    counts = brief.get("counts") or {}
+    planner = brief.get("planner") or {}
+    return {
+        "briefDate": brief.get("date"),
+        "shortages": counts.get("shortages"),
+        "lowStock": counts.get("lowStock"),
+        "supplierAlerts": counts.get("supplierAlerts"),
+        "criticalAlerts": counts.get("criticalAlerts"),
+        "marginRisks": counts.get("marginRisks"),
+        "plannedSpend": planner.get("totalSpend"),
+        "remaining": planner.get("remaining"),
         **extra,
     }
 

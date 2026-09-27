@@ -135,11 +135,11 @@ def test_the_event_is_addressed_to_the_shopflow_bus_and_source(bus):
     assert json.loads(entry["Detail"])["shopId"] == "SHOP#demo"
 
 
-def test_only_the_six_event_types_exist():
+def test_only_the_listed_event_types_exist():
     assert set(events.EVENT_TYPES) == {
         "SupplierPriceChanged", "StockoutDetected", "LowMarginDetected",
         "PurchasePlanGenerated", "OrderNeedsClarification",
-        "OrderProcessingFailed"}
+        "OrderProcessingFailed", "DailyShopBriefGenerated"}
     assert set(events.EVENT_TYPES) == \
         set(metrics._ALLOWED_VALUES["EventType"])
 
