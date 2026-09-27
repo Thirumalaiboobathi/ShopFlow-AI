@@ -676,7 +676,8 @@
   </div>
 </div>
 
-<div id="viewWorkspace" class="view">
+<!-- Workspace header: shared by the workspace panes and the AI assistant, hidden on the login view. -->
+<div id="wsChrome" class="wschrome" hidden>
   <div class="wsbar">
     <div class="wsid">
       <span class="wslogo">ShopFlow<span class="ai"> AI</span></span>
@@ -695,6 +696,9 @@
       <button type="button" class="ghost wslogout" id="logoutBtn">Log out</button>
     </nav>
   </div>
+</div>
+
+<div id="viewWorkspace" class="view">
 
   <p class="demobadge wsbadge" role="note">
     <strong>Demo workspace — authentication is simulated.</strong>
@@ -1388,6 +1392,8 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
     ["viewLogin", "viewWorkspace", "viewAssistant"].forEach(function (v) {
       el(v).classList.toggle("on", v === id);
     });
+    // Navigation and logout stay on screen for the AI assistant too.
+    el("wsChrome").hidden = id === "viewLogin";
   }
 
   function normalise(path) {
@@ -2887,9 +2893,13 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
       '<div class="wasend" id="waSendResult" hidden></div>';
     html += tracePanel(result);
 
-    html += '<p class="hint mono" style="opacity:.7">model: ' +
-      esc(result.modelId) + ' · ' + result.turns + ' turns · ' +
-      Math.round(result.elapsedMs) + ' ms</p>';
+    // Business information only. The model id and turn count stay in the
+    // owner API result and the worker logs, where they are useful; an
+    // infrastructure identifier is not something a shop owner acts on.
+    if (typeof result.elapsedMs === "number") {
+      html += '<p class="hint" style="opacity:.7">Prepared in ' +
+        (Math.round(result.elapsedMs / 100) / 10) + ' s</p>';
+    }
 
     resultBox.innerHTML = html;
     show(resultBox, true);
