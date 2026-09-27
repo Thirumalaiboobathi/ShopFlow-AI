@@ -200,29 +200,28 @@ class ShopFlowStack(Stack):
         alert_delivery = ("EMAIL" if business_alerts_enabled and alert_email
                           else "NONE")
 
-        # Which events are worth interrupting somebody for.
+        # Which events are worth interrupting somebody for: two.
         #
-        # Four of the six. `OrderNeedsClarification` is deliberately absent:
-        # asking which colour the customer meant is the system working as
-        # designed, and an owner emailed about it learns to ignore the emails
-        # - including the one that mattered. `PurchasePlanGenerated` is
-        # included because the owner asked for the plan and the number is the
-        # answer.
+        # A supplier price alert (de-duplicated: one per price move) and the
+        # once-a-day brief. Everything else is still published to the bus and
+        # counted, but not routed to a person. A live evaluation measured 216
+        # routed events in three hours of testing - a StockoutDetected for
+        # every quotation with a short line, a LowMarginDetected per order, a
+        # PurchasePlanGenerated per plan request - none of them de-duplicated.
+        # An owner emailed that often learns to ignore the emails, including
+        # the one that mattered. The brief already carries today's shortages,
+        # margin risks and the plan, once.
         alerting_events = [
             "SupplierPriceChanged",
-            "StockoutDetected",
-            "LowMarginDetected",
-            "OrderProcessingFailed",
-            "PurchasePlanGenerated",
             "DailyShopBriefGenerated",
         ]
         events.Rule(
             self, "OwnerAlertRule",
             rule_name=f"{PREFIX}-owner-alerts",
             description=(
-                "Routes the ShopFlow business events worth telling the shop "
-                "owner about to SNS. OrderNeedsClarification is excluded on "
-                "purpose: a clarification is correct behaviour, not an alert."),
+                "Routes supplier price alerts and the daily shop brief to the "
+                "owner-alerts SNS topic. Per-order and per-plan events stay "
+                "on the bus: the brief summarises them once a day."),
             event_bus=event_bus,
             event_pattern=events.EventPattern(
                 source=["shopflow.business"],

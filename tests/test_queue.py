@@ -884,12 +884,15 @@ def test_8m_there_is_exactly_one_bus_one_topic_and_one_rule(template):
 
     rule = routing[0]["Properties"]
     assert rule["EventPattern"]["source"] == ["shopflow.business"]
-    # A clarification is correct behaviour and must not become an email.
-    assert "OrderNeedsClarification" not in rule["EventPattern"]["detail-type"]
-    assert set(rule["EventPattern"]["detail-type"]) == {
-        "SupplierPriceChanged", "StockoutDetected", "LowMarginDetected",
-        "OrderProcessingFailed", "PurchasePlanGenerated",
-        "DailyShopBriefGenerated"}
+    # Only a de-duplicated supplier price alert and the once-a-day brief
+    # reach a person. Per-order and per-plan events stay on the bus: routed,
+    # they were 216 SNS messages in three hours of live testing.
+    routed = rule["EventPattern"]["detail-type"]
+    assert set(routed) == {"SupplierPriceChanged", "DailyShopBriefGenerated"}
+    for noisy in ("OrderNeedsClarification", "StockoutDetected",
+                  "LowMarginDetected", "PurchasePlanGenerated",
+                  "OrderProcessingFailed"):
+        assert noisy not in routed, noisy
 
 
 def test_8m2_the_daily_brief_schedule_targets_only_the_worker(template):

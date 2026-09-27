@@ -290,6 +290,9 @@ def test_a_clarification_is_an_event_but_not_an_alerting_one(bus):
         encoding="utf-8")
     alerting = rule_source.split("alerting_events = [")[1].split("]")[0]
     assert "OrderNeedsClarification" not in alerting
-    for alerted in ("SupplierPriceChanged", "StockoutDetected",
-                    "LowMarginDetected", "OrderProcessingFailed"):
+    for alerted in ("SupplierPriceChanged", "DailyShopBriefGenerated"):
         assert alerted in alerting
+    # Published and counted, but not routed to a person.
+    for quiet in ("StockoutDetected", "LowMarginDetected",
+                  "PurchasePlanGenerated", "OrderProcessingFailed"):
+        assert quiet not in alerting
