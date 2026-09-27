@@ -350,6 +350,19 @@ formulas, both on screen, and nothing was changed."*
 Optional: set the budget to ₹12,000 and press it again — the **cash limit**
 (₹5,826.00) binds instead.
 
+## E4. Today's shop brief and the price alert *(30 seconds)*
+
+Open **Intelligence**. At the top, **Today's shop brief**: 2 commitments need
+stock, 1 supplier increase (critical), 1 margin risk, ₹24,993.16 planned,
+₹6.84 left, and the priority "Do not restock Finolex … at ₹6,300.00 without
+renegotiating to ₹5,947.20". On **Alerts**, the same price shock with its
+severity, deltas and walk-away price.
+
+Say: *"Every number here is the engine's. The model may only rephrase it -
+and its sentence is thrown away if it contains a number that isn't on this
+card. The alert went to EventBridge and SNS; nobody is subscribed in this
+demo, and the page says so."*
+
 ## F. "I only have ₹25,000"
 
 Scroll to **Purchase planner**. Budget already defaults to **25,000**. Click

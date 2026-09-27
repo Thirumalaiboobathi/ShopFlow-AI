@@ -40,6 +40,9 @@ Checked against the public URL after the last deploy, not against local tests.
 | Anonymous khata WhatsApp | **401**, `isAuthentication: false`, no name, balance, limit or phone |
 | Customer job poll | no `onHand`, velocity, cover, shortage count, model id or tool data |
 | 10 / 20 concurrent orders | 10/10 and 20/20 correct; at 20 the API returned 9 throttled submits that the page retried (see [Limitations](#limitations)) |
+| Supplier price alert (sample price list through Textract) | **CRITICAL**: ₹5,900 → ₹6,300, +₹400 (+6.78%), margin ₹708 → ₹308, walk-away ₹5,947.20, restock capacity −₹803.40; published once to EventBridge - the second upload of the same list was de-duplicated; the +1.71% Anchor move on the same list did not alert |
+| SNS delivery | the rule delivered the alert to the `shopflow-owner-alerts` topic (1 message published, 0 delivered - **the topic has no subscriber**; the page says so) |
+| Daily shop brief | 2 commitment shortages, 58 below reorder point, 1 critical supplier alert, 1 margin risk, ₹24,993.16 planned, ₹6.84 left; priority: do not restock Finolex at ₹6,300 without renegotiating to ₹5,947.20. The scheduled path was run once on the worker: brief stored, Bedrock summary kept (every number matched) |
 
 ---
 
@@ -469,6 +472,69 @@ coil, so a question that names no product is never applied to whichever line
 happens to be first.
 
 ---
+
+## Supplier price shock alerts
+
+A supplier price move is judged by `engine.price_alerts`, never by the model:
+
+```
+Textract rows → supplier price engine (match + compare) → engine.price_alerts
+   old/new cost, absolute and % delta          (the comparison's own figures)
+   margin before / after                       (selling price − cost)
+   walk-away price                             (engine.whatif.walk_away_price, reused)
+   planner impact                              (the purchase planner at both costs)
+→ alert? severity? → EventBridge SupplierPriceChanged → existing rule → SNS topic
+```
+
+| Trigger (only on an increase) | Default | Configured by |
+|---|---|---|
+| Percentage rise | ≥ 5% | `engine.pricing.PRICE_ALERT_THRESHOLD_PERCENT` (the supplier engine's own), env `SHOPFLOW_PRICE_ALERT_PERCENT` |
+| Absolute rise | ≥ ₹250 | env `SHOPFLOW_PRICE_ALERT_ABSOLUTE_INR` |
+| Margin falls through the floor | 10% | `engine.margin.MARGIN_WARNING_PERCENT`, env `SHOPFLOW_MARGIN_FLOOR_PERCENT` |
+| Margin enters the zone just above the floor | 2 points | env `SHOPFLOW_MARGIN_APPROACH_POINTS` |
+| Restocking capacity lost | ≥ ₹500 | env `SHOPFLOW_CAPACITY_REDUCTION_INR` |
+
+Severity is a fixed rule: **CRITICAL** when the new margin is below the floor
+or the cost is above the walk-away price; **WARNING** for any other alert;
+**INFO** (not an alert, not published) otherwise. A decrease never alerts.
+Only a MATCHED price-list row has a comparison, so an ambiguous or unknown
+row can never raise an alert. The same price move alerts once: a conditional
+DynamoDB marker (`ALERT#demo`, 30-day TTL) makes a re-upload or an SQS
+redelivery a no-op. The event carries the alert's figures and a supplier
+name; `FORBIDDEN_KEYS` keeps any customer field, prompt or model text off
+it. Metric: `ShopFlowSupplierAlerts` by `Severity`. Intelligence → Alerts
+shows the same alert for every confirmed cost change.
+`tests/test_price_alerts.py`.
+
+## Daily shop brief
+
+"What should the owner know today?" - built by `engine.brief` from engines
+that already exist, and nothing else:
+
+| Section | Source |
+|---|---|
+| Shortages against customer commitments | the purchase planner's tier 1 |
+| Below reorder point | the planner's restock tier, highest stock-out risk first |
+| Supplier alerts and walk-away prices | `engine.price_alerts` over the confirmed costs |
+| Margin risks | `engine.margin`, LOW or NEGATIVE |
+| Purchasing | the plan at the ₹25,000 weekly budget |
+| Priority actions | fixed rules over the above |
+
+Every number in its sentences is checked against its structure
+(`grounded: true`). It is shown at the top of **Intelligence**, built from
+current figures on each visit.
+
+Once a day an EventBridge schedule (`shopflow-daily-brief`,
+`cron(30 2 * * ? *)` = 08:00 IST, context `dailyBriefSchedule`) invokes the
+**existing worker** - no new function - which builds the brief, and only when
+something needs attention makes **one** Bedrock call to put it into two or
+three sentences. The summary is kept only if every number in it is a number
+in the brief; a failed or throttled call, or an invented figure, leaves the
+deterministic brief standing. The worker stores the brief's fingerprint and
+summary (`BRIEF#demo / LATEST`, overwritten), and the page shows the summary
+only when that fingerprint matches today's figures. It publishes
+`DailyShopBriefGenerated` (counts and plan totals only) and the metric
+`ShopFlowDailyBriefs` by Outcome. `tests/test_daily_brief.py`.
 
 ## Khata — credit at the counter
 
@@ -1268,7 +1334,7 @@ model. It runs offline, in a unit test, in milliseconds.
 | **Amazon SQS** | Order queue (batch 1, max 2 concurrent) + dead-letter queue, `maxReceiveCount` 3 |
 | **Amazon Textract** | Reads photographed supplier price lists (`AnalyzeDocument`, tables) |
 | **Amazon Transcribe** | Voice orders → text, then the same order workflow |
-| **Amazon EventBridge** | Custom bus `shopflow-business-events`; one rule routes owner-worthy events to SNS |
+| **Amazon EventBridge** | Custom bus `shopflow-business-events`; one rule routes owner-worthy events (including supplier price alerts and the daily brief) to SNS. One schedule rule on the default bus runs the daily brief on the worker at 08:00 IST |
 | **Amazon SNS** | `shopflow-owner-alerts` topic for that rule and the alarms. **No subscriber by default** - events and alarms are published and reach nobody until someone subscribes |
 | **Amazon CloudWatch** | 4 log groups, 14-day retention; 4 alarms; `shopflow-operations` dashboard |
 | **AWS Budgets** | $25/month cost guard with 50/80/100% alerts |
@@ -1705,6 +1771,15 @@ Stated plainly, because the system is only useful if its claims are reliable.
 - **Colloquial Tamil numerals are a short list.** Written and spoken forms of
   one to ten are read; anything else in Tamil script is not read as a count,
   and the order becomes a quantity question - never a guessed quantity.
+- **Price alerts and the daily brief notify nobody in this demo.** They are
+  published to EventBridge and delivered to the SNS topic, which has no
+  subscriber (`ALERT_DELIVERY=NONE`; the page says so). Subscribing an email
+  needs the `enableBusinessAlerts` context. No SMS or WhatsApp notification
+  exists.
+- **The daily brief is a morning snapshot.** The scheduled summary is shown
+  only while the figures are unchanged; the structured brief is rebuilt on
+  every visit. It has run live once, triggered by hand exactly as the
+  schedule does; the first scheduled run is the next 08:00 IST.
 - **Alarms notify nobody by default.** CloudWatch alarm actions are
   configured; notification delivery requires an SNS subscription, and none
   is configured in this demo. The new metrics (`ShopFlowWhatIfSimulations`,

@@ -43,7 +43,12 @@ session name (CloudTrail `ExecuteChangeSet`, `ap-south-1`):
 2026-09-24T10:40:15+05:30  ExecuteChangeSet  aws-cdk-thiru
 2026-09-27T11:49:09+05:30  ExecuteChangeSet  aws-cdk-thiru
 2026-09-27T11:55:38+05:30  ExecuteChangeSet  aws-cdk-thiru
+2026-09-27T12:05:54+05:30  ExecuteChangeSet  aws-cdk-thiru
+2026-09-27T12:54:23+05:30  ExecuteChangeSet  aws-cdk-thiru   (price alerts + daily brief)
 ```
+
+For the 12:54 deploy, CloudTrail shows `AssumeRole` calls by the `AI-agent`
+user at 12:54:02-12:54:05 IST, immediately before the change set.
 
 For the two 2026-09-27 deploys the `AssumeRole` above ties the session to the
 `AI-agent` user. For the earlier ones this file shows the session name only;
