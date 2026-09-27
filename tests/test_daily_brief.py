@@ -100,11 +100,17 @@ def test_the_combined_brief_reads_as_the_example(brief):
     assert "Margin: ₹708.00 -> ₹308.00." in text
     assert "maximum supplier cost ₹5,947.20" in text
     assert "₹24,993.16 planned from ₹25,000.00; ₹6.84 remaining." in text
-    first = brief["priorityActions"][0]
+    first, second = brief["priorityActions"][:2]
     assert first["kind"] == "RENEGOTIATE_OR_REPRICE"
-    assert first["text"] == ("Do not restock Finolex 1.5 sqmm FR Wire Red 90m "
-                             "coil at ₹6,300.00 without renegotiating to "
-                             "₹5,947.20 or changing the selling price.")
+    assert first["text"] == (
+        "Do not add discretionary restock of Finolex 1.5 sqmm FR Wire Red 90m "
+        "coil at ₹6,300.00 because it exceeds the ₹5,947.20 walk-away price. "
+        "Renegotiate or change the selling price.")
+    assert second["kind"] == "BUY_FOR_COMMITMENTS"
+    assert second["text"] == (
+        "Buy the quantity required to fulfil existing commitments: 2 line(s), "
+        "₹12,948.00 of the ₹25,000.00 budget. Keeping these promises costs "
+        "₹705.60 more than at the walk-away price.")
     assert brief["hasAttention"] is True
 
 

@@ -13,6 +13,10 @@ One structured summary of facts the other engines already produce:
     marginRisks      products the margin engine calls LOW or NEGATIVE
     planner          the purchase plan at the owner's weekly budget
     walkAway         the walk-away price for each supplier alert
+    promiseKeeping   customer commitments kept apart from discretionary
+                     restock: what must be bought to keep a promise, at what
+                     cost, and whether stock beyond that should be bought at
+                     the current supplier cost given the walk-away price
     priorityActions  a short list chosen by fixed rules from the above
 
 Nothing is calculated here that another engine owns: this module selects,
@@ -29,6 +33,7 @@ structure is complete without that, and is what the UI shows.
 from __future__ import annotations
 
 import datetime as _dt
+from decimal import Decimal
 from typing import Dict, List, Optional
 
 from .margin import LOW_MARGIN, NEGATIVE_MARGIN, margin_alerts, previous_supplier_cost
@@ -113,6 +118,8 @@ def build_brief(data: Dataset, confirmed_costs: Optional[Dict[str, float]] = Non
                     if a["walkAway"]["currentCostAboveWalkAway"] else 0.0),
     } for a in supplier_alerts]
 
+    promise_keeping = _promise_keeping(plan, supplier_alerts)
+
     planner = {
         "budget": plan["budget"], "commitmentCost": plan["commitmentCost"],
         "restockCost": plan["restockCost"], "totalSpend": plan["totalSpend"],
@@ -131,6 +138,7 @@ def build_brief(data: Dataset, confirmed_costs: Optional[Dict[str, float]] = Non
         "marginRisks": margin_risks,
         "planner": planner,
         "walkAway": walk_away,
+        "promiseKeeping": promise_keeping,
         "counts": {
             "shortages": len(shortages),
             "unfundedShortages": sum(1 for s in shortages if not s["funded"]),
@@ -157,19 +165,119 @@ def build_brief(data: Dataset, confirmed_costs: Optional[Dict[str, float]] = Non
     return brief
 
 
+# What each discretionary restock line comes to, and why.
+DO_NOT_BUY = "DO_NOT_BUY"      # current supplier cost is above the walk-away
+BUY = "BUY"                    # the planner funds it this week
+DEFER = "DEFER"                # the planner could not fund it this week
+NOT_NEEDED = "NOT_NEEDED"      # not below its reorder point
+
+
+def _money(value) -> float:
+    return float(Decimal(str(value)).quantize(Decimal("0.01")))
+
+
+def _promise_keeping(plan: dict, supplier_alerts: List[dict]) -> dict:
+    """Keeping customer promises, kept apart from discretionary restock.
+
+    The brief used to say "do not restock Finolex at 6,300" while the same
+    plan bought two Finolex coils at 6,300 for customers already promised
+    them. Both were right - they are different purchases - and side by side
+    they read as a contradiction. This names them apart.
+
+    Every figure is the purchase planner's (commitments, restock quantities,
+    unit costs, funded or not) or the walk-away engine's (via the supplier
+    alert). The one product here - the premium paid over the walk-away price
+    to keep a promise - is (unit cost - walk-away price) x committed quantity
+    of those two engines' own figures.
+    """
+    walk = {a["skuId"]: a for a in supplier_alerts}
+    commitments = []
+    for c in plan["commitments"]:
+        ev = c.get("evidence") or {}
+        qty, unit = c.get("requestedQty"), c.get("unitCost")
+        funded = bool(c.get("selected")) and c.get("fundedQty") == qty
+        entry = {
+            "skuId": c["skuId"], "product": c.get("productName"),
+            "quantity": qty, "unitCost": unit,
+            "cost": c.get("fullLineCost"), "funded": funded,
+            "promisedBy": ev.get("earliestPromisedDate"),
+            "walkAwayPrice": None, "aboveWalkAwayCost": 0.0,
+        }
+        alert = walk.get(c["skuId"])
+        text = (f"{qty} x {entry['product']} at {format_rupees(unit)} = "
+                f"{format_rupees(entry['cost'])}, "
+                f"{'funded' if funded else 'not funded'}.")
+        if alert and alert["walkAway"]["currentCostAboveWalkAway"] and qty:
+            price = alert["walkAway"]["price"]
+            entry["walkAwayPrice"] = price
+            entry["aboveWalkAwayCost"] = _money(
+                (Decimal(str(unit)) - Decimal(str(price))) * qty)
+            text += (f" Keeping this promise costs "
+                     f"{format_rupees(entry['aboveWalkAwayCost'])} more than "
+                     f"at the walk-away price of {format_rupees(price)}.")
+        entry["text"] = text
+        commitments.append(entry)
+
+    restock = {r["skuId"]: r for r in
+               plan["restockSelected"] + plan["restockDeferred"]}
+    discretionary = []
+    for a in supplier_alerts:
+        r = restock.get(a["skuId"])
+        price = a["walkAway"]["price"]
+        above = a["walkAway"]["currentCostAboveWalkAway"]
+        selected = bool(r and r.get("selected"))
+        if above:
+            decision = DO_NOT_BUY
+            text = (f"Do not add discretionary restock of {a['product']} at "
+                    f"{format_rupees(a['newCost'])} because it exceeds the "
+                    f"{format_rupees(price)} walk-away price.")
+        elif selected:
+            decision = BUY
+            text = (f"Restock {r.get('fundedQty')} x {a['product']} at "
+                    f"{format_rupees(a['newCost'])}, within the "
+                    f"{format_rupees(price)} walk-away price.")
+        elif r:
+            decision = DEFER
+            text = (f"{a['product']}: restock deferred - this week's budget "
+                    f"does not fund it.")
+        else:
+            decision = NOT_NEEDED
+            text = (f"{a['product']}: no discretionary restock is needed this "
+                    f"week.")
+        discretionary.append({
+            "skuId": a["skuId"], "product": a["product"],
+            "recommendedQty": r.get("requestedQty") if r else 0,
+            "plannerSelected": selected,
+            "currentCost": a["newCost"], "walkAwayPrice": price,
+            "aboveBy": (a["walkAway"]["differenceFromCurrentCost"]
+                        if above else 0.0),
+            "decision": decision, "text": text,
+        })
+
+    return {
+        "commitments": commitments,
+        "commitmentCost": plan["commitmentCost"],
+        "allCommitmentsFunded": plan["allCommitmentsFunded"],
+        "aboveWalkAwayCost": _money(sum(Decimal(str(c["aboveWalkAwayCost"]))
+                                        for c in commitments)),
+        "discretionary": discretionary,
+        "source": "engine.purchasing (via engine.whatif._plan) and "
+                  "engine.whatif.walk_away_price (via engine.price_alerts)",
+    }
+
+
 def _actions(brief: dict) -> List[dict]:
     """Fixed rules, most urgent first. Each names the figures it is about."""
     actions = []
-    for a in brief["supplierAlerts"]:
-        walk = a["walkAway"]
-        if walk["currentCostAboveWalkAway"]:
+    for d in brief["promiseKeeping"]["discretionary"]:
+        if d["decision"] == DO_NOT_BUY:
+            alert = next(a for a in brief["supplierAlerts"]
+                         if a["skuId"] == d["skuId"])
             actions.append({
-                "kind": "RENEGOTIATE_OR_REPRICE", "skuId": a["skuId"],
-                "severity": a["severity"],
-                "text": (f"Do not restock {a['product']} at "
-                         f"{format_rupees(a['newCost'])} without renegotiating "
-                         f"to {format_rupees(walk['price'])} or changing the "
-                         f"selling price."),
+                "kind": "RENEGOTIATE_OR_REPRICE", "skuId": d["skuId"],
+                "severity": alert["severity"],
+                "text": (d["text"] + " Renegotiate or change the selling "
+                         "price."),
             })
     for s in brief["shortages"]:
         if not s["funded"]:
@@ -181,12 +289,18 @@ def _actions(brief: dict) -> List[dict]:
                          f"this week's budget does not cover it."),
             })
     if brief["shortages"] and all(s["funded"] for s in brief["shortages"]):
+        pk = brief["promiseKeeping"]
+        text = (f"Buy the quantity required to fulfil existing commitments: "
+                f"{len(brief['shortages'])} line(s), "
+                f"{format_rupees(pk['commitmentCost'])} of the "
+                f"{format_rupees(brief['planner']['budget'])} budget.")
+        if pk["aboveWalkAwayCost"]:
+            text += (f" Keeping these promises costs "
+                     f"{format_rupees(pk['aboveWalkAwayCost'])} more than at "
+                     f"the walk-away price.")
         actions.append({
             "kind": "BUY_FOR_COMMITMENTS", "skuId": None, "severity": "WARNING",
-            "text": (f"Buy for {len(brief['shortages'])} committed customer "
-                     f"order line(s) first: "
-                     f"{format_rupees(brief['planner']['commitmentCost'])} of "
-                     f"the {format_rupees(brief['planner']['budget'])} budget."),
+            "text": text,
         })
     return actions[:MAX_ACTIONS]
 

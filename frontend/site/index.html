@@ -308,6 +308,11 @@
   .decided.no{color:var(--muted)}
   .note{padding:0 16px 14px; font-size:.87rem; color:var(--muted)}
   .warnnote{padding:10px 16px; color:var(--bad)}
+  .bpk{margin:10px 0; padding:10px 12px; border:1px solid var(--line); border-radius:8px}
+  .bpk h4{margin:0 0 6px; font-size:.92rem}
+  .bpk .bpkh{margin:6px 0 2px; font-weight:600; font-size:.87rem}
+  .bpk ul{margin:0; padding-left:18px; font-size:.87rem}
+  .bpk li.no{color:var(--bad)}
   .warnnote .excluded{margin:6px 0 0; padding-left:18px; color:var(--muted)}
 
   .cash{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:16px}
@@ -1606,8 +1611,30 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
         "/workspace/assistant", "Planner") +
       row(c.lowStock + " product(s) below reorder point",
         "/workspace/inventory", "Inventory") + "</ul>";
+    // Promise-keeping cost: what must be bought to keep a customer promise,
+    // kept apart from what the shop might buy for the shelf. Every sentence
+    // is the engine's, built from the planner and the walk-away price.
+    var pk = b.promiseKeeping || {};
+    var kept = pk.commitments || [], extra = pk.discretionary || [];
+    if (kept.length || extra.length) {
+      html += '<div class="bpk"><h4>Promise-keeping cost</h4>';
+      if (kept.length) {
+        html += '<p class="bpkh">Customer commitments — buy the quantity ' +
+          "required to fulfil existing commitments.</p><ul>" +
+          kept.map(function (c) { return "<li>" + esc(c.text) + "</li>"; }).join("") +
+          "</ul>";
+      }
+      if (extra.length) {
+        html += '<p class="bpkh">Discretionary restock</p><ul>' +
+          extra.map(function (d) {
+            return '<li class="' + (d.decision === "DO_NOT_BUY" ? "no" : "") + '">' +
+              esc(d.text) + "</li>";
+          }).join("") + "</ul>";
+      }
+      html += "</div>";
+    }
     var first = (b.priorityActions || [])[0];
-    if (first) {
+    if (first && !(kept.length || extra.length)) {
       html += '<div class="bprio' + (first.severity === "CRITICAL" ? "" : " warn") +
         '"><strong>Priority:</strong> ' + esc(first.text) + "</div>";
     }
