@@ -62,6 +62,7 @@ from agent.orchestrator import (
     OrderTooLongError,
     run_order_agent,
 )
+from agent.brief_summary import summarize_brief
 from agent.decision_trace import build as build_decision_trace
 from agent.textract_reader import (NOVA_PRO, TEXTRACT, TextractError,
                                    read_price_list)
@@ -69,13 +70,22 @@ from agent.vision import ExtractionError, extract_price_list
 from engine.cost_records import DEFAULT_SHOP_ID, cost_pk, latest_confirmed_costs
 from engine.credit import check_quote_credit
 from engine.loader import cached_dataset
+from engine.brief import brief_signature, build_brief
 from engine.margin import margin_alerts, quotation_margin_impact
+from engine.price_alerts import evaluate_price_change
 from engine.supplier_prices import InvalidSupplierLineError, review_price_list
 from observability import events, metrics
 
 TABLE_NAME = os.environ["TABLE_NAME"]
 MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", DEFAULT_MODEL_ID)
 UPLOADS_BUCKET = os.environ.get("UPLOADS_BUCKET", "")
+# The weekly restocking cash the alerts and the daily brief plan against.
+BRIEF_BUDGET = float(os.environ.get("SHOPFLOW_BRIEF_BUDGET") or 25000)
+# A supplier price move alerts once; the marker that says so expires after
+# this, so the same move can alert again if it is still true a month later.
+ALERT_DEDUP_SECONDS = 30 * 24 * 3600
+# Set by a scheduled EventBridge rule. Nothing else sends it.
+TASK_DAILY_BRIEF = "DAILY_BRIEF"
 
 JOB_ORDER = "ORDER"
 JOB_PRICE_LIST = "PRICE_LIST"
@@ -353,28 +363,146 @@ def _margin_protection(payload: dict):
     if not quote or not quote.get("lines"):
         return None
     try:
-        rows = _table.query(
-            KeyConditionExpression=Key("PK").eq(cost_pk(DEFAULT_SHOP_ID))
-            & Key("SK").begins_with("COST#")
-        ).get("Items", [])
-        confirmed = latest_confirmed_costs([
-            {
-                "skuId": row.get("skuId"),
-                "confirmedCost": float(row.get("confirmedCost") or 0),
-                "confirmedAt": row.get("confirmedAt"),
-                "sourceJobId": row.get("sourceJobId"),
-            }
-            for row in rows
-        ])
-        if not confirmed:
+        costs = _confirmed_cost_map()
+        if not costs:
             return None
-        costs = {sku: entry["cost"] for sku, entry in confirmed.items()}
         impact = quotation_margin_impact(
             quote, margin_alerts(cached_dataset(), costs))
         return impact if impact["affectedCount"] else None
     except Exception as exc:  # noqa: BLE001
         print(f"margin protection skipped: {type(exc).__name__}: {exc}")
         return None
+
+
+def _confirmed_cost_map() -> dict:
+    """The shop's latest confirmed supplier cost per SKU. May raise."""
+    rows = _table.query(
+        KeyConditionExpression=Key("PK").eq(cost_pk(DEFAULT_SHOP_ID))
+        & Key("SK").begins_with("COST#")
+    ).get("Items", [])
+    confirmed = latest_confirmed_costs([
+        {
+            "skuId": row.get("skuId"),
+            "confirmedCost": float(row.get("confirmedCost") or 0),
+            "confirmedAt": row.get("confirmedAt"),
+            "sourceJobId": row.get("sourceJobId"),
+        }
+        for row in rows
+    ])
+    return {sku: entry["cost"] for sku, entry in confirmed.items()}
+
+
+def _first_alert(alert: dict, now: int) -> bool:
+    """Record that this price move has alerted. False if it already had.
+
+    One conditional write, so the same move read from the same price list
+    twice - or redelivered by SQS - alerts once. If the marker cannot be
+    written for any other reason the alert goes out: a duplicate email is a
+    smaller failure than a missed price shock.
+    """
+    from botocore.exceptions import ClientError
+
+    try:
+        _table.put_item(
+            Item={"PK": f"ALERT#{DEFAULT_SHOP_ID}", "SK": alert["alertId"],
+                  "severity": alert["severity"], "skuId": alert["skuId"],
+                  "createdAt": now, "expiresAt": now + ALERT_DEDUP_SECONDS},
+            ConditionExpression="attribute_not_exists(PK)")
+        return True
+    except ClientError as exc:
+        if exc.response.get("Error", {}).get("Code") == \
+                "ConditionalCheckFailedException":
+            return False
+        print(json.dumps({"event": "price_alert_dedup_unavailable",
+                          "alertId": alert["alertId"],
+                          "error": f"{type(exc).__name__}"}))
+        return True
+
+
+def _publish_price_alerts(job_id: str, payload: dict) -> list:
+    """Judge every supplier cost increase on a price list; publish the alerts.
+
+    The comparison is the supplier price engine's; the judgement is
+    engine.price_alerts', which reuses the walk-away price and the planner.
+    Only a MATCHED line has a comparison, so an ambiguous or unknown row can
+    never raise an alert - it waits for the owner to say which product it is.
+    Best effort: a failure here is logged and counted and the price list is
+    still DONE.
+    """
+    increases = events.unique([
+        line for line in payload.get("lines") or []
+        if (line.get("comparison") or {}).get("direction") == "INCREASE"])
+    if not increases:
+        return []
+    try:
+        confirmed = _confirmed_cost_map()
+    except Exception as exc:  # noqa: BLE001
+        print(f"price alerts: confirmed costs unavailable: {type(exc).__name__}")
+        confirmed = {}
+    data, now, sent = cached_dataset(), int(time.time()), []
+    for line in increases:
+        comparison = line["comparison"]
+        try:
+            alert = evaluate_price_change(
+                data, line["skuId"], comparison["previousPrice"],
+                comparison["currentPrice"],
+                supplier=payload.get("supplierName") or "",
+                confirmed_costs=confirmed, budget=BRIEF_BUDGET, now=now)
+        except Exception as exc:  # noqa: BLE001
+            print(json.dumps({"event": "price_alert_failed", "jobId": job_id,
+                              "skuId": line.get("skuId"),
+                              "error": f"{type(exc).__name__}: {str(exc)[:200]}"}))
+            metrics.emit(metrics.ALERT_PUBLISH_FAILURES, job_id=job_id)
+            continue
+        if not alert["alert"]:
+            continue
+        if not _first_alert(alert, now):
+            print(json.dumps({"event": "price_alert_duplicate", "jobId": job_id,
+                              "alertId": alert["alertId"]}))
+            continue
+        events.publish(events.SUPPLIER_PRICE_CHANGED, job_id=job_id,
+                       **events.supplier_price_alert(alert))
+        metrics.emit(metrics.SUPPLIER_ALERTS, job_id=job_id,
+                     dimensions={"Severity": alert["severity"]})
+        print(json.dumps({"event": "price_alert", "jobId": job_id,
+                          "alertId": alert["alertId"],
+                          "severity": alert["severity"],
+                          "triggers": alert["triggers"]}))
+        sent.append(alert)
+    return sent
+
+
+def run_daily_brief(now: int | None = None, client=None) -> dict:
+    """The scheduled daily brief: build it, maybe summarise it, store it.
+
+    The structured brief is the engine's and is stored whatever happens to
+    the summary. The summary is one Bedrock call, skipped when nothing needs
+    attention, and kept only if every number in it is in the brief.
+    """
+    now = int(time.time()) if now is None else now
+    brief = build_brief(cached_dataset(), _confirmed_cost_map(),
+                        budget=BRIEF_BUDGET, now=now)
+    summary = None
+    if brief["hasAttention"]:
+        from agent.orchestrator import _bedrock_client
+        summary = summarize_brief(brief, client or _bedrock_client(), MODEL_ID)
+    signature = brief_signature(brief)
+    _table.put_item(Item={
+        "PK": f"BRIEF#{DEFAULT_SHOP_ID}", "SK": "LATEST",
+        "briefDate": brief["date"], "generatedAt": now,
+        "signature": signature,
+        "summary": json.dumps(summary) if summary else "",
+        "counts": json.dumps(brief["counts"]),
+    })
+    events.publish(events.DAILY_SHOP_BRIEF_GENERATED,
+                   **events.daily_shop_brief_generated(brief))
+    metrics.emit(metrics.DAILY_BRIEFS, dimensions={
+        "Outcome": "SUMMARIZED" if summary else "DETERMINISTIC"})
+    print(json.dumps({"event": "daily_brief", "date": brief["date"],
+                      "counts": brief["counts"], "summarized": bool(summary),
+                      "grounded": brief["grounded"]}))
+    return {"status": "DONE", "date": brief["date"], "signature": signature,
+            "summarized": bool(summary), "counts": brief["counts"]}
 
 
 def _read_document(job_id: str, image_bytes: bytes, content_type: str):
@@ -486,13 +614,16 @@ def _process_price_list(job_id: str, item: dict) -> dict:
                  dimensions={"JobType": JOB_PRICE_LIST,
                              "Outcome": "REVIEWED"})
 
-    # A material supplier price move is a business fact, so it is an event.
-    # The numbers are the comparison's own - see engine.supplier_prices - and
-    # one SKU produces one event however many rows named it.
+    # A supplier cost increase worth an alert is published with the alert's
+    # figures (engine.price_alerts), once per price move. A material DECREASE
+    # is still a business fact and still an event, with the comparison's own
+    # numbers as before.
+    _publish_price_alerts(job_id, payload)
     for detail in events.unique([
         events.supplier_price_changed(line["comparison"])
         for line in payload["lines"]
         if line.get("comparison") and line["comparison"].get("materialChange")
+        and line["comparison"].get("direction") == "DECREASE"
     ]):
         events.publish(events.SUPPLIER_PRICE_CHANGED, job_id=job_id, **detail)
     _update(
@@ -523,6 +654,18 @@ def handler(event, context):
     re-driving a job by hand, or by a test. It is a maintenance door, not a
     second production path.
     """
+    if isinstance(event, dict) and event.get("shopflowTask") == TASK_DAILY_BRIEF:
+        # The scheduled rule's constant input. Not an SQS message and not a
+        # job: nothing to claim, nothing to retry.
+        try:
+            return run_daily_brief()
+        except Exception as exc:  # noqa: BLE001 - logged, visible, not retried
+            print(json.dumps({"event": "daily_brief_failed",
+                              "error": f"{type(exc).__name__}: {str(exc)[:200]}"}))
+            metrics.emit(metrics.WORKER_FAILURES,
+                         dimensions={"JobType": "UNKNOWN", "Outcome": "FAILED"})
+            return {"status": "FAILED"}
+
     records = event.get("Records") if isinstance(event, dict) else None
     if records is None:
         return _process_message(event or {})

@@ -121,6 +121,8 @@ from engine.supplier_prices import (CONFIRMED as SUPPLIER_CONFIRMED,
 from engine.supplier_prices import DECISIONS, build_decision_record
 from engine.voice import MAX_TRANSCRIPT_CHARS, answer_shop_query
 from engine import gst, whatif
+from engine.brief import brief_signature, build_brief
+from engine.price_alerts import evaluate_price_change
 
 MAX_ORDER_CHARS = 1000
 # A customer id is an internal key, not free text. Bounded and pattern-checked
@@ -1878,11 +1880,17 @@ def _alerts(data, rows: list) -> list:
     alerts = []
     confirmed = _confirmed_costs()
 
-    for alert in margin_alerts(
-            data, {sku: entry["cost"] for sku, entry in confirmed.items()}):
+    costs = {sku: entry["cost"] for sku, entry in confirmed.items()}
+    for alert in margin_alerts(data, costs):
         if not alert.get("comparisonAvailable"):
             continue
         if alert.get("previousSupplierCost") != alert.get("confirmedSupplierCost"):
+            # The price shock engine's judgement of the same move: deltas,
+            # margin, walk-away price and a severity. Engine figures only.
+            shock = evaluate_price_change(
+                data, alert["skuId"], alert.get("previousSupplierCost"),
+                alert.get("confirmedSupplierCost"), confirmed_costs=costs,
+                budget=BRIEF_BUDGET)
             alerts.append({
                 "kind": "SUPPLIER_PRICE_CHANGED",
                 "skuId": alert.get("skuId"),
@@ -1890,6 +1898,8 @@ def _alerts(data, rows: list) -> list:
                 "previousCost": alert.get("previousSupplierCost"),
                 "newCost": alert.get("confirmedSupplierCost"),
                 "detail": "Confirmed supplier cost has moved.",
+                "severity": shock["severity"],
+                "priceAlert": shock,
             })
         if alert.get("status") == "LOW_MARGIN":
             alerts.append({
@@ -1935,12 +1945,75 @@ def _alerts(data, rows: list) -> list:
     return alerts
 
 
+# The weekly restocking cash the brief and the price alerts plan against -
+# the same variable the worker reads, so both describe the same plan.
+BRIEF_BUDGET = float(os.environ.get("SHOPFLOW_BRIEF_BUDGET") or 25000)
+
+
+def alert_delivery() -> dict:
+    """Whether an alert can reach a person. Configuration, stated as it is.
+
+    The CDK stack sets ALERT_DELIVERY to EMAIL only when it subscribed an
+    address to the owner alert topic. Anything else means events are
+    published and nobody receives them, and the page says exactly that.
+    """
+    channel = (os.environ.get("ALERT_DELIVERY") or "NONE").upper()
+    configured = channel == "EMAIL"
+    return {
+        "configured": configured,
+        "channel": channel if configured else "NONE",
+        "eventsPublished": bool(events.bus_name()),
+        "note": ("Alerts are published to EventBridge and delivered by SNS "
+                 "email." if configured else
+                 "Alerts are published to EventBridge and the SNS alert "
+                 "topic, which has no subscriber in this demo. Nobody is "
+                 "notified; the alerts are shown here."),
+    }
+
+
+def _stored_brief_summary(signature: str) -> dict:
+    """The scheduled run's model summary, only if written for these figures."""
+    try:
+        item = table().get_item(Key={"PK": f"BRIEF#{DEFAULT_SHOP_ID}",
+                                     "SK": "LATEST"}).get("Item")
+    except Exception as exc:  # noqa: BLE001
+        print(f"stored brief unavailable: {type(exc).__name__}")
+        return {"available": False, "reason": "UNAVAILABLE"}
+    if not item:
+        return {"available": False, "reason": "NOT_YET_GENERATED"}
+    generated = {"generatedAt": int(item.get("generatedAt") or 0),
+                 "briefDate": item.get("briefDate")}
+    if item.get("signature") != signature:
+        return {"available": False, "reason": "FIGURES_CHANGED", **generated}
+    try:
+        summary = json.loads(item.get("summary") or "null")
+    except ValueError:
+        summary = None
+    if not summary:
+        return {"available": False, "reason": "NO_SUMMARY", **generated}
+    return {"available": True, "text": summary.get("text"), **generated}
+
+
+def _brief(data) -> dict:
+    """Today's brief, built now from current state, plus any stored summary."""
+    costs = {sku: entry["cost"] for sku, entry in _confirmed_costs().items()}
+    brief = build_brief(data, costs, budget=BRIEF_BUDGET, now=int(time.time()))
+    brief["summary"] = _stored_brief_summary(brief_signature(brief))
+    return brief
+
+
 def _get_intelligence(event) -> dict:
     """Supplier documents, alerts and operations, for the owner workspace."""
     data = cached_dataset()
     rows = _recent_jobs()
     documents = [_document_summary(row) for row in rows
                  if str(row.get("jobType")) == JOB_PRICE_LIST]
+
+    try:
+        brief = _brief(data)
+    except Exception as exc:  # noqa: BLE001
+        print(f"daily brief unavailable: {type(exc).__name__}: {exc}")
+        brief = None
 
     # Alerts read the shop's confirmed costs, which is another table query.
     # If it fails, the page shows what it could read rather than nothing:
@@ -1957,6 +2030,8 @@ def _get_intelligence(event) -> dict:
         "alerts": alerts,
         "operations": _operations(rows),
         "eventsEnabled": bool(events.bus_name()),
+        "brief": brief,
+        "alertDelivery": alert_delivery(),
         "synthetic": True,
         "dataNotice": ("Synthetic demo data. Inventory, sales history and "
                        "customer records are generated and do not represent "

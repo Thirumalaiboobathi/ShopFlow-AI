@@ -866,7 +866,8 @@ def test_8l_no_service_is_added_that_nothing_uses(template):
 
 
 def test_8m_there_is_exactly_one_bus_one_topic_and_one_rule(template):
-    """Small on purpose. One bus, one topic, one rule between them."""
+    """Small on purpose. One bus, one topic, one routing rule between them -
+    and one schedule, for the daily brief, which cannot live on a custom bus."""
     buses = _resources(template, "AWS::Events::EventBus")
     rules = _resources(template, "AWS::Events::Rule")
     topics = _resources(template, "AWS::SNS::Topic")
@@ -875,15 +876,40 @@ def test_8m_there_is_exactly_one_bus_one_topic_and_one_rule(template):
         ["shopflow-business-events"]
     assert [t["Properties"]["TopicName"] for t in topics] == \
         ["shopflow-owner-alerts"]
-    assert len(rules) == 1
+    routing = [r for r in rules if "EventPattern" in r["Properties"]]
+    schedules = [r for r in rules if "ScheduleExpression" in r["Properties"]]
+    assert len(routing) == 1
+    assert len(schedules) == 1
+    assert len(rules) == 2
 
-    rule = rules[0]["Properties"]
+    rule = routing[0]["Properties"]
     assert rule["EventPattern"]["source"] == ["shopflow.business"]
     # A clarification is correct behaviour and must not become an email.
     assert "OrderNeedsClarification" not in rule["EventPattern"]["detail-type"]
     assert set(rule["EventPattern"]["detail-type"]) == {
         "SupplierPriceChanged", "StockoutDetected", "LowMarginDetected",
-        "OrderProcessingFailed", "PurchasePlanGenerated"}
+        "OrderProcessingFailed", "PurchasePlanGenerated",
+        "DailyShopBriefGenerated"}
+
+
+def test_8m2_the_daily_brief_schedule_targets_only_the_worker(template):
+    """One daily schedule, one target: the existing worker, with a constant
+    input the worker recognises. No new function was added for it."""
+    import json as _json
+
+    schedule = next(r["Properties"] for r in
+                    _resources(template, "AWS::Events::Rule")
+                    if "ScheduleExpression" in r["Properties"])
+    assert schedule["ScheduleExpression"].startswith("cron(")
+    assert len(schedule["Targets"]) == 1
+    target = schedule["Targets"][0]
+    assert _json.loads(target["Input"]) == {"shopflowTask": "DAILY_BRIEF"}
+    assert "WorkerFunction" in _json.dumps(target["Arn"])
+    functions = [f for f in _resources(template, "AWS::Lambda::Function")
+                 if str(f["Properties"].get("FunctionName", "")).startswith(
+                     "shopflow-")]
+    assert sorted(f["Properties"]["FunctionName"] for f in functions) == [
+        "shopflow-api", "shopflow-health", "shopflow-order-worker"]
 
 
 def test_8n_the_dashboard_is_operational_not_decorative(template):

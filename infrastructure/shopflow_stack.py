@@ -195,6 +195,10 @@ class ShopFlowStack(Stack):
         if business_alerts_enabled and alert_email:
             alerts_topic.add_subscription(
                 sns_subs.EmailSubscription(alert_email))
+        # Told to both Lambdas so the page can say, truthfully, whether an
+        # alert reaches a person. EMAIL only when a subscription was made here.
+        alert_delivery = ("EMAIL" if business_alerts_enabled and alert_email
+                          else "NONE")
 
         # Which events are worth interrupting somebody for.
         #
@@ -210,6 +214,7 @@ class ShopFlowStack(Stack):
             "LowMarginDetected",
             "OrderProcessingFailed",
             "PurchasePlanGenerated",
+            "DailyShopBriefGenerated",
         ]
         events.Rule(
             self, "OwnerAlertRule",
@@ -337,6 +342,7 @@ class ShopFlowStack(Stack):
                 # Empty would switch business events off; the worker publishes
                 # to this bus and carries on regardless if it cannot.
                 "EVENT_BUS_NAME": event_bus.event_bus_name,
+                "ALERT_DELIVERY": alert_delivery,
             },
             log_group=logs.LogGroup(
                 self, "WorkerLogs",
@@ -434,6 +440,30 @@ class ShopFlowStack(Stack):
         ))
 
         # ---- public API ----
+        # ---- the daily shop brief: one schedule, the existing worker ----
+        #
+        # One rule on the default bus (a schedule cannot live on a custom
+        # bus), one target, a constant input the worker recognises. No new
+        # function: the worker already has the table, the bus and the one
+        # Bedrock permission the optional summary needs. Once a day it costs
+        # one invocation and at most one Converse call. The time is context
+        # so it can move without a code change; 02:30 UTC is 08:00 in India.
+        brief_schedule = (self.node.try_get_context("dailyBriefSchedule")
+                          or "cron(30 2 * * ? *)")
+        events.Rule(
+            self, "DailyBriefSchedule",
+            rule_name=f"{PREFIX}-daily-brief",
+            description=("Builds the ShopFlow daily shop brief once a day on "
+                         "the order worker."),
+            schedule=events.Schedule.expression(brief_schedule),
+            targets=[events_targets.LambdaFunction(
+                worker_fn,
+                event=events.RuleTargetInput.from_object(
+                    {"shopflowTask": "DAILY_BRIEF"}),
+                retry_attempts=1,
+            )],
+        )
+
         api_fn = lambda_.Function(
             self, "ApiFunction",
             function_name=f"{PREFIX}-api",
@@ -449,6 +479,7 @@ class ShopFlowStack(Stack):
                 # The API publishes one event: PurchasePlanGenerated, after
                 # the plan is already built and returned correctly.
                 "EVENT_BUS_NAME": event_bus.event_bus_name,
+                "ALERT_DELIVERY": alert_delivery,
                 # WhatsApp is off unless switched on deliberately. With no
                 # context supplied this is the only variable added, it reads
                 # "false", and the API falls back to the wa.me draft.
