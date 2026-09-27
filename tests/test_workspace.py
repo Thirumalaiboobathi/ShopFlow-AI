@@ -272,13 +272,19 @@ def test_9_the_demo_route_remains_unclassified_because_it_carries_no_cost():
 
 def test_10_the_workspace_adds_no_second_agent_or_chatbot():
     js = _strip_comments(WORKSPACE_JS)
-    for banned in ("bedrock", "converse", "/api/orders", "/api/shop-queries",
+    for banned in ("bedrock", "converse", "/api/orders",
                    "/api/purchase-plans", "chat"):
         assert banned not in js.lower(), banned
-    # Two reads, both of them read-only and neither of them an agent:
-    # the seeded shop, and the owner's intelligence summary.
-    assert re.findall(r'fetch\("([^"]+)"', js) == ["/api/demo",
-                                                   "/api/intelligence"]
+    # Two reads, both of them read-only and neither of them an agent: the
+    # seeded shop, and the owner's intelligence summary. Plus exactly one
+    # owner action, added with the supplier counter-offer: ask for a DRAFT
+    # (POST /api/shop-queries, kind COUNTER_OFFER) and poll for it. That is
+    # a worded draft behind the owner gate, not an agent or a chat - it sends
+    # a SKU, calculates nothing and sends nothing to anyone.
+    assert re.findall(r'fetch\("([^"]+)"', js) == [
+        "/api/demo", "/api/intelligence", "/api/jobs/", "/api/shop-queries"]
+    assert js.count("/api/shop-queries") == 1
+    assert re.findall(r'kind:\s*"([A-Z_]+)"', js) == ["COUNTER_OFFER"]
 
 
 def test_10b_the_intelligence_read_is_sent_as_the_owner():

@@ -268,6 +268,8 @@ def test_every_job_poll_sends_the_owner_marker():
     """Without it, an order comes back as the customer view and a supplier
     price list is refused - the owner's own screens would lose their data."""
     polls = re.findall(r'fetch\("/api/jobs/"[^;]*', PAGE)
-    assert len(polls) == 3
+    # Order, price list, voice transcript - and the supplier counter-offer
+    # draft, which carries supplier cost and is refused without the marker.
+    assert len(polls) == 4
     for call in polls:
         assert "OWNER_HEADERS" in call, call
