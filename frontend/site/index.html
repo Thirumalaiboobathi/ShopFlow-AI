@@ -2021,7 +2021,7 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
       '<div class="w-row"><span>Margin ceiling (' + esc(b.marginFloorPercent) + '% floor)</span><span>' +
         rupees(s.marginCeiling) + '</span></div>';
     if (s.cashCeiling !== null && s.cashCeiling !== undefined) {
-      html += '<div class="w-row"><span>Cash ceiling (₹' + esc(b.budget) + ' budget)</span><span>' +
+      html += '<div class="w-row"><span>Cash ceiling (' + rupees(b.budget) + ' budget)</span><span>' +
         rupees(s.cashCeiling) + '</span></div>';
     }
     html += '<div class="w-verdict ' + (over ? "over" : "ok") + '">' +
