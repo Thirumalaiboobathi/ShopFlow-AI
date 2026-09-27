@@ -117,6 +117,30 @@
     margin:16px 0 0; max-width:560px}
   .profile dt{color:var(--muted); font-size:.85rem}
   .profile dd{margin:0; font-weight:600; font-size:.92rem}
+  /* Today's shop brief: a short list, not a dashboard. Engine figures only. */
+  .brief{border:1px solid var(--line); border-radius:10px; background:var(--panel);
+    padding:14px 16px; margin:14px 0 6px}
+  .brief h3{margin:0 0 2px}
+  .brief .bmeta{font-size:.8rem; color:var(--muted); margin:0 0 10px}
+  .brief ul{list-style:none; margin:0; padding:0}
+  .brief li{display:flex; justify-content:space-between; gap:12px; padding:6px 0;
+    border-top:1px solid var(--line); font-variant-numeric:tabular-nums}
+  .brief li:first-child{border-top:0}
+  .brief li a{white-space:nowrap; font-size:.85rem}
+  .brief .bprio{margin-top:10px; padding:9px 11px; border-radius:6px;
+    background:var(--bad-soft); border-left:4px solid var(--bad); font-size:.9rem}
+  .brief .bprio.warn{background:var(--warn-soft); border-left-color:var(--warn)}
+  .brief .bsum{margin:10px 0 0; font-size:.9rem}
+  .brief .bnote{margin:8px 0 0; font-size:.8rem; color:var(--muted)}
+  .caps{display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
+    gap:10px; margin:10px 0}
+  .cap{border:1px solid var(--line); border-radius:8px; padding:11px 13px;
+    background:var(--panel)}
+  .cap h4{margin:0 0 4px; font-size:.95rem}
+  .cap p{margin:0; font-size:.86rem; color:var(--muted)}
+  .cap .live{display:inline-block; font-size:.7rem; font-weight:700;
+    letter-spacing:.05em; text-transform:uppercase; color:var(--ok);
+    margin-left:6px}
   .aslink{display:inline-block; text-decoration:none; text-align:center;
     font-weight:600; border-radius:8px; padding:10px 18px;
     border:1px solid transparent}
@@ -691,6 +715,10 @@
       not a separate rule invented for this page.
     </p>
 
+    <p class="note"><a href="/workspace/intelligence" data-route>Today's shop
+      brief — shortages, supplier changes, margin risks and this week's
+      purchasing →</a></p>
+
     <h3>Inventory snapshot</h3>
     <p class="note" id="shortageNote" role="status" aria-live="polite"></p>
     <div class="tablewrap">
@@ -711,29 +739,57 @@
     <p><a href="/workspace/assistant" data-route class="primary aslink"
           id="openAssistant">Open AI assistant</a></p>
 
-    <h3>Who this is for, and what is not yet proven</h3>
+    <h3>Who this is for</h3>
     <dl class="profile">
       <dt>Intended customer</dt>
-      <dd>A single independent electrical or hardware shop in India — no ERP,
-        orders on WhatsApp and the phone, a ledger book, and a fixed amount of
-        cash to restock with each week.</dd>
-      <dt>Workflow</dt>
-      <dd>Messy order → verified quote with GST → real stock check → supplier
-        price change → margin → cash-constrained buying → What-If before
+      <dd>A single independent electrical or hardware shop in India —
+        typically operating without an ERP, with orders coming through
+        WhatsApp and phone calls, a ledger for customer credit, and a fixed
+        amount of cash available for weekly restocking.</dd>
+      <dt>Core workflow</dt>
+      <dd>Messy order → verified quote with GST → stock check → supplier price
+        change → margin impact → cash-constrained purchasing → What-If before
         deciding.</dd>
-      <dt>Value, if it holds</dt>
-      <dd>Fewer wrong quotations, supplier increases noticed before they eat
-        the margin, and restocking decided against the cash actually
+      <dt>Expected value</dt>
+      <dd>Fewer wrong quotations, earlier visibility into supplier price
+        increases, and purchasing decisions based on the cash actually
         available.</dd>
-      <dt>Evidence so far</dt>
-      <dd><strong>None from a real shop.</strong> Every SKU, price, stock level,
-        customer and sale here is synthetic. No shopkeeper has used ShopFlow.</dd>
-      <dt>What a real shop would validate</dt>
-      <dd>Whether the matcher understands their customers' actual messages;
-        how often an order needs a clarification; whether owners trust and act
-        on the purchase plan; whether GST treatment matches their adviser's;
+      <dt>Current validation status</dt>
+      <dd>The demo uses synthetic data modeled on an independent
+        electrical-retail workflow. <strong>No real shop has used
+        ShopFlow.</strong> Real-shop validation is the next step.</dd>
+      <dt>What real-shop validation will test</dt>
+      <dd>Whether customer messages are matched correctly; how often
+        clarification is required; whether shop owners trust and act on the
+        purchase plan; whether GST treatment matches their existing process;
         and whether the time saved at the counter is worth paying for.</dd>
     </dl>
+
+    <h3>AWS-powered capabilities</h3>
+    <div class="caps">
+      <div class="cap"><h4>Supplier price intelligence<span class="live">Live</span></h4>
+        <p>Upload a supplier price list; Amazon Textract reads it and the
+          engine detects meaningful supplier price changes before they affect
+          purchasing decisions. Nothing changes until you confirm.</p></div>
+      <div class="cap"><h4>Voice ordering<span class="live">Live</span></h4>
+        <p>Amazon Transcribe turns a spoken order into text, which then goes
+          through the same product, quantity and unit checks as a typed order
+          before any quotation.</p></div>
+      <div class="cap"><h4>Smart restocking<span class="live">Live</span></h4>
+        <p>Current inventory, customer commitments and recent sales history
+          decide what needs attention within the cash you have this week.</p></div>
+      <div class="cap"><h4>Price-shock alerts<span class="live">Live</span></h4>
+        <p>Meaningful supplier price increases are flagged with their impact
+          on margin, purchasing capacity and walk-away price, and published to
+          Amazon EventBridge.
+          <span id="capDelivery">Email delivery is not configured in this
+          demo.</span></p></div>
+      <div class="cap"><h4>Daily shop brief<span class="live">Live</span></h4>
+        <p>Shortages, supplier changes, margin risks and purchasing
+          constraints in one short view, rebuilt from current figures; a
+          scheduled daily run adds a short Amazon Bedrock summary that is
+          checked against those figures.</p></div>
+    </div>
   </section>
 
   <section id="paneProfile" class="wspane">
@@ -780,6 +836,10 @@
   </section>
 
   <section id="paneIntelligence" class="wspane">
+    <div class="brief" id="briefBox" aria-live="polite">
+      <h3>Today's shop brief</h3>
+      <p class="bmeta">Loading…</p>
+    </div>
     <h2>ShopFlow Intelligence</h2>
     <p>
       What ShopFlow has read, what it has worked out, and whether it is
@@ -1495,11 +1555,80 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
         el("docNote").textContent =
           "Intelligence is unavailable right now. Orders, quotations and " +
           "purchase plans are unaffected.";
+        el("briefBox").innerHTML = "<h3>Today's shop brief</h3>" +
+          '<p class="bmeta">The brief is unavailable right now.</p>';
       });
+  }
+
+  // Today's shop brief, from the same owner route as Intelligence. Every
+  // figure is the engine's; this only lays them out and links to the page
+  // where each one lives.
+  function briefMoney(n) {
+    return "\u20b9" + Number(n).toLocaleString("en-IN",
+      { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  var BRIEF_SUMMARY_NOTES = {
+    NOT_YET_GENERATED: "The scheduled daily summary has not run yet.",
+    FIGURES_CHANGED: "The figures have changed since this morning's " +
+      "summary, so it is not shown.",
+    NO_SUMMARY: "This morning's run kept the figures only.",
+    UNAVAILABLE: ""
+  };
+
+  function paintBrief() {
+    var b = intel && intel.brief;
+    var box = el("briefBox");
+    if (!b) {
+      box.innerHTML = "<h3>Today's shop brief</h3>" +
+        '<p class="bmeta">The brief is unavailable right now.</p>';
+      return;
+    }
+    var c = b.counts || {}, p = b.planner || {};
+    function row(text, href, label) {
+      return "<li><span>" + text + '</span><a href="' + href +
+        '" data-route>' + label + " \u2192</a></li>";
+    }
+    var html = "<h3>Today's shop brief</h3>" +
+      '<p class="bmeta">' + esc(b.date) + " \u00b7 calculated from current " +
+      "figures \u00b7 synthetic demo data</p><ul>" +
+      row(c.shortages + " customer commitment(s) need stock" +
+        (c.unfundedShortages ? " \u2014 " + c.unfundedShortages + " not funded" : ""),
+        "/workspace/orders", "Orders") +
+      row(c.supplierAlerts + " supplier price increase(s)" +
+        (c.criticalAlerts ? " \u2014 " + c.criticalAlerts + " critical" : ""),
+        "/workspace/intelligence", "Intelligence") +
+      row(c.marginRisks + " margin risk(s)", "/workspace/intelligence", "Alerts") +
+      row(briefMoney(p.totalSpend) + " planned purchasing \u00b7 " +
+        briefMoney(p.remaining) + " remaining of " + briefMoney(p.budget),
+        "/workspace/assistant", "Planner") +
+      row(c.lowStock + " product(s) below reorder point",
+        "/workspace/inventory", "Inventory") + "</ul>";
+    var first = (b.priorityActions || [])[0];
+    if (first) {
+      html += '<div class="bprio' + (first.severity === "CRITICAL" ? "" : " warn") +
+        '"><strong>Priority:</strong> ' + esc(first.text) + "</div>";
+    }
+    var sum = b.summary || {};
+    if (sum.available) {
+      html += '<p class="bsum">' + esc(sum.text) + "</p>" +
+        '<p class="bnote">Summary written by the language model from the ' +
+        "figures above, kept only because every number in it matches them.</p>";
+    } else if (BRIEF_SUMMARY_NOTES[sum.reason]) {
+      html += '<p class="bnote">' + BRIEF_SUMMARY_NOTES[sum.reason] + "</p>";
+    }
+    var d = intel.alertDelivery || {};
+    if (d.note) html += '<p class="bnote">' + esc(d.note) + "</p>";
+    box.innerHTML = html;
+    if (el("capDelivery")) {
+      el("capDelivery").textContent = d.configured
+        ? "Delivered by Amazon SNS email." : "Email delivery is not configured in this demo.";
+    }
   }
 
   var intelDefaulted = false;
   function paintIntelligence() {
+    paintBrief();
     var docs = (intel && intel.documents) || [];
     el("docBody").innerHTML = docs.length
       ? docs.map(function (d) {
@@ -1527,17 +1656,32 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
     var alerts = (intel && intel.alerts) || [];
     el("alertBody").innerHTML = alerts.length
       ? alerts.map(function (a) {
+          var detail = esc(a.productName ? a.productName + " \u2014 " +
+            a.detail : a.detail);
+          var pa = a.priceAlert;
+          if (pa) {
+            detail = "<strong>" + esc(pa.severity) + "</strong> \u00b7 " +
+              esc(pa.product) + "<br>Supplier cost " + briefMoney(pa.oldCost) +
+              " \u2192 " + briefMoney(pa.newCost) + " (+" +
+              briefMoney(pa.absoluteDelta) + ", +" +
+              esc(pa.percentageDelta.toFixed(2)) + "%)<br>Margin " +
+              briefMoney(pa.oldMargin) + " \u2192 " + briefMoney(pa.newMargin) +
+              " \u00b7 walk-away " + briefMoney(pa.walkAway.price) +
+              (pa.walkAway.currentCostAboveWalkAway
+                ? " \u2014 current cost is " +
+                  briefMoney(pa.walkAway.differenceFromCurrentCost) + " above it"
+                : "");
+          }
           return "<tr><td>" + esc(a.kind.replace(/_/g, " ")) +
             "</td><td><code>" + esc(a.skuId || a.jobId || "\u2014") +
-            "</code></td><td>" + esc(a.productName ? a.productName + " \u2014 " +
-            a.detail : a.detail) + "</td></tr>";
+            "</code></td><td>" + detail + "</td></tr>";
         }).join("")
       : '<tr><td colspan="3">Nothing needs attention.</td></tr>';
-    el("alertNote").textContent = alerts.length
+    el("alertNote").textContent = (alerts.length
       ? alerts.length + " item(s). Each one is an engine's verdict, not an " +
         "opinion: margin, reorder point and supplier comparison are all " +
-        "deterministic."
-      : "";
+        "deterministic. "
+      : "") + ((intel && intel.alertDelivery && intel.alertDelivery.note) || "");
     // With no document to show, open on what needs attention instead of an
     // empty table. Once: after that the owner's own choice of tab stands.
     if (!intelDefaulted) {
