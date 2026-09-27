@@ -194,6 +194,98 @@ def normalize_transcript(text: str) -> Tuple[str, List[str]]:
     return cleaned, applied
 
 
+# Brand names Amazon Transcribe produced on the live deployment that are too
+# far from the brand for the edit-distance rule below: "2 Hels MCB SP 32 amp"
+# was Havells (2026-09-27). Each is used only with the context rule too.
+_OBSERVED_BRAND_FORMS: Dict[str, str] = {"hels": "Havells"}
+_MAX_BRAND_EDITS = 2
+_MIN_FUZZY_LENGTH = 5
+_WORD_RE = re.compile(r"[A-Za-z][A-Za-z']*")
+# Where one spoken order line ends: the context rule reads one line at a time.
+_LINE_BREAK = re.compile(r"[,;\n]|\band\b|\balso\b|\bplus\b", re.IGNORECASE)
+
+
+def _edits(a: str, b: str) -> int:
+    """Optimal string alignment distance (Damerau-Levenshtein, restricted)."""
+    rows = [[0] * (len(b) + 1) for _ in range(len(a) + 1)]
+    for i in range(len(a) + 1):
+        rows[i][0] = i
+    for j in range(len(b) + 1):
+        rows[0][j] = j
+    for i in range(1, len(a) + 1):
+        for j in range(1, len(b) + 1):
+            cost = 0 if a[i - 1] == b[j - 1] else 1
+            rows[i][j] = min(rows[i - 1][j] + 1, rows[i][j - 1] + 1,
+                             rows[i - 1][j - 1] + cost)
+            if (i > 1 and j > 1 and a[i - 1] == b[j - 2]
+                    and a[i - 2] == b[j - 1]):
+                rows[i][j] = min(rows[i][j], rows[i - 2][j - 2] + 1)
+    return rows[len(a)][len(b)]
+
+
+def brand_vocabulary(data: Dataset) -> dict:
+    """What the catalogue says about its brands: each single-word brand, the
+    words its own products are described with, and every catalogue word."""
+    from .matching import _product_tokens
+
+    brands: Dict[str, set] = {}
+    known: set = set()
+    for product in data.products.values():
+        tokens = set(_product_tokens(product))
+        known |= tokens
+        if " " in product.brand.strip():
+            continue      # "RR Kabel", "GM Modular": exact names only
+        words = {t for t in tokens if t.isalpha() and len(t) >= 3}
+        words.discard(product.brand.lower())
+        brands.setdefault(product.brand, set()).update(words)
+    return {"brands": brands, "known": known}
+
+
+def correct_brand_terms(text: str, vocabulary: dict) -> Tuple[str, List[str]]:
+    """Correct a misheard brand name - only when it can only be one brand.
+
+    A spoken word becomes a catalogue brand when all three hold:
+
+      1. it is not already a word the catalogue uses ("anchor", "wire", ...);
+      2. it is within two edits of exactly ONE catalogue brand (and is at
+         least five letters long), or it is a form Transcribe was observed to
+         produce for that brand;
+      3. the same order line names something that brand actually sells -
+         "hevels MCB" can be Havells, "hevels" alone is left as heard.
+
+    Anything else is left exactly as heard, and the matcher asks. Every
+    correction is returned so the owner sees it ("hevels -> Havells").
+    """
+    brands, known = vocabulary["brands"], vocabulary["known"]
+    applied: List[str] = []
+    out, last = [], 0
+    for match in _WORD_RE.finditer(text):
+        word = match.group().replace("'", "")
+        low = word.lower()
+        if low in known or any(low == b.lower() for b in brands):
+            continue
+        candidates = {b for b in brands
+                      if _OBSERVED_BRAND_FORMS.get(low) == b
+                      or (len(low) >= _MIN_FUZZY_LENGTH
+                          and _edits(low, b.lower()) <= _MAX_BRAND_EDITS)}
+        if len(candidates) != 1:
+            continue                          # none, or ambiguous: ask
+        brand = candidates.pop()
+        start = max((m.end() for m in _LINE_BREAK.finditer(text, 0, match.start())),
+                    default=0)
+        stop = _LINE_BREAK.search(text, match.end())
+        line = text[start:stop.start() if stop else len(text)].lower()
+        line_words = set(re.findall(r"[a-z]+", line))
+        if not (line_words & brands[brand]):
+            continue                          # nothing this brand sells named
+        out.append(text[last:match.start()])
+        out.append(brand)
+        last = match.end()
+        applied.append(f"{match.group()} -> {brand}")
+    out.append(text[last:])
+    return "".join(out), applied
+
+
 def detect_language(text: str) -> str:
     """Tamil, English, or mixed - decided from script and function words.
 
@@ -546,6 +638,9 @@ def answer_shop_query(
     them would create a second implementation of the business workflow.
     """
     normalized, aliases = normalize_transcript(transcript)
+    normalized, brand_fixes = correct_brand_terms(normalized,
+                                                  brand_vocabulary(data))
+    aliases = aliases + brand_fixes
     language = detect_language(transcript)
     tamil = speaks_tamil(language)
     intent = classify_intent(normalized)
