@@ -117,7 +117,9 @@
     margin:16px 0 0; max-width:560px}
   .profile dt{color:var(--muted); font-size:.85rem}
   .profile dd{margin:0; font-weight:600; font-size:.92rem}
-  .aslink{display:inline-block; text-decoration:none; text-align:center}
+  .aslink{display:inline-block; text-decoration:none; text-align:center;
+    font-weight:600; border-radius:8px; padding:10px 18px;
+    border:1px solid transparent}
 
   @media (max-width:640px){
     .wsbar{padding:12px 14px}
@@ -473,6 +475,20 @@
     background:var(--panel); border:1px dashed var(--line); font-size:.88rem}
   .margin .m-sugg b{font-variant-numeric:tabular-nums}
   .margin .m-sugg p{margin:7px 0 0; color:var(--muted); font-size:.84rem}
+  /* Walk-away price: the most the shop can pay. The engine's figures only. */
+  .margin .m-walkbtn{margin-top:11px; margin-left:6px}
+  .margin .m-walk{margin-top:11px; padding:11px 13px; border-radius:6px;
+    background:var(--panel); border:1px solid var(--line); font-size:.9rem}
+  .m-walk .w-head{font-size:1.15rem; font-weight:680; font-variant-numeric:tabular-nums}
+  .m-walk .w-lim{font-size:.78rem; text-transform:uppercase; letter-spacing:.05em;
+    color:var(--muted); margin-left:6px}
+  .m-walk .w-row{display:flex; justify-content:space-between; gap:12px;
+    font-variant-numeric:tabular-nums; padding:2px 0}
+  .m-walk .w-verdict{margin-top:7px; font-weight:600}
+  .m-walk .w-verdict.over{color:var(--bad)}
+  .m-walk .w-verdict.ok{color:var(--ok)}
+  .m-walk .w-math{margin:7px 0 0; color:var(--muted); font-size:.8rem;
+    font-family:ui-monospace,Menlo,Consolas,monospace; overflow-wrap:anywhere}
 
   /* WhatsApp handoff: a draft the owner sends, never something ShopFlow sends. */
   .share{margin-top:16px; display:flex; gap:11px; align-items:center; flex-wrap:wrap}
@@ -549,6 +565,39 @@
     .rstate.confirmed { background: #172554; color: #a5c0f5; }
     .rstate.bad { background: #3a1616; color: #f3a6a6; }
   }
+
+  /* GST beside a quotation or a plan. Figures are the engine's. */
+  .gstbox { border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 14px; margin: 10px 0; background: var(--panel); }
+  .gstrow { display: flex; justify-content: space-between; gap: 12px;
+    padding: 3px 0; font-variant-numeric: tabular-nums; }
+  .gstrow.grand { border-top: 1px solid var(--line); margin-top: 4px;
+    padding-top: 7px; font-weight: 700; }
+  .gstnote { margin: 6px 0 0; font-size: .82rem; color: var(--muted); }
+
+  /* What-If */
+  .wi-subject { font-weight: 600; margin: 12px 0 6px; }
+  .wi-table { width: 100%; border-collapse: collapse; font-size: .92rem;
+    font-variant-numeric: tabular-nums; }
+  .wi-table th, .wi-table td { padding: 6px 8px; border-bottom: 1px solid var(--line);
+    text-align: right; }
+  .wi-table th:first-child, .wi-table tbody th { text-align: left; font-weight: 500; }
+  .wi-table thead th { color: var(--muted); font-weight: 600; font-size: .78rem;
+    text-transform: uppercase; letter-spacing: .04em; }
+  .wi-table td.up { color: var(--ok); }
+  .wi-table td.down { color: var(--bad); }
+  .wi-impact { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px;
+    margin: 0; }
+  .wi-impact dt { color: var(--muted); }
+  .wi-impact dd { margin: 0; font-variant-numeric: tabular-nums; }
+  .wi-decision { margin: 12px 0 6px; padding: 10px 12px; border-radius: 10px;
+    background: var(--accent-soft); }
+  #wiText { width: 100%; box-sizing: border-box; margin-top: 10px; }
+  #wiPresets { display: flex; flex-wrap: wrap; gap: 6px; }
+  @media (max-width: 560px) {
+    .wi-table { font-size: .82rem; }
+    .wi-table th, .wi-table td { padding: 5px 4px; }
+  }
 </style>
 </head>
 <body>
@@ -618,6 +667,7 @@
 
   <p class="demobadge wsbadge" role="note">
     <strong>Demo workspace — authentication is simulated.</strong>
+    Demo workspace gate only. Not production authentication.
     Inventory and sales history are synthetic and do not represent a real
     shop's records. Production deployments should add authenticated
     shop-level access controls.
@@ -660,6 +710,30 @@
       calculated by deterministic code.</p>
     <p><a href="/workspace/assistant" data-route class="primary aslink"
           id="openAssistant">Open AI assistant</a></p>
+
+    <h3>Who this is for, and what is not yet proven</h3>
+    <dl class="profile">
+      <dt>Intended customer</dt>
+      <dd>A single independent electrical or hardware shop in India — no ERP,
+        orders on WhatsApp and the phone, a ledger book, and a fixed amount of
+        cash to restock with each week.</dd>
+      <dt>Workflow</dt>
+      <dd>Messy order → verified quote with GST → real stock check → supplier
+        price change → margin → cash-constrained buying → What-If before
+        deciding.</dd>
+      <dt>Value, if it holds</dt>
+      <dd>Fewer wrong quotations, supplier increases noticed before they eat
+        the margin, and restocking decided against the cash actually
+        available.</dd>
+      <dt>Evidence so far</dt>
+      <dd><strong>None from a real shop.</strong> Every SKU, price, stock level,
+        customer and sale here is synthetic. No shopkeeper has used ShopFlow.</dd>
+      <dt>What a real shop would validate</dt>
+      <dd>Whether the matcher understands their customers' actual messages;
+        how often an order needs a clarification; whether owners trust and act
+        on the purchase plan; whether GST treatment matches their adviser's;
+        and whether the time saved at the counter is worth paying for.</dd>
+    </dl>
   </section>
 
   <section id="paneProfile" class="wspane">
@@ -771,6 +845,9 @@
         Supplier cost moves, low margins, stockouts and failed processing.
         A clarification is not listed here: ShopFlow asking which variant a
         customer meant is the system working, not an alert.
+        CloudWatch alarm actions are configured; notification delivery
+        requires an SNS subscription, so nobody is emailed or paged by this
+        demo.
       </p>
       <div class="tablewrap">
         <table class="wstable">
@@ -1044,6 +1121,48 @@
   </div>
 </section>
 
+<section id="whatIf">
+  <h2>What-If — before you buy, simulate the decision</h2>
+  <div class="app">
+    <p class="hint" style="margin-top:0">
+      Ask what happens <em>before</em> you commit: a supplier raises a price, a
+      customer wants a discount, you have less cash this week. ShopFlow runs
+      the same engines on a copy of the numbers and shows current, scenario,
+      change and impact.
+      <strong>Simulation only — nothing is saved or changed.</strong>
+      The question is read by fixed rules, not by the AI model, and every
+      figure comes from the engine.
+    </p>
+
+    <div class="presets" id="wiPresets" aria-label="Example questions">
+      <button class="ghost" data-q="What if Finolex wire price increases by ₹300?">Supplier +₹300</button>
+      <button class="ghost" data-q="What if supplier price increases 10%?">Supplier +10%</button>
+      <button class="ghost" data-q="What if I give this customer 2% discount?">2% discount</button>
+      <button class="ghost" data-q="What if the customer takes 5 instead of 3?">5 instead of 3</button>
+      <button class="ghost" data-q="What if I have only ₹20,000 to restock?">Only ₹20,000</button>
+      <button class="ghost" data-q="What if I increase the selling price by ₹200?">Price +₹200</button>
+      <button class="ghost" data-q="What if I include GST in the selling price?">GST inside price</button>
+      <button class="ghost" data-q="What if I don't restock the shortage?">Skip restock</button>
+      <button class="ghost" data-q="What is the most I can pay the supplier?">Walk-away price</button>
+    </div>
+
+    <textarea id="wiText" rows="2" spellcheck="false"
+      aria-label="Your what-if question">What if supplier price increases 10%?</textarea>
+    <div class="cash" style="margin-top:8px">
+      <label for="wiSku">Product</label>
+      <select id="wiSku" aria-label="Product the question is about"></select>
+      <span class="hint" style="margin:0">Used when the question does not
+        name one product.</span>
+    </div>
+    <div class="row">
+      <button class="primary" id="wiGo">Simulate</button>
+    </div>
+    <p class="hint" id="wiContext"></p>
+    <div class="err" id="wiError" hidden></div>
+    <div id="wiResult" hidden></div>
+  </div>
+</section>
+
 <section>
   <h2>The workflow</h2>
   <ol class="flow">
@@ -1115,7 +1234,7 @@
     <div class="card"><h3>Amazon API Gateway</h3>
       <p>The HTTP API boundary, throttled, in front of the Lambda functions.</p></div>
     <div class="card"><h3>Amazon CloudWatch</h3>
-      <p>Logs, metrics, and three alarms: dead-letter depth, sustained worker errors, queue age. They <strong>alert only</strong> — nothing self-heals, and no topic is wired to them yet.</p></div>
+      <p>Logs, metrics, and four alarms: dead-letter depth, sustained worker errors, queue age and agent failures. They <strong>alert only</strong> — nothing self-heals. CloudWatch alarm actions are configured; notification delivery requires an SNS subscription, and this demo has none.</p></div>
     <div class="card"><h3>Amazon Transcribe</h3>
       <p>Speech to text for spoken orders, in the languages Transcribe actually supports. Quality varies by accent and device.</p></div>
     <div class="card"><h3>AWS CDK</h3>
@@ -1379,6 +1498,7 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
       });
   }
 
+  var intelDefaulted = false;
   function paintIntelligence() {
     var docs = (intel && intel.documents) || [];
     el("docBody").innerHTML = docs.length
@@ -1396,8 +1516,9 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
             '<span class="rstate ' + state + '">' + esc(label) +
             "</span></td></tr>";
         }).join("")
-      : '<tr><td colspan="7">No supplier document has been uploaded in the ' +
-        'last 24 hours.</td></tr>';
+      : '<tr><td colspan="7">No supplier price list has been read in the ' +
+        'last 24 hours. Use the sample price list in the AI assistant to see ' +
+        'Textract read one.</td></tr>';
     el("docNote").textContent = docs.length
       ? "Only a row you confirm can affect purchasing. Nothing here has " +
         "changed a supplier cost by itself."
@@ -1417,6 +1538,12 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
         "opinion: margin, reorder point and supplier comparison are all " +
         "deterministic."
       : "";
+    // With no document to show, open on what needs attention instead of an
+    // empty table. Once: after that the owner's own choice of tab stands.
+    if (!intelDefaulted) {
+      intelDefaulted = true;
+      if (!docs.length && alerts.length) el("tabAlerts").click();
+    }
 
     var ops = (intel && intel.operations) || { counts: {}, outcomes: {} };
     el("opsOrders").textContent = ops.counts.orders || 0;
@@ -1862,6 +1989,11 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
     if (quoteNote) html += '<div class="m-quote">' + esc(quoteNote) + '</div>';
     html += '<div class="m-human">' + esc(m.note) + '</div>';
 
+    if (m.skuId) {
+      html += '<button class="ghost m-walkbtn" type="button" data-sku="' +
+        esc(m.skuId) + '">Walk-away price</button>' +
+        '<div class="m-walk" hidden></div>';
+    }
     if (m.suggestedSellingPrice) {
       html += '<button class="ghost m-review" type="button">Review price</button>' +
         '<div class="m-sugg" hidden>Suggested selling price <b>' +
@@ -1874,7 +2006,62 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
     return html + '</div>';
   }
 
+  // The most the shop can pay this supplier. Asked of the What-If engine on
+  // the owner route; every figure shown is one it returned.
+  function walkAwayHtml(r) {
+    if (r.status !== "SIMULATED") {
+      return '<p>' + esc(r.explanation || "The walk-away price could not be worked out.") + '</p>';
+    }
+    var s = r.scenario || {}, b = r.baseline || {};
+    var over = s.currentCostAboveWalkAway;
+    var html = '<div>Walk-away price <span class="w-head">' + rupees(s.walkAwayPrice) +
+      '</span><span class="w-lim">' + (s.bindingLimit === "CASH_LIMIT" ? "Cash limit" : "Margin limit") +
+      '</span></div>' +
+      '<div class="w-row"><span>Current supplier cost</span><span>' + rupees(b.supplierCost) + '</span></div>' +
+      '<div class="w-row"><span>Margin ceiling (' + esc(b.marginFloorPercent) + '% floor)</span><span>' +
+        rupees(s.marginCeiling) + '</span></div>';
+    if (s.cashCeiling !== null && s.cashCeiling !== undefined) {
+      html += '<div class="w-row"><span>Cash ceiling (₹' + esc(b.budget) + ' budget)</span><span>' +
+        rupees(s.cashCeiling) + '</span></div>';
+    }
+    html += '<div class="w-verdict ' + (over ? "over" : "ok") + '">' +
+      esc(r.decision && r.decision.text) + '</div>';
+    var f = s.formulas || {};
+    html += '<p class="w-math">' + esc(f.marginCeiling || "") +
+      (f.cashCeiling ? '<br>' + esc(f.cashCeiling) : '') + '</p>' +
+      '<p class="hint" style="margin:6px 0 0">Calculated by the engine from the ' +
+      'recorded supplier cost. Nothing was changed.</p>';
+    return html;
+  }
+
   function wireMarginPanels(container) {
+    Array.prototype.forEach.call(container.querySelectorAll(".m-walkbtn"), function (btn) {
+      btn.addEventListener("click", function () {
+        var box = btn.parentNode.querySelector(".m-walk");
+        if (!box) return;
+        if (!box.hidden) { show(box, false); return; }
+        box.textContent = "Working it out…";
+        show(box, true);
+        var budgetEl = document.getElementById("budget");
+        fetch("/api/shop-queries", {
+          method: "POST", headers: ownerJson(),
+          body: JSON.stringify({
+            kind: "WHAT_IF",
+            question: "What is the most I can pay the supplier?",
+            skuId: btn.getAttribute("data-sku"),
+            budget: Number(budgetEl && budgetEl.value) || 25000,
+            language: lang.code
+          })
+        }).then(function (r) {
+          return r.json().then(function (b) { return { ok: r.ok, body: b }; });
+        }).then(function (res) {
+          box.innerHTML = res.ok ? walkAwayHtml(res.body)
+            : '<p>' + esc(res.body.error || "Could not work this out.") + '</p>';
+        }).catch(function () {
+          box.textContent = "Could not reach ShopFlow. Please try again.";
+        });
+      });
+    });
     Array.prototype.forEach.call(container.querySelectorAll(".m-review"), function (btn) {
       btn.addEventListener("click", function () {
         var box = btn.parentNode.querySelector(".m-sugg");
@@ -1916,9 +2103,12 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
     box.textContent = "Sending\u2026";
     show(box, true);
 
+    // Sent as the shop: the workspace is the owner's, and only the owner may
+    // address a message to a customer. An anonymous caller gets a draft with
+    // no name and no number - see _public_whatsapp_draft in the API.
     fetch("/api/whatsapp/send", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: ownerJson(),
       body: JSON.stringify({
         messageType: messageType,
         quoteId: lastJobId,
@@ -2127,13 +2317,29 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
   goBtn.addEventListener("click", function () { submit(orderBox.value); });
   customerSel.addEventListener("change", clearOutput);
 
+  // Poll gently and for long enough. A throttled order is retried by the
+  // worker after about 30s and again after about 90s, so a page that gave up
+  // at 45s reported failures the backend then quietly finished. Each poll
+  // is also a Lambda invocation on an account with little concurrency.
+  function pollDelay(attempt) {
+    if (attempt === 0) return 700;
+    if (attempt <= 5) return 1000;
+    if (attempt <= 15) return 2000;
+    return 3000;
+  }
+  var POLL_MAX_ATTEMPTS = 66;   // about three minutes in total
+  var SUBMIT_RETRIES = 3;       // a 503/429 at submit means nothing was queued
+
   function submit(text) {
     if (polling) { clearTimeout(polling); polling = null; }
     if (!text || !text.trim()) { fail("Please enter a customer order."); return; }
     clearOutput();
     setSteps("understand");
     busy(true, "Reading the order…");
+    send(text, 0);
+  }
 
+  function send(text, tries) {
     fetch("/api/orders", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -2148,9 +2354,21 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
         language: lang.code
       })
     }).then(function (r) {
-      return r.json().then(function (body) { return { ok: r.ok, body: body }; });
+      // Throttled before the order was accepted: nothing was queued, so
+      // sending again cannot duplicate it. Bounded, and said out loud.
+      if ((r.status === 503 || r.status === 429) && tries < SUBMIT_RETRIES) {
+        statusText.textContent = "ShopFlow is busy - trying again…";
+        polling = setTimeout(function () { send(text, tries + 1); },
+                             1500 * Math.pow(2, tries));
+        return null;
+      }
+      return r.json().catch(function () { return {}; })
+        .then(function (body) { return { ok: r.ok, status: r.status, body: body }; });
     }).then(function (res) {
-      if (!res.ok) throw new Error(res.body.error || "The order was rejected.");
+      if (!res) return;
+      if (!res.ok) throw new Error((res.status === 503 || res.status === 429)
+        ? "ShopFlow is busy right now. Nothing was quoted - please send the order again."
+        : (res.body.error || "The order was rejected."));
       setSteps("match");
       statusText.textContent = "Matching products to the catalogue…";
       lastJobId = res.body.jobId;
@@ -2159,14 +2377,19 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
   }
 
   function poll(jobId, attempt) {
-    if (attempt > 45) { fail("This is taking longer than expected. Please try again."); return; }
+    if (attempt > POLL_MAX_ATTEMPTS) { fail("This is taking longer than expected. Please try again."); return; }
     polling = setTimeout(function () {
       fetch("/api/jobs/" + encodeURIComponent(jobId), { headers: OWNER_HEADERS })
-        .then(function (r) { return r.json(); })
+        .then(function (r) {
+          // A busy or failing poll says nothing about the job itself.
+          if (r.status >= 500 || r.status === 429) return { status: "PROCESSING" };
+          return r.json();
+        })
         .then(function (job) {
           if (job.status === "QUEUED" || job.status === "PROCESSING") {
             if (attempt === 3) { setSteps("inventory"); statusText.textContent = "Checking stock…"; }
             if (attempt === 7) { setSteps("quote"); statusText.textContent = "Preparing the quotation…"; }
+            if (attempt === 18) { statusText.textContent = "The language model is busy - ShopFlow is retrying. Nothing is quoted until every number is checked."; }
             poll(jobId, attempt + 1);
             return;
           }
@@ -2177,7 +2400,7 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
           render(job.result);
         })
         .catch(function () { poll(jobId, attempt + 1); });
-    }, attempt === 0 ? 700 : 1000);
+    }, pollDelay(attempt));
   }
 
 
@@ -2347,6 +2570,45 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
     });
   }
 
+  // ---- GST ---------------------------------------------------------------
+  //
+  // Every figure here is copied from the `gst` block the engine attached to
+  // the quotation. Nothing is multiplied, added or rounded in the browser.
+  function gstLine(quote, skuId) {
+    var g = quote && quote.gst;
+    if (!g || !g.available || !g.lines) return null;
+    for (var i = 0; i < g.lines.length; i++) {
+      if (g.lines[i].skuId === skuId) return g.lines[i];
+    }
+    return null;
+  }
+
+  function gstPanel(g) {
+    if (!g) return "";
+    if (!g.available) {
+      return '<p class="hint">GST could not be shown for this quotation: a ' +
+        'rate is not configured for every product.</p>';
+    }
+    var rows = g.taxMode === "INTER_STATE"
+      ? '<div class="gstrow"><span>IGST</span><span>' + rupees(g.igst) + '</span></div>'
+      : g.taxMode === "INTRA_STATE"
+        ? '<div class="gstrow"><span>CGST</span><span>' + rupees(g.cgst) + '</span></div>' +
+          '<div class="gstrow"><span>SGST</span><span>' + rupees(g.sgst) + '</span></div>'
+        : '<div class="gstrow"><span>GST (zero-rated)</span><span>' + rupees(g.totalGst) + '</span></div>';
+    return '<div class="gstbox">' +
+      '<div class="gstrow"><span>Taxable value</span><span>' + rupees(g.totalTaxableValue) + '</span></div>' +
+      rows +
+      '<div class="gstrow"><span>Total GST</span><span>' + rupees(g.totalGst) + '</span></div>' +
+      '<div class="gstrow grand"><span>Customer pays (incl. GST)</span><span>' +
+      rupees(g.grandTotal) + '</span></div>' +
+      '<p class="gstnote">' +
+      (g.taxMode === "INTER_STATE"
+        ? 'Customer in another state: IGST. '
+        : 'Same-state sale: CGST + SGST. ') +
+      'Rates are the shop’s demo tax configuration — not tax advice, ' +
+      'and not a GST invoice.</p></div>';
+  }
+
   function renderQuote(result) {
     var quote = result.quote;
     var matches = matchIndex(result);
@@ -2398,13 +2660,23 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
       if (match) {
         html += '<dt>Matched by</dt><dd>' + esc(match.resolvedBy || "catalogue lookup") + '</dd>';
       }
+      // GST on this line, exactly as engine.gst.quote_gst worked it out.
+      var gl = gstLine(quote, l.skuId);
+      if (gl) {
+        html += '<dt>Taxable</dt><dd>' + rupees(gl.taxableValue) + '</dd>' +
+          '<dt>GST</dt><dd>' + esc(gl.gstRate) + '% = ' + rupees(gl.taxAmount) +
+          ' (' + esc(gl.evidence.tax) + ')</dd>' +
+          '<dt>Line incl. GST</dt><dd>' + rupees(gl.lineTotal) + '</dd>';
+      }
       html += '</dl></div></details></div>';
     });
 
     html += '</div>';
     html += '<div class="lines" style="margin-top:0;border-top:none">' +
-      '<div class="total"><span class="label">Quotation total</span>' +
-      '<span>' + rupees(quote.total) + '</span></div></div>';
+      '<div class="total"><span class="label">' +
+      (quote.gst && quote.gst.available ? 'Subtotal (before GST)' : 'Quotation total') +
+      '</span><span>' + rupees(quote.total) + '</span></div></div>';
+    html += gstPanel(quote.gst);
 
     html += '<div class="verified">&#10003; ' +
       (result.grounded === false
@@ -2988,6 +3260,24 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
       '<span><span class="label" style="color:var(--muted)">Cash remaining</span></span>' +
       '<span>' + rupees(plan.remaining) + '</span></div></div>';
 
+    // GST on the purchases: what the cash has to cover once the supplier's
+    // tax invoice arrives. Reported beside the plan; the allocation above is
+    // in GST-exclusive supplier cost and is not changed by it.
+    if (plan.gst && plan.gst.available) {
+      html += '<div class="gstbox">' +
+        '<div class="gstrow"><span>Purchases (before GST)</span><span>' +
+        rupees(plan.gst.purchaseCostExGst) + '</span></div>' +
+        '<div class="gstrow"><span>Supplier GST (input tax)</span><span>' +
+        rupees(plan.gst.inputGst) + '</span></div>' +
+        '<div class="gstrow grand"><span>Cash out incl. GST</span><span>' +
+        rupees(plan.gst.cashOutInclGst) + '</span></div>' +
+        '<p class="gstnote">' + (plan.gst.budgetCoversGst
+          ? 'Your cash also covers the supplier GST.'
+          : 'Your cash does not also cover the supplier GST: ' +
+            rupees(plan.gst.extraCashForGst) + ' more is needed at the time of ' +
+            'purchase.') + ' ' + esc(plan.gst.inputTaxNote) + '</p></div>';
+    }
+
     // What-if: the same shop at two other budgets.
     if (plan.whatIf && plan.whatIf.length) {
       html += '<div class="grp"><h3>What if you had more, or less?</h3><div class="whatif">';
@@ -3013,6 +3303,155 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
     wireMarginPanels(planResult);
     wireShare("waPlan", function () { return whatsappPlanText(plan); });
   }
+
+  // ---- What-If ----------------------------------------------------------
+  //
+  // An owner question, answered on the owner route /api/shop-queries with
+  // kind WHAT_IF. The simulation is the engine's; this only renders the rows
+  // it returns. The product the question is about defaults to the first line
+  // of the quotation on screen, or the demo's confirmed Finolex coil.
+
+  var wiText = el("wiText"), wiGo = el("wiGo"), wiResult = el("wiResult"),
+      wiError = el("wiError"), wiContext = el("wiContext"), wiSel = el("wiSku");
+  // The demo's confirmed-cost product. The owner can pick another; nothing is
+  // chosen silently because it happens to be first on a quotation.
+  var DEMO_SKU = "W-FIN-1.5-RED-90M";
+  var DEMO_NAME = "Finolex 1.5 sqmm FR Wire Red 90m coil";
+
+  function fillWiProducts() {
+    var lines = (lastQuote && lastQuote.lines) || [];
+    var choices = lines.length
+      ? lines.map(function (l) { return { skuId: l.skuId, name: l.name }; })
+      : [{ skuId: DEMO_SKU, name: DEMO_NAME }];
+    var keep = wiSel.value;
+    wiSel.innerHTML = "";
+    choices.forEach(function (c) {
+      var opt = document.createElement("option");
+      opt.value = c.skuId;
+      opt.textContent = c.name;
+      wiSel.appendChild(opt);
+    });
+    var ids = choices.map(function (c) { return c.skuId; });
+    wiSel.value = ids.indexOf(keep) >= 0 ? keep
+      : ids.indexOf(DEMO_SKU) >= 0 ? DEMO_SKU : ids[0];
+  }
+  fillWiProducts();
+
+  function wiSku() {
+    fillWiProducts();
+    return wiSel.value || DEMO_SKU;
+  }
+
+  function wiValue(v, unit) {
+    if (v === null || v === undefined) return "—";
+    if (unit === "INR") {
+      return typeof v === "number" && v < 0 ? "−" + rupees(-v) : rupees(v);
+    }
+    if (unit === "PERCENT") return esc(v) + "%";
+    if (unit === "STATUS") {
+      // The engine's code, shown as words. LOW_MARGIN -> "Low margin".
+      var words = String(v).toLowerCase().replace(/_/g, " ");
+      return esc(words.charAt(0).toUpperCase() + words.slice(1));
+    }
+    return esc(v);
+  }
+
+  function renderWhatIf(r) {
+    var html = "";
+    if (r.status === "SIMULATED") {
+      html += '<p class="wi-subject">' + esc((r.subject && r.subject.name) || "") + '</p>';
+      if (r.scenarioType === "WALK_AWAY_PRICE") {
+        html += '<div class="margin"><div class="m-walk">' + walkAwayHtml(r) + '</div></div>';
+      }
+      html += '<table class="wi-table"><thead><tr><th></th><th>Current</th>' +
+        '<th>Scenario</th><th>Change</th></tr></thead><tbody>';
+      (r.rows || []).forEach(function (row) {
+        var change = row.change;
+        var cls = typeof change === "number" && change !== 0
+          ? (change > 0 ? "up" : "down") : "";
+        html += '<tr><th>' + esc(row.label) + '</th><td>' +
+          wiValue(row.current, row.unit) + '</td><td>' +
+          wiValue(row.scenario, row.unit) + '</td><td class="' + cls + '">' +
+          (typeof change === "number" && change > 0 ? "+" : "") +
+          (typeof change === "number" && change < 0 && row.unit !== "INR"
+            ? "−" + wiValue(-change, row.unit) : wiValue(change, row.unit)) +
+          '</td></tr>';
+      });
+      html += '</tbody></table>';
+      if (r.impact && r.impact.length) {
+        html += '<div class="grp"><h3>Impact</h3><dl class="wi-impact">';
+        r.impact.forEach(function (i) {
+          html += '<dt>' + esc(i.label) + '</dt><dd>' + wiValue(i.value, i.unit) + '</dd>';
+        });
+        html += '</dl></div>';
+      }
+      html += '<div class="wi-decision"><b>Decision:</b> ' +
+        esc(r.decision.text) + '</div>';
+      html += '<p class="hint">' + esc(r.explanation) + '</p>';
+    } else if (r.status === "NEEDS_CLARIFICATION") {
+      html += '<p>' + esc(r.clarification.question) + '</p>';
+      (r.clarification.options || []).forEach(function (o) {
+        html += '<button class="ghost wi-opt" data-sku="' + esc(o.skuId) + '">' +
+          esc(o.name) + '</button> ';
+      });
+    } else {
+      html += '<p>' + esc(r.explanation) + '</p>';
+    }
+    html += '<p class="hint wi-notice">' + esc(r.notice) +
+      (r.grounded ? ' Every figure above came from the engine.' : '') + '</p>';
+    if (r.decisionTrace && r.decisionTrace.lines) {
+      html += '<details class="why"><summary>How this was worked out</summary>' +
+        '<ol class="tracelines">' + r.decisionTrace.lines.map(function (l) {
+          return '<li>' + esc(l) + '</li>';
+        }).join("") + '</ol></details>';
+    }
+    wiResult.innerHTML = html;
+    show(wiResult, true);
+    Array.prototype.forEach.call(wiResult.querySelectorAll(".wi-opt"), function (b) {
+      b.addEventListener("click", function () { runWhatIf(b.getAttribute("data-sku")); });
+    });
+  }
+
+  function runWhatIf(skuOverride) {
+    show(wiError, false);
+    var question = (wiText.value || "").trim();
+    if (!question) return;
+    var payload = {
+      kind: "WHAT_IF",
+      question: question,
+      skuId: skuOverride || wiSku(),
+      budget: Number(budgetBox.value) || 25000
+    };
+    if (lastQuote && lastJobId) payload.quoteJobId = lastJobId;
+    wiContext.textContent = (lastQuote
+      ? "Using the quotation on screen"
+      : "No quotation on screen yet") + ", " +
+      (wiSel.options[wiSel.selectedIndex] || {}).text + " as the product, and a budget of ₹" +
+      payload.budget + ".";
+    wiGo.disabled = true;
+    // The language is sent like every other call. What-If answers are in
+    // English today; the figures are the same in every language.
+    fetch("/api/shop-queries", {
+      method: "POST", headers: ownerJson(),
+      body: JSON.stringify(Object.assign({ language: lang.code }, payload))
+    }).then(function (r) {
+      return r.json().then(function (b) { return { ok: r.ok, body: b }; });
+    }).then(function (res) {
+      if (!res.ok) throw new Error(res.body.error || "That could not be simulated.");
+      renderWhatIf(res.body);
+    }).catch(function (e) {
+      wiError.textContent = e.message;
+      show(wiError, true);
+    }).then(function () { wiGo.disabled = false; });
+  }
+
+  wiGo.addEventListener("click", function () { runWhatIf(); });
+  Array.prototype.forEach.call(el("wiPresets").querySelectorAll("button"), function (b) {
+    b.addEventListener("click", function () {
+      wiText.value = b.getAttribute("data-q");
+      runWhatIf();
+    });
+  });
 
 
   // ---- voice assistant --------------------------------------------------
