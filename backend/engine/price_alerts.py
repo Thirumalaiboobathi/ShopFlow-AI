@@ -57,7 +57,7 @@ from . import gst
 from .margin import MARGIN_WARNING_PERCENT
 from .messages import format_rupees
 from .models import Dataset
-from .pricing import PRICE_ALERT_THRESHOLD_PERCENT
+from .pricing import PRICE_ALERT_THRESHOLD_PERCENT, is_material_change
 from .whatif import (DEFAULT_BUDGET, _margin, _plan, _plan_summary,
                      walk_away_price)
 
@@ -175,7 +175,8 @@ def evaluate_price_change(data: Dataset, sku_id: str, old_cost, new_cost, *,
 
     triggers = []
     if delta > ZERO:
-        if float(percent) >= cfg.percentThreshold:
+        # The same test the supplier price review applies - one boundary.
+        if is_material_change(old, new, cfg.percentThreshold):
             triggers.append(PERCENT_THRESHOLD)
         if float(delta) >= cfg.absoluteThresholdInr:
             triggers.append(ABSOLUTE_THRESHOLD)
@@ -208,6 +209,8 @@ def evaluate_price_change(data: Dataset, sku_id: str, old_cost, new_cost, *,
         "newCost": gst.out(new),
         "absoluteDelta": gst.out(delta),
         "percentageDelta": gst.out(percent),
+        # The review's own verdict on this move, from the same function.
+        "materialChange": is_material_change(old, new, cfg.percentThreshold),
         "direction": ("INCREASE" if delta > ZERO else
                       "DECREASE" if delta < ZERO else "UNCHANGED"),
         "sellingPrice": gst.out(price),

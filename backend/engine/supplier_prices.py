@@ -19,7 +19,8 @@ from .matching import AMBIGUOUS as MATCH_AMBIGUOUS
 from .matching import RESOLVED as MATCH_RESOLVED
 from .matching import resolve_product
 from .models import Dataset, money
-from .pricing import PRICE_ALERT_THRESHOLD_PERCENT, current_cost
+from .pricing import (PRICE_ALERT_THRESHOLD_PERCENT, current_cost,
+                      is_material_change, percent_change)
 
 # Match outcomes for a printed supplier line.
 MATCHED = "MATCHED"
@@ -130,11 +131,8 @@ class PriceComparison:
     def percentageDelta(self) -> Optional[float]:
         """Change against what the shop last paid. None when there is no
         previous price to compare against - a first quote is not a rise."""
-        if self.previousPrice is None or self.previousPrice <= 0:
-            return None
-        return round(
-            (self.currentPrice - self.previousPrice) / self.previousPrice * 100.0, 2
-        )
+        pct = percent_change(self.previousPrice, self.currentPrice)
+        return None if pct is None else float(pct)
 
     @property
     def direction(self) -> str:
@@ -150,10 +148,8 @@ class PriceComparison:
         Judged on magnitude, so a sharp fall is surfaced too - a supplier
         cutting a price is worth knowing about before the next purchase.
         """
-        pct = self.percentageDelta
-        if pct is None:
-            return False
-        return abs(pct) > self.threshold
+        return is_material_change(self.previousPrice, self.currentPrice,
+                                  self.threshold)
 
     def as_dict(self) -> dict:
         return {
@@ -181,7 +177,7 @@ class PriceComparison:
             ),
             "absolute": f"{self.currentPrice} - {self.previousPrice} "
                         f"= {self.absoluteDelta}",
-            "threshold": f"material when |change| > {self.threshold}%",
+            "threshold": f"material when |change| >= {self.threshold}%",
             "previousPriceSource": "shop's last recorded supplier cost",
             "currentPriceSource": "price read from the uploaded document",
             "source": "engine.supplier_prices.compare_price",

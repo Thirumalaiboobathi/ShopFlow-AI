@@ -204,14 +204,17 @@ def test_change_above_the_threshold_is_material():
     assert compare_price(data, "A", 106.0).materialChange is True
 
 
-def test_change_exactly_at_the_threshold_is_not_material():
-    """The rule is "more than 5%", and the boundary is pinned so it cannot
-    drift into or out of alerting unnoticed."""
+def test_change_exactly_at_the_threshold_is_material():
+    """The rule is "5% or more" - the same inclusive boundary the price-shock
+    alert applies (engine.pricing.is_material_change). It was "more than 5%"
+    here and ">= 5%" in the alert, so +5.00% was an alert that the review
+    called not material. Pinned so it cannot drift apart again."""
     data = make_dataset([priced("A", 100)], prices={
         "A": [SupplierPrice("A", "S-FAST", "2026-07-01", 100.0)]})
     c = compare_price(data, "A", 105.0)
     assert c.percentageDelta == pytest.approx(5.0)
-    assert c.materialChange is False
+    assert c.materialChange is True
+    assert compare_price(data, "A", 104.99).materialChange is False
 
 
 def test_threshold_is_configurable():

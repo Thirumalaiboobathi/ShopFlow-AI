@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import ROUND_HALF_UP, Decimal
 from typing import List, Optional
 
 from .models import Dataset, SupplierPrice, money
@@ -11,6 +12,47 @@ from .models import Dataset, SupplierPrice, money
 # drift constantly. Defined once and imported everywhere: callers that need a
 # finer lens (analysis, tests) pass an explicit threshold instead.
 PRICE_ALERT_THRESHOLD_PERCENT = 5.0
+
+
+# ONE definition of "material", used by the supplier price review, the
+# price-shock alert and everything downstream of either.
+#
+# A live evaluation found +5.00% (Rs 92 -> Rs 96.60) raised a price alert
+# while the review of the same line said "not a material change": the alert
+# compared ">= 5" and the review "> 5", each on its own float. Now both ask
+# `is_material_change`, on the same Decimal percentage rounded half-up to two
+# places - the figure the owner is shown - so the boundary is inclusive
+# everywhere and a displayed "+5.00%" is material everywhere.
+_CENT = Decimal("0.01")
+
+
+def _dec(value) -> Decimal:
+    return value if isinstance(value, Decimal) else Decimal(str(value))
+
+
+def percent_change(previous, current) -> Optional[Decimal]:
+    """(current - previous) / previous x 100, as Decimal, half-up to 0.01.
+
+    None when there is no positive previous price to compare against.
+    """
+    if previous is None:
+        return None
+    old, new = _dec(previous), _dec(current)
+    if old <= 0:
+        return None
+    return ((new - old) / old * 100).quantize(_CENT, rounding=ROUND_HALF_UP)
+
+
+def is_material_change(previous, current,
+                       threshold=PRICE_ALERT_THRESHOLD_PERCENT) -> bool:
+    """Material: |percentage change| >= threshold, both as Decimal.
+
+    Judged on magnitude, so a sharp fall is surfaced as well as a rise.
+    """
+    pct = percent_change(previous, current)
+    if pct is None:
+        return False
+    return abs(pct) >= _dec(threshold)
 
 
 @dataclass(frozen=True)
@@ -31,11 +73,8 @@ class PriceDelta:
     @property
     def percentChange(self) -> Optional[float]:
         """Percent change against the prior price. None on first-ever price."""
-        if self.previousCost is None or self.previousCost <= 0:
-            return None
-        return round(
-            (self.currentCost - self.previousCost) / self.previousCost * 100.0, 2
-        )
+        pct = percent_change(self.previousCost, self.currentCost)
+        return None if pct is None else float(pct)
 
     @property
     def increased(self) -> bool:
@@ -93,7 +132,7 @@ def price_delta(data: Dataset, skuId: str) -> Optional[PriceDelta]:
 def detect_price_increases(
     data: Dataset, threshold_percent: float = PRICE_ALERT_THRESHOLD_PERCENT
 ) -> List[PriceDelta]:
-    """Every SKU whose latest supplier price rose by more than the threshold.
+    """Every SKU whose latest supplier price rose by at least the threshold.
 
     Sorted by severity so the biggest increase surfaces first.
     """
@@ -102,7 +141,8 @@ def detect_price_increases(
         delta = price_delta(data, skuId)
         if delta is None or delta.percentChange is None:
             continue
-        if delta.percentChange > threshold_percent:
+        if delta.increased and is_material_change(
+                delta.previousCost, delta.currentCost, threshold_percent):
             found.append(delta)
     return sorted(found, key=lambda d: d.percentChange or 0.0, reverse=True)
 
