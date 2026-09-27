@@ -212,6 +212,52 @@ _GST_VIEW = re.compile(
     re.IGNORECASE)
 
 
+# An amount written with a minus sign, or "negative"/"minus" in front of it:
+# "-₹500", "₹-500", "-500", "negative ₹500", "minus 5%". A hyphen glued to a
+# word before it ("W-FIN-1.5-RED") is part of a name, not a sign.
+_SIGNED_AMOUNT = re.compile(
+    r"(?:(?<![\w.])[-−–]\s*(?:₹|rs\.?\s*|inr\s*)?"
+    r"|(?:₹|\brs\.?|\binr)\s*[-−–]\s*"
+    r"|\b(?:negative|minus)\s+(?:₹|rs\.?\s*|inr\s*)?)"
+    + _NUMBER + r"(\s*(?:%|percent\b|per\s*cent\b))?", re.IGNORECASE)
+_ADD = re.compile(r"\b(add|adds|added|plus)\b", re.IGNORECASE)
+
+
+def _signed_amount_question(text: str) -> Optional[dict]:
+    """A stated change whose amount carries a minus sign is a question.
+
+    "increases by -₹500" was simulated as an increase of ₹500: the direction
+    word was read, the sign was not. It is not "obviously" a decrease either -
+    the owner may have typed the sign by mistake. Neither reading is chosen;
+    both are offered.
+    """
+    match = _SIGNED_AMOUNT.search(text)
+    if not match:
+        return None
+    value = _num(match.group(1))
+    percent = bool(match.group(2))
+    amount = (f"{value:g}%" if percent
+              else format_rupees(float(value)).replace(".00", ""))
+    up = bool(_UP.search(text) or _ADD.search(text))
+    down = bool(_DOWN.search(text))
+    if up and not down:
+        lead = "The increase amount cannot be negative. "
+    elif down and not up:
+        lead = "The decrease amount cannot be negative. "
+    else:
+        lead = "The amount in the question is negative. "
+    question = (f"{lead}Did you mean an increase of {amount} or a decrease "
+                f"of {amount}?")
+    unit = "PERCENT" if percent else "AMOUNT"
+    return {"status": NEEDS_CLARIFICATION, "type": None, "params": {},
+            "question": question, "attribute": "direction",
+            "reason": INVALID_VALUE,
+            "options": [
+                {"value": "INCREASE", "kind": unit, "amount": float(value)},
+                {"value": "DECREASE", "kind": unit, "amount": float(value)},
+            ]}
+
+
 def _num(text: str) -> Decimal:
     return Decimal(text.replace(",", ""))
 
@@ -262,6 +308,11 @@ def _change(text: str) -> Optional[dict]:
         if direction is None:
             # "What if the supplier price is Rs 6,500?" - a new value.
             return {"kind": "ABSOLUTE", "value": money, "direction": 0}
+        if money == ZERO:
+            # Refused like a 0% change: a change of nothing is not a scenario.
+            raise ScenarioError(INVALID_VALUE,
+                                "A change of ₹0 changes nothing. Please state "
+                                "an amount greater than ₹0.")
         return {"kind": "AMOUNT", "value": money, "direction": direction}
     return None
 
@@ -312,6 +363,10 @@ def parse_scenario(text: str) -> dict:
                        "GST rates come from the shop's tax configuration and "
                        "cannot be changed by a question. The simulator always "
                        "uses the configured rate.")
+
+    signed = _signed_amount_question(text)
+    if signed:
+        return signed
 
     try:
         if _INCLUDE_GST.search(text):
