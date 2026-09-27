@@ -42,7 +42,12 @@ Checked against the public URL after the last deploy, not against local tests.
 | 10 / 20 concurrent orders | 10/10 and 20/20 correct; at 20 the API returned 9 throttled submits that the page retried (see [Limitations](#limitations)) |
 | Supplier price alert (sample price list through Textract) | **CRITICAL**: ₹5,900 → ₹6,300, +₹400 (+6.78%), margin ₹708 → ₹308, walk-away ₹5,947.20, restock capacity −₹803.40; published once to EventBridge - the second upload of the same list was de-duplicated; the +1.71% Anchor move on the same list did not alert |
 | SNS delivery | the rule delivered the alert to the `shopflow-owner-alerts` topic (1 message published, 0 delivered - **the topic has no subscriber**; the page says so) |
-| Daily shop brief | 2 commitment shortages, 58 below reorder point, 1 critical supplier alert, 1 margin risk, ₹24,993.16 planned, ₹6.84 left; priority: do not restock Finolex at ₹6,300 without renegotiating to ₹5,947.20. The scheduled path was run once on the worker: brief stored, Bedrock summary kept (every number matched) |
+| Daily shop brief | 2 commitment shortages, 58 below reorder point, 1 critical supplier alert, 1 margin risk, ₹24,993.16 planned, ₹6.84 left. The scheduled path was run once on the worker: brief stored, Bedrock summary kept (every number matched) |
+| "2 Anchor modular switches 1-Way 10A White and 3 coils Finolex 1.5 sq mm FR wire red 90m" (and with a comma) | **QUOTED** 2 × SW-ANC-1W10A + 3 × W-FIN-1.5-RED-90M = ₹19,980.60. Before the fix it was asked "1-Way 10A or 2-Way 10A?" 3/3 times |
+| "minus 2 Havells MCB SP 32A C-curve" / "less 3 Anchor …" | **not quoted** — "asks for a negative quantity … Please confirm how many are wanted." Before the fix both were quoted as 2 and 3 |
+| Price list with the same MCB at ₹358 and ₹400 | both rows **CONFLICT**, no comparison, no alert; confirming the price answers **409** |
+| Price list rows "N/A" and "-148.00" | "2 rows could not be interpreted and were excluded from price analysis." with each row's own text |
+| Promise-keeping cost | commitments: 2 × Finolex at ₹6,300.00 = ₹12,600.00, funded, ₹705.60 above the walk-away price; discretionary: do not restock Finolex at ₹6,300.00 because it exceeds ₹5,947.20 |
 
 ---
 
@@ -506,6 +511,16 @@ it. Metric: `ShopFlowSupplierAlerts` by `Severity`. Intelligence → Alerts
 shows the same alert for every confirmed cost change.
 `tests/test_price_alerts.py`.
 
+**A document that contradicts itself decides nothing.** The same SKU on two
+rows at different prices (₹358 and ₹400) makes every one of those rows a
+`CONFLICT`: no comparison, so no material change, no alert and no confirmable
+cost (`POST /api/price-decisions` answers 409). The owner sees "Conflicting
+prices: ₹358.00 vs ₹400.00 · confirm with supplier". The same SKU twice at
+the same price is judged once (`DUPLICATE`). A table row that cannot be
+priced - "N/A", a blank rate, "-148.00" - is not dropped silently: the review
+lists it and says "*N* rows could not be interpreted and were excluded from
+price analysis." `tests/test_p1_live_regressions.py`.
+
 ## Daily shop brief
 
 "What should the owner know today?" - built by `engine.brief` from engines
@@ -518,7 +533,20 @@ that already exist, and nothing else:
 | Supplier alerts and walk-away prices | `engine.price_alerts` over the confirmed costs |
 | Margin risks | `engine.margin`, LOW or NEGATIVE |
 | Purchasing | the plan at the ₹25,000 weekly budget |
+| Promise-keeping cost | commitments apart from discretionary restock (below) |
 | Priority actions | fixed rules over the above |
+
+**Promise-keeping cost.** "Do not restock Finolex at ₹6,300" and a plan that
+buys two Finolex coils at ₹6,300 are both right - they are different
+purchases - but side by side they read as a contradiction. The brief names
+them apart, from the planner and the walk-away engine only:
+
+| Customer commitments | Discretionary restock |
+|---|---|
+| 2 × Finolex at ₹6,300.00 = ₹12,600.00, funded. Keeping this promise costs ₹705.60 more than at the walk-away price of ₹5,947.20. | Do not add discretionary restock of Finolex at ₹6,300.00 because it exceeds the ₹5,947.20 walk-away price. (The planner's 28-coil restock is not bought.) |
+
+₹705.60 is (₹6,300.00 − ₹5,947.20) × 2 committed coils. No model computes
+any of it.
 
 Every number in its sentences is checked against its structure
 (`grounded: true`). It is shown at the top of **Intelligence**, built from
@@ -1334,7 +1362,7 @@ model. It runs offline, in a unit test, in milliseconds.
 | **Amazon SQS** | Order queue (batch 1, max 2 concurrent) + dead-letter queue, `maxReceiveCount` 3 |
 | **Amazon Textract** | Reads photographed supplier price lists (`AnalyzeDocument`, tables) |
 | **Amazon Transcribe** | Voice orders → text, then the same order workflow |
-| **Amazon EventBridge** | Custom bus `shopflow-business-events`; one rule routes owner-worthy events (including supplier price alerts and the daily brief) to SNS. One schedule rule on the default bus runs the daily brief on the worker at 08:00 IST |
+| **Amazon EventBridge** | Custom bus `shopflow-business-events`; one rule routes **only** `SupplierPriceChanged` (de-duplicated price alerts) and `DailyShopBriefGenerated` to SNS. Stock-out, low-margin, plan and failure events stay on the bus and are counted, not sent to a person. One schedule rule on the default bus runs the daily brief on the worker at 08:00 IST |
 | **Amazon SNS** | `shopflow-owner-alerts` topic for that rule and the alarms. **No subscriber by default** - events and alarms are published and reach nobody until someone subscribes |
 | **Amazon CloudWatch** | 4 log groups, 14-day retention; 4 alarms; `shopflow-operations` dashboard |
 | **AWS Budgets** | $25/month cost guard with 50/80/100% alerts |
@@ -1775,7 +1803,14 @@ Stated plainly, because the system is only useful if its claims are reliable.
   published to EventBridge and delivered to the SNS topic, which has no
   subscriber (`ALERT_DELIVERY=NONE`; the page says so). Subscribing an email
   needs the `enableBusinessAlerts` context. No SMS or WhatsApp notification
-  exists.
+  exists. Only price alerts and the daily brief are routed to the topic;
+  stock-out, low-margin, plan and failure events stay on the bus and are
+  counted. CloudWatch alarm actions still target the same topic - they are
+  operational, rare, and reach nobody while it has no subscriber.
+- **Price alerts treat an exact 5.00% rise as an alert** while the price
+  review marks the same line "not a material change" (the review threshold
+  is strictly greater than 5%). Known inconsistency, not fixed in this
+  release.
 - **The daily brief is a morning snapshot.** The scheduled summary is shown
   only while the figures are unchanged; the structured brief is rebuilt on
   every visit. It has run live once, triggered by hand exactly as the

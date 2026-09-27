@@ -354,11 +354,18 @@ Optional: set the budget to ₹12,000 and press it again — the **cash limit**
 
 Open **Intelligence**. At the top, **Today's shop brief**: 2 commitments need
 stock, 1 supplier increase (critical), 1 margin risk, ₹24,993.16 planned,
-₹6.84 left, and the priority "Do not restock Finolex … at ₹6,300.00 without
-renegotiating to ₹5,947.20". On **Alerts**, the same price shock with its
-severity, deltas and walk-away price.
+₹6.84 left, and **Promise-keeping cost**:
 
-Say: *"Every number here is the engine's. The model may only rephrase it -
+- *Customer commitments:* 2 × Finolex at ₹6,300.00 = ₹12,600.00, funded —
+  keeping this promise costs ₹705.60 more than at the walk-away price.
+- *Discretionary restock:* do not add restock of Finolex at ₹6,300.00 because
+  it exceeds the ₹5,947.20 walk-away price.
+
+On **Alerts**, the same price shock with its severity, deltas and walk-away
+price.
+
+Say: *"Keep the promise, don't stock the shelf at that price. Every number
+here is the engine's. The model may only rephrase it -
 and its sentence is thrown away if it contains a number that isn't on this
 card. The alert went to EventBridge and SNS; nobody is subscribed in this
 demo, and the page says so."*

@@ -68,13 +68,56 @@ aws cloudtrail lookup-events --region ap-south-1 \
 ```
 $ aws lambda get-function-configuration --function-name shopflow-order-worker \
     --query "[LastModified,CodeSha256]"
-2026-09-27T06:25:43.000+0000   7zg0bfLGURkrv6ZlPMhq6yRYrn7syDa2f8otPLazYso=
+2026-09-27T09:38:35.000+0000   gU4QROXoR9OTDe70aqWbfYXF79yRMkkCPH5W4z71Kts=
 ```
 
-The API, worker and health functions share one code asset. The deployed
-package was downloaded and compared file by file with the repository at the
-deployed commit; `engine/whatif.py` and `lambdas/api/handler.py` were
-identical.
+The API, worker and health functions share one code asset. After the P1-fix
+deploy (stack `UPDATE_COMPLETE` 2026-09-27 09:38:29 UTC, through
+`scripts/deploy.sh`), the deployed package was downloaded and compared file
+by file with the repository: 74 files, 0 differences. The page CloudFront
+serves is identical to `frontend/site/index.html`.
+`scripts/smoke_test_p1_regressions.py` then passed 15/15 against the public
+URL.
+
+### Owner-alert routing after the P1-fix deploy
+
+Read from the deployed resources after the deploy:
+
+```
+$ aws events describe-rule --name shopflow-owner-alerts \
+    --event-bus-name shopflow-business-events --query EventPattern
+{"detail-type":["SupplierPriceChanged","DailyShopBriefGenerated"],"source":["shopflow.business"]}
+
+$ aws events list-targets-by-rule --rule shopflow-owner-alerts \
+    --event-bus-name shopflow-business-events --query "Targets[].Arn"
+arn:aws:sns:ap-south-1:675613597178:shopflow-owner-alerts
+
+$ aws sns get-topic-attributes --topic-arn ...:shopflow-owner-alerts \
+    --query "Attributes.[SubscriptionsConfirmed,SubscriptionsPending]"
+0   0
+```
+
+So `StockoutDetected`, `LowMarginDetected`, `PurchasePlanGenerated` and
+`OrderProcessingFailed` can no longer match the rule that targets the topic.
+Before the change the same rule matched 216 events in three hours of live
+testing (CloudWatch `AWS/Events MatchedEvents`, read during the evaluation
+earlier on 2026-09-27).
+
+**Not yet verified: post-deploy counts.** CloudWatch metric counts after the
+deploy (events published per type, rule `MatchedEvents`, SNS
+`NumberOfMessagesPublished`) could not be read on 2026-09-27. From this
+machine, connections to the CloudWatch endpoint timed out: six retried
+attempts, then a single bounded `GetMetricData` call stopped at the
+two-minute limit. The routing above is the deployed configuration, not a
+measured count. To measure it:
+
+```
+aws cloudwatch get-metric-statistics --namespace AWS/Events \
+  --metric-name MatchedEvents --statistics Sum --period 3600 \
+  --dimensions Name=RuleName,Value=shopflow-owner-alerts \
+               Name=EventBusName,Value=shopflow-business-events \
+  --start-time 2026-09-27T09:39:00Z --end-time <now>
+```
 
 ## 4. Commits written with the agent
 
