@@ -154,7 +154,8 @@ def test_the_unresolved_line_stays_visible(seeded):
         tool_use("search_catalog", LEAKED_SWITCH_SEARCH),
         tool_use("calculate_quote", {"items": PARTIAL_ITEMS}, "t2"),
     ])
-    result = run_order_agent(seeded, "order", client=fake)
+    result = run_order_agent(seeded, "order", client=fake,
+                             customer_text=f"{SWITCH}, {WIRE}, {MCB}")
 
     assert result.clarification["requestedText"] == SWITCH
     assert result.clarification["question"]
@@ -336,7 +337,8 @@ def test_a_dropped_resolved_line_blocks_the_agent_result(seeded):
                  {"items": [{"skuId": "MCB-HAV-SP-32A-C", "quantity": 2}]},
                  "t2"),
     ])
-    result = run_order_agent(seeded, "order", client=fake)
+    result = run_order_agent(seeded, "order", client=fake,
+                             customer_text=f"{SWITCH}, {MCB}")
 
     assert result.status == STATUS_NEEDS_CLARIFICATION
     assert result.quote is None
@@ -418,8 +420,13 @@ def test_a_model_requested_clarification_is_left_alone(seeded):
     result = run_order_agent(seeded, "order", client=fake)
 
     assert result.status == STATUS_NEEDS_CLARIFICATION
-    assert result.clarification["question"] == "Which colour?"
-    assert result.summary == "Which colour?"
+    # The model decided to ask about colour, and colour is what the real
+    # options differ on, so that is the question - in ShopFlow's words, with
+    # the colours the catalogue actually has, not the model's "Which colour?".
+    assert result.clarification["clarifyingAttribute"] == "colour"
+    assert result.clarification["question"] == (
+        'Which colour do you need for "Finolex Wire": Black, Blue or Red?')
+    assert result.summary == result.clarification["question"]
     assert {o["skuId"] for o in result.clarification["options"]}
 
 

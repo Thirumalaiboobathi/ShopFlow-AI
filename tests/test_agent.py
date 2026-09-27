@@ -227,7 +227,11 @@ def test_clarification_ends_the_run_with_a_question(seeded):
 
     assert result.status == STATUS_NEEDS_CLARIFICATION
     assert result.quote is None
-    assert result.clarification["question"] == "Which colour do you need?"
+    # The question is built from the options the catalogue returned, in the
+    # customer's own words for the product - not the model's sentence.
+    assert result.clarification["question"] == (
+        'Which colour do you need for "Finolex 1.5 sq mm wire": '
+        'Black, Blue or Red?')
 
 
 def test_clarification_options_are_rebuilt_when_the_model_omits_them(seeded):

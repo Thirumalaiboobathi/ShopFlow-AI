@@ -181,9 +181,16 @@ def test_an_ordinary_clarification_is_untouched(seeded):
                   "clarifyingAttribute": "colour",
                   "question": "Which colour - Red, Blue or Black?"}, "t2"),
     ])
-    result = run_order_agent(seeded, "order", client=fake)
+    result = run_order_agent(seeded, "3 coils Finolex 1.5 sq mm wire",
+                             client=fake)
 
-    assert result.clarification["question"] == "Which colour - Red, Blue or Black?"
+    # An ordinary colour question survives as an ordinary colour question -
+    # rebuilt from the real options rather than copied from the model, so the
+    # colours listed are the ones the shop actually stocks.
+    assert result.clarification["question"] == (
+        'Which colour do you need for "3 coils Finolex 1.5 sq mm wire": '
+        'Black, Blue or Red?')
+    assert result.clarification["clarifyingAttribute"] == "colour"
     assert {o["skuId"] for o in result.clarification["options"]}
 
 

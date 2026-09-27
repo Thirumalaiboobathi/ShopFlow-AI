@@ -50,7 +50,7 @@ import re
 from typing import Dict, List, Optional, Sequence
 
 from engine.models import Dataset
-from engine.uom import METER, normalize_uom
+from engine.uom import METER, normalize_uom, product_uom
 
 # The catalogue tokenisers, for the same reason `line_guard` imports them: a
 # second vocabulary would drift from the matcher's.
@@ -60,6 +60,18 @@ VERIFIED = "VERIFIED"
 MISMATCH = "MISMATCH"          # the line says one number, the quote another
 CONFLICTING = "CONFLICTING"    # more than one line states a quantity for it
 UNSTATED = "UNSTATED"          # no line states a quantity it can be held to
+UNIT_NOT_SOLD = "UNIT_NOT_SOLD"  # the count is in a unit the shop never sells in
+
+# Units of weight and volume. Nothing in an electrical shop is sold by them,
+# so "3 kg MCB" is not three breakers - it is a question. Before this set the
+# word was simply not a unit, the line read as "3" with no unit, and the order
+# was quoted as three pieces. Deliberately absent: length words ("mm", "ft")
+# which are product specifications here ("20mm clamp", "4ft tube").
+_FOREIGN_UNITS = frozenset({
+    "kg", "kgs", "kilo", "kilos", "kilogram", "kilograms", "g", "gm", "gms",
+    "gram", "grams", "ton", "tons", "tonne", "tonnes", "l", "ltr", "ltrs",
+    "litre", "litres", "liter", "liters", "ml", "quintal", "quintals",
+})
 
 # Words that make the number before them a specification, not a count.
 # "20 A", "2 way", "4 core", "9 W", "1200 mm", "4 sq mm".
@@ -95,6 +107,11 @@ _NUMBER_WORDS: Dict[str, int] = {
     "nalu": 4, "anju": 5, "aaru": 6, "ezhu": 7, "ettu": 8, "onbadhu": 9,
     "pathu": 10, "ஒன்று": 1, "இரண்டு": 2, "மூன்று": 3, "நான்கு": 4,
     "ஐந்து": 5, "ஆறு": 6, "ஏழு": 7, "எட்டு": 8, "ஒன்பது": 9, "பத்து": 10,
+    # Spoken Tamil, as a counter actually says it and as a phone keyboard
+    # writes it: "ரெண்டு" rather than the written "இரண்டு". Each is a count the
+    # customer wrote; none is ever supplied by a model.
+    "ஒண்ணு": 1, "ரெண்டு": 2, "மூணு": 3, "நாலு": 4, "அஞ்சு": 5,
+    "randu": 2,
     # Hindi, romanised and in script.
     "ek": 1, "teen": 3, "char": 4, "chaar": 4, "paanch": 5, "panch": 5,
     "chhe": 6, "saat": 7, "aath": 8, "nau": 9, "das": 10, "एक": 1, "दो": 2,
@@ -150,13 +167,21 @@ def _candidates(segment: str) -> List[Dict]:
             suffix = numeral.group(2)
             if suffix:
                 # Written against the number: "90m" is a length, "10A" a
-                # rating, "20pcs" a count.
+                # rating, "20pcs" a count, "3kg" a unit the shop never sells in.
+                if suffix in _FOREIGN_UNITS:
+                    out.append({"at": start, "value": value, "kind": STRONG,
+                                "unit": None, "foreign": suffix})
+                    continue
                 unit = normalize_uom(suffix)
                 if unit and unit != METER:
                     out.append({"at": start, "value": value, "kind": STRONG,
                                 "unit": unit})
                 continue
             if after in _SPEC_WORDS:
+                continue
+            if after in _FOREIGN_UNITS:
+                out.append({"at": start, "value": value, "kind": STRONG,
+                            "unit": None, "foreign": after})
                 continue
             unit = normalize_uom(after)
             out.append({"at": start, "value": value,
@@ -172,6 +197,10 @@ def _candidates(segment: str) -> List[Dict]:
                 after = words[i + 2] if i + 2 < len(words) else ""
             if after in _SPEC_WORDS:
                 continue  # "two way", "one way"
+            if after in _FOREIGN_UNITS:
+                out.append({"at": start, "value": value, "kind": STRONG,
+                            "unit": None, "foreign": after})
+                continue
             unit = normalize_uom(after)
             out.append({"at": start, "value": value,
                         "kind": MEASURE if unit == METER else STRONG,
@@ -201,10 +230,12 @@ def order_lines(text: str) -> List[Dict]:
             for lo, hi in zip(cuts, cuts[1:]):
                 part = segment[lo:hi].strip()
                 count = next(c for c in strong if lo <= c["at"] < hi)
-                lines.append(_line(part, count["value"], count["unit"], False))
+                lines.append(_line(part, count["value"], count["unit"], False,
+                                   count.get("foreign")))
             continue
         if strong:
-            lines.append(_line(segment, strong[0]["value"], strong[0]["unit"], False))
+            lines.append(_line(segment, strong[0]["value"], strong[0]["unit"],
+                               False, strong[0].get("foreign")))
             continue
         measures = [c for c in found if c["kind"] == MEASURE]
         weak = [c for c in found if c["kind"] == WEAK]
@@ -220,9 +251,9 @@ def order_lines(text: str) -> List[Dict]:
 
 
 def _line(text: str, quantity: Optional[int], unit: Optional[str],
-          unclear: bool) -> Dict:
+          unclear: bool, foreign: Optional[str] = None) -> Dict:
     return {"text": text, "quantity": quantity, "unit": unit,
-            "unclear": unclear,
+            "unclear": unclear, "foreignUnit": foreign,
             "tokens": {t for t in _tokens(text) if not t.isdigit()}}
 
 
@@ -291,6 +322,14 @@ def check_quantities(data: Dataset, customer_text: str,
         elif len(stated) > 1:
             entry["status"] = CONFLICTING
             entry["requestedText"] = stated[0]["text"]
+        elif stated[0].get("foreignUnit"):
+            # "3 kg" of something sold by the piece. The count is not
+            # converted and not assumed to be pieces: the owner is asked.
+            entry["requestedQuantity"] = stated[0]["quantity"]
+            entry["requestedText"] = stated[0]["text"]
+            entry["requestedUnit"] = stated[0]["foreignUnit"]
+            entry["catalogueUom"] = product_uom(data.product(sku))
+            entry["status"] = UNIT_NOT_SOLD
         else:
             entry["requestedQuantity"] = stated[0]["quantity"]
             entry["requestedText"] = stated[0]["text"]
@@ -311,11 +350,22 @@ def quantity_violations(data: Dataset, customer_text: str,
 def question_for(violation: Dict, name: str) -> str:
     """One plain question for the owner. Numbers only from the order and the
     quote, both of which the owner can see."""
-    quoted = violation["quotedQuantity"]
+    # The model's proposed figure is deliberately NOT repeated here. It is not
+    # the customer's number, and putting it in front of a customer as "the
+    # quotation was prepared for 4" invites "yes, 4" to an offer nobody made.
+    # The owner sees the proposal in the decision trace, labelled as the
+    # model's.
     if violation["status"] == MISMATCH:
         return (f'The order asks for {violation["requestedQuantity"]} of '
-                f'"{name}", but the quotation was prepared for {quoted}. '
-                f"Nothing has been quoted. Please confirm the quantity.")
+                f'"{name}", and that quantity could not be verified against '
+                f"the quotation. Nothing has been quoted. Please confirm the "
+                f"quantity.")
+    if violation["status"] == UNIT_NOT_SOLD:
+        sold_by = str(violation.get("catalogueUom") or "piece").lower()
+        return (f'The order asks for {violation["requestedQuantity"]} '
+                f'{violation.get("requestedUnit")} of "{name}", but it is sold '
+                f"by the {sold_by}, not by weight or volume. Nothing has been "
+                f"quoted. Please confirm how many {sold_by}s are wanted.")
     if violation["status"] == CONFLICTING:
         stated = " and ".join(str(q) for q in violation["statedQuantities"])
         return (f'The order states more than one quantity for "{name}" '

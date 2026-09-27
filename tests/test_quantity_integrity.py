@@ -118,7 +118,11 @@ def test_customer_two_model_four_can_never_be_quoted(seeded):
     assert result.status == STATUS_NEEDS_CLARIFICATION
     assert result.clarification["clarifyingAttribute"] == "quantity"
     assert result.clarification["options"] == []
-    assert "2" in result.summary and "4" in result.summary
+    # The customer's number is in the question; the model's is not. "The
+    # quotation was prepared for 4" read as an offer, and the owner sees the
+    # model's 4 in the decision trace, where it is labelled as the model's.
+    assert "2" in result.summary and "4" not in result.summary
+    assert result.quantityCheck[0]["proposedQuantity"] == 4
 
 
 # ---------------------------------------------------------------------------
@@ -159,7 +163,8 @@ def test_requested_twenty_model_sends_two_hundred_is_withheld(seeded):
         seeded, "20 Anchor modular switches 1-Way 10A",
         client=FakeBedrock(search_then_quote((SWITCH, 200), search=search)))
     assert_not_quoted(result)
-    assert "20" in result.summary and "200" in result.summary
+    assert "20" in result.summary and "200" not in result.summary
+    assert result.quantityCheck[0]["proposedQuantity"] == 200
 
 
 def test_the_matching_quantity_is_quoted(seeded):

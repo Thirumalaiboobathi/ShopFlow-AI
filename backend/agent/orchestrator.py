@@ -16,6 +16,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
+from engine import gst
 from engine.matching import AMBIGUOUS, RESOLVED, resolve_product
 from engine.models import Dataset
 
@@ -23,7 +24,8 @@ from .grounding import (collect_numbers, deterministic_quote_summary,
                         unresolved_requests, unsatisfied_lines,
                         unsupported_prices, validate_summary)
 from .line_guard import stated_identity, uncovered_terms
-from .quantity_guard import VERIFIED, check_quantities, question_for
+from .quantity_guard import (UNIT_NOT_SOLD, VERIFIED, check_quantities,
+                             question_for)
 from .tools import (
     CALCULATE_QUOTE,
     REQUEST_CLARIFICATION,
@@ -124,8 +126,15 @@ class AgentResult:
 
 def _bedrock_client():
     import boto3  # imported lazily so the engine stays importable without AWS
+    from botocore.config import Config
 
-    return boto3.client("bedrock-runtime", region_name=DEFAULT_REGION)
+    # One quick in-process retry for a momentary throttle, then the error goes
+    # to the worker, whose SQS redelivery waits 30s and 90s between attempts.
+    # botocore's default (4 retries in a few seconds) spent up to fifteen
+    # Converse calls on one throttled order and mostly throttled again.
+    return boto3.client(
+        "bedrock-runtime", region_name=DEFAULT_REGION,
+        config=Config(retries={"max_attempts": 2, "mode": "standard"}))
 
 
 # Nova Pro sometimes narrates its reasoning in a <thinking> block before the
@@ -318,14 +327,20 @@ def run_order_agent(
         result.failureKind = FAILURE_AGENT
 
     result.matches = matches
+    words = order_text if customer_text is None else customer_text
     if result.status == STATUS_FAILED:
         result = _clarify_rejected_quantity(result, trace)
+    if result.status == STATUS_FAILED:
+        result = _clarify_unread_script(result, words)
     if result.status == STATUS_NEEDS_CLARIFICATION:
         result = _prefer_unit_question(result, data)
     if result.status == STATUS_QUOTED:
         result = _require_complete_quote(
-            result, data, order_text,
-            customer_text=order_text if customer_text is None else customer_text)
+            result, data, order_text, customer_text=words)
+    if result.status == STATUS_QUOTED:
+        result = _attach_gst(result, data, words)
+    if result.status == STATUS_NEEDS_CLARIFICATION:
+        result = _ground_clarification(result, data, words)
     result.trace = trace
     result.elapsedMs = (time.perf_counter() - started) * 1000
     result.modelId = model_id
@@ -491,6 +506,9 @@ def _finalise(result: AgentResult, tool_name: str, payload: dict,
         clarification["options"] = _within_stated_identity(
             data, order_text, clarification, matches)
         clarification["question"] = _safe_question(clarification)
+        # Marked so `_ground_clarification` replaces the model's wording with a
+        # question built from the options. Removed there; never stored.
+        clarification["_modelAuthored"] = True
         result.status = STATUS_NEEDS_CLARIFICATION
         result.clarification = clarification
         result.summary = clarification["question"]
@@ -590,6 +608,212 @@ def _safe_question(clarification: dict) -> str:
     return question
 
 
+# ---------------------------------------------------------------------------
+# Clarifications a shop owner can trust
+# ---------------------------------------------------------------------------
+# An evaluation received "Please confirm the length of the Siemens MCB SP
+# 32A C-Curve you require" - a model-written question about an attribute no
+# breaker has, for a brand the shop does not stock, with no options to choose
+# from. Another received a clarification whose product text the model had
+# rewritten in Tamil to contain a different number from the one the customer
+# wrote. Both were safe - nothing was quoted - and both were wrong.
+#
+# So the words of a clarification are no longer the model's. The model still
+# decides THAT something is ambiguous (and the engine checks it); the question
+# is built here from three grounded things only: the attribute on which the
+# real options actually differ, the options' own values, and product text
+# that is either the customer's own words or a catalogue name.
+
+_CLARIFY_ATTRIBUTES = ("colour", "specification", "length", "brand", "category")
+_ATTRIBUTE_WORDS = {"colour": "colour", "specification": "size or rating",
+                    "length": "length", "brand": "brand", "category": "type"}
+MAX_LISTED_OPTIONS = 5
+
+# Letters from Indian scripts the catalogue vocabulary cannot read.
+_NON_LATIN_LETTERS = re.compile(r"[ऀ-෿]")
+
+UNREAD_SCRIPT_QUESTION = (
+    "ShopFlow could not match the products in this order to the catalogue, so "
+    "nothing has been quoted. Please write the brand and product name as it "
+    "appears on the box (for example: Havells MCB SP), and how many are "
+    "wanted.")
+
+
+def _squash(text) -> str:
+    return " ".join(str(text or "").split()).casefold()
+
+
+def _grounded_text(data: Dataset, fragment: str, words: str) -> bool:
+    """Is this product text the customer's own, or a catalogue name?"""
+    fragment = _squash(fragment)
+    if not fragment:
+        return False
+    if fragment in _squash(words):
+        return True
+    return any(_squash(p.name) == fragment for p in data.products.values())
+
+
+def _option_products(data: Dataset, options: list) -> list:
+    return [data.products[o["skuId"]] for o in options or []
+            if isinstance(o, dict) and o.get("skuId") in data.products]
+
+
+def _grounded_attribute(data: Dataset, options: list, proposed: str) -> str:
+    """The attribute the real options differ on - the model's only if true."""
+    products = _option_products(data, options)
+    if len(products) < 2:
+        return ""
+
+    def separates(attr: str) -> bool:
+        # Every option has the attribute and it takes at least two values.
+        # Not necessarily one value per option: Red wire in a 90m and a 180m
+        # coil still makes "which colour?" the right first question.
+        values = [getattr(p, attr, None) for p in products]
+        return all(values) and len(set(values)) >= 2
+
+    proposed = str(proposed or "").strip().lower()
+    if proposed == "color":
+        proposed = "colour"
+    if proposed in _CLARIFY_ATTRIBUTES and separates(proposed):
+        return proposed
+    for attr in _CLARIFY_ATTRIBUTES:
+        if separates(attr):
+            return attr
+    return ""
+
+
+def _grounded_label(data: Dataset, requested: str, words: str,
+                    options: list) -> str:
+    """Product text to put in a question: the customer's, or the catalogue's."""
+    if _grounded_text(data, requested, words):
+        return " ".join(str(requested).split())
+    products = _option_products(data, options)
+    if products:
+        brands = {p.brand for p in products}
+        categories = {p.category for p in products}
+        if len(brands) == 1 and len(categories) == 1:
+            return f"{products[0].brand} {products[0].category}"
+    return ""
+
+
+def _choice_list(values: List[str]) -> str:
+    if len(values) == 1:
+        return values[0]
+    return ", ".join(values[:-1]) + " or " + values[-1]
+
+
+def template_question(data: Dataset, label: str, attribute: str,
+                      options: list) -> str:
+    """One clarification question, from grounded parts only."""
+    target = f' for "{label}"' if label else ""
+    products = _option_products(data, options)
+    if not products:
+        subject = f'"{label}"' if label else "This order"
+        return (f"{subject} could not be matched to one product in the "
+                f"catalogue, so nothing has been quoted. Please confirm what "
+                f"is wanted.")
+    if attribute:
+        values = list(dict.fromkeys(str(getattr(p, attribute))
+                                    for p in products))
+        word = _ATTRIBUTE_WORDS.get(attribute, attribute)
+        opener = f"Which {word} do you need{target}"
+    else:
+        values = [p.name for p in products]
+        opener = f"Which one do you need{target}"
+    if len(values) > MAX_LISTED_OPTIONS:
+        return f"{opener}? Choose one of the {len(values)} options."
+    return f"{opener}: {_choice_list(values)}?"
+
+
+def _ground_clarification(result: AgentResult, data: Dataset,
+                          words: str) -> AgentResult:
+    """Make every word of a clarification something ShopFlow can stand behind.
+
+    A model-authored question is rebuilt from the options. Any other question
+    was already built from engine facts, and only its product text is checked:
+    text that is neither the customer's nor a catalogue name is replaced.
+    """
+    clarification = result.clarification
+    if not isinstance(clarification, dict):
+        return result
+    requested = clarification.get("requestedText") or ""
+    options = clarification.get("options") or []
+    label = _grounded_label(data, requested, words, options)
+
+    if clarification.pop("_modelAuthored", False):
+        attribute = _grounded_attribute(
+            data, options, clarification.get("clarifyingAttribute"))
+        clarification["clarifyingAttribute"] = attribute
+        clarification["question"] = template_question(data, label, attribute,
+                                                      options)
+        clarification["requestedText"] = label
+        values = [getattr(p, attribute, None)
+                  for p in _option_products(data, options)] if attribute else []
+        if values and len(set(values)) == len(values):
+            # One value per option, so the value is a usable button label.
+            # Otherwise the options keep their full names, as they always have.
+            for option in options:
+                product = data.products.get(option.get("skuId"))
+                if product is not None:
+                    option["value"] = getattr(product, attribute)
+        clarification["questionSource"] = "TEMPLATE"
+    elif requested and not _grounded_text(data, requested, words):
+        clarification["question"] = str(clarification.get("question") or "") \
+            .replace(f'"{requested}"', f'"{label}"' if label else "this item")
+        clarification["requestedText"] = label
+    result.summary = clarification.get("question") or CLARIFY_FALLBACK
+    return result
+
+
+def _clarify_unread_script(result: AgentResult, words: str) -> AgentResult:
+    """An order in a script the catalogue cannot read is a question, not a fault.
+
+    Only when nothing was ordered that the catalogue recognised, and the text
+    carries Indian-script letters. The question names no quantity and no
+    product - it asks for both, because neither could be read.
+    """
+    if result.failureKind != FAILURE_NO_PRODUCT_NAMED:
+        return result
+    if not _NON_LATIN_LETTERS.search(words or ""):
+        return result
+    result.status = STATUS_NEEDS_CLARIFICATION
+    result.quote = None
+    result.clarification = {
+        "requestedText": "",
+        "clarifyingAttribute": "product",
+        "question": UNREAD_SCRIPT_QUESTION,
+        "options": [],
+    }
+    result.summary = UNREAD_SCRIPT_QUESTION
+    result.message = ""
+    result.failureKind = None
+    return result
+
+
+def _attach_gst(result: AgentResult, data: Dataset, words: str) -> AgentResult:
+    """GST beside a finished quotation. Never a reason to lose the quotation.
+
+    The place of supply is read from the customer's own words by
+    `engine.gst.detect_tax_mode`. The model is not asked, and no rate is taken
+    from the order: "GST is zero" in an order changes nothing.
+    """
+    if not result.quote:
+        return result
+    try:
+        mode = gst.detect_tax_mode(words)
+        block = gst.quote_gst(data, result.quote, mode["taxMode"],
+                              tax_mode_source=mode["source"],
+                              display=gst.detect_display(words))
+        if mode.get("conflicting"):
+            block["taxModeNote"] = mode["note"]
+    except (gst.GstConfigError, gst.GstInputError) as exc:
+        log.warning("GST not attached: %s", exc)
+        block = {"available": False, "reason": "GST_CONFIGURATION_ERROR",
+                 "notice": gst.NOT_TAX_ADVICE}
+    result.quote["gst"] = block
+    return result
+
+
 def _needs_clarification(result: AgentResult, match: dict) -> AgentResult:
     """Turn one unresolved line into the clarification ShopFlow already uses.
 
@@ -680,7 +904,8 @@ def _needs_quantity_clarification(result: AgentResult, data: Dataset,
     result.status = STATUS_NEEDS_CLARIFICATION
     result.clarification = {
         "requestedText": violation["requestedText"] or name,
-        "clarifyingAttribute": "quantity",
+        "clarifyingAttribute": ("uom" if violation["status"] == UNIT_NOT_SOLD
+                                else "quantity"),
         "question": question,
         "options": [],
     }
