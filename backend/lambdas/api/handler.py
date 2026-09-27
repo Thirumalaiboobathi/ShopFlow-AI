@@ -120,6 +120,7 @@ from engine.supplier_prices import (CONFIRMED as SUPPLIER_CONFIRMED,
                                      STATE_CONFIRMED, STATE_REVIEW_REQUIRED)
 from engine.supplier_prices import DECISIONS, build_decision_record
 from engine.voice import MAX_TRANSCRIPT_CHARS, answer_shop_query
+from engine import gst, whatif
 
 MAX_ORDER_CHARS = 1000
 # A customer id is an internal key, not free text. Bounded and pattern-checked
@@ -637,6 +638,18 @@ def _create_purchase_plan(event) -> dict:
     if alerts:
         plan["marginProtection"] = alerts
 
+    # What the plan means for cash once the supplier's GST invoice arrives.
+    # Reported beside the plan; the allocation above is not touched by it and
+    # still spends the budget in GST-exclusive supplier cost.
+    try:
+        plan["gst"] = gst.plan_gst_view(data, plan)
+        metrics.emit(metrics.GST_CALCULATIONS,
+                     dimensions={"Outcome": "PURCHASE_PLAN"})
+    except (gst.GstConfigError, gst.GstInputError) as exc:
+        print(f"plan GST view skipped: {type(exc).__name__}: {exc}")
+        plan["gst"] = {"available": False, "reason": "GST_CONFIGURATION_ERROR",
+                       "notice": gst.NOT_TAX_ADVICE}
+
     # The plan is complete and correct at this point. Announcing it cannot
     # change it: `publish` never raises, and a bus that is down or absent
     # leaves this response exactly as it is.
@@ -656,6 +669,64 @@ def _create_purchase_plan(event) -> dict:
         plan["decisionTrace"]["steps"])
 
     return _response(200, plan)
+
+
+WHAT_IF_KIND = "WHAT_IF"
+
+
+def _create_what_if(event, payload: dict) -> dict:
+    """Business What-If: simulate one decision. Owner route. Writes nothing.
+
+    Reached through `POST /api/shop-queries` with `kind: "WHAT_IF"`, behind the
+    same owner gate. Synchronous and model-free, like the purchase planner it
+    calls. The owner's sentence is read by `engine.whatif.parse_scenario`, a
+    closed set of patterns - no Bedrock call is made, which is also why this
+    Lambda still carries no Bedrock permission.
+
+    Reads only: the confirmed supplier costs, and (when `quoteJobId` is given)
+    one stored order result. Nothing is put, updated or deleted - the
+    simulation runs on copies and the response says `stateChanged: false`.
+    """
+    question = payload.get("question")
+    if not isinstance(question, str) or not question.strip():
+        return _response(400, {"error": "question is required"})
+    question = _CONTROL.sub("", question).strip()
+    if len(question) > whatif.MAX_TEXT_CHARS:
+        return _response(400, {"error": f"question must be "
+                                        f"{whatif.MAX_TEXT_CHARS} characters "
+                                        f"or fewer"})
+
+    data = cached_dataset()
+    sku_id = payload.get("skuId")
+    if sku_id is not None and (not isinstance(sku_id, str)
+                               or sku_id not in data.products):
+        return _response(400, {"error": "unknown skuId"})
+
+    budget = payload.get("budget")
+    if budget is not None and (isinstance(budget, bool)
+                               or not isinstance(budget, (int, float))):
+        return _response(400, {"error": "budget must be a number"})
+
+    quote = None
+    job_id = payload.get("quoteJobId")
+    if job_id:
+        if not isinstance(job_id, str) or not re.fullmatch(r"[0-9a-f]{32}",
+                                                            job_id):
+            return _response(400, {"error": "invalid quoteJobId"})
+        job = table().get_item(Key=_job_key(job_id)).get("Item")
+        if not job or job.get("jobType", JOB_ORDER) != JOB_ORDER \
+                or not job.get("result"):
+            return _response(404, {"error": "that quotation was not found"})
+        quote = (json.loads(job["result"]) or {}).get("quote")
+        if not quote:
+            return _response(400, {"error": "that job has no quotation"})
+
+    confirmed = {sku: entry["cost"] for sku, entry in _confirmed_costs().items()}
+    result = whatif.simulate(data, question, confirmed_costs=confirmed,
+                             quote=quote, sku_id=sku_id, budget=budget)
+    metrics.emit(metrics.WHATIF_SIMULATIONS,
+                 dimensions={"Outcome": result["status"]})
+    return _response(200, result)
 
 
 def _confirmed_costs() -> dict:
@@ -716,6 +787,14 @@ def _create_shop_query(event) -> dict:
         payload = json.loads(raw) if raw else {}
     except json.JSONDecodeError:
         return _response(400, {"error": "body must be JSON"})
+
+    # A "what if?" is also an owner's question about their own shop, so it is
+    # answered on this owner route rather than on a new one - which keeps the
+    # API surface, the gate and the deployed API Gateway routes exactly as
+    # they were. Selected explicitly by the caller, never by guessing.
+    if isinstance(payload, dict) and \
+            str(payload.get("kind") or "").upper() == WHAT_IF_KIND:
+        return _create_what_if(event, payload)
 
     # Same contract as orderText: a transcript is text, not a coerced object.
     raw_transcript = payload.get("transcript")
@@ -1044,6 +1123,67 @@ def _create_credit_check(event) -> dict:
         {**result, "credit": result, "language": language}, language))
 
 
+# Message types that describe a khata account. Owner only.
+KHATA_MESSAGE_TYPES = frozenset({CREDIT_STATUS, CREDIT_REMINDER})
+
+# Everything an anonymous WhatsApp request may receive. No customer name, no
+# recipient (masked or otherwise), no customer id, no configuration status and
+# no phone number anywhere - the draft link carries the text only.
+PUBLIC_WHATSAPP_FIELDS = frozenset({
+    "messageType", "text", "language", "draftUrl", "status", "sent", "reason",
+    "notice",
+})
+PUBLIC_DRAFT_REASON = "OWNER_REQUIRED_TO_SEND"
+
+
+def _owner_gate_response(message: str) -> dict:
+    """The demo-owner gate's refusal. Not authentication; it says so."""
+    response = _response(401, {
+        "error": "owner route",
+        "message": message,
+        "demoGate": True,
+        "isAuthentication": False,
+        "note": OWNER_GATE_NOTE,
+    })
+    response["headers"]["x-shopflow-audience"] = "owner"
+    return response
+
+
+def _public_whatsapp_draft(message_type: str, quote: dict, payload: dict,
+                           language: str) -> dict:
+    """A quotation or confirmation draft for a caller who is not the owner.
+
+    Built WITHOUT the customer and WITHOUT the credit decision, so neither the
+    customer's name nor the state of their account can appear in the text.
+    Never sent: sending reaches a phone number, and a phone number is the
+    shop's to use. The response is cut to `PUBLIC_WHATSAPP_FIELDS`.
+    """
+    try:
+        if message_type == QUOTATION:
+            message = build_quotation_message(quote, None, None,
+                                              language=language)
+        else:
+            message = build_order_confirmation_message(
+                quote, None,
+                reference=str(payload.get("quoteId") or "")[:12],
+                language=language)
+    except InvalidMessageRequest as exc:
+        return _response(400, {"error": str(exc)})
+    body = {
+        "messageType": message["messageType"],
+        "text": message["text"],
+        "language": language,
+        "draftUrl": wa_me_url(message["text"], None),
+        "status": "DRAFT",
+        "sent": False,
+        "reason": PUBLIC_DRAFT_REASON,
+        "notice": ("Draft only. Messages are sent by the shop from the "
+                   "ShopFlow workspace."),
+    }
+    return _response(200, {k: v for k, v in body.items()
+                           if k in PUBLIC_WHATSAPP_FIELDS})
+
+
 def _create_whatsapp_send(event) -> dict:
     """Build a customer message from an existing result, and send or draft it.
 
@@ -1073,6 +1213,18 @@ def _create_whatsapp_send(event) -> dict:
     customer_id = _CONTROL.sub("", str(payload.get("customerId") or "")).strip()
     if customer_id and not CUSTOMER_ID_PATTERN.match(customer_id):
         return _response(400, {"error": "invalid customerId"})
+
+    # Who is asking decides what can be asked for. A khata message is ABOUT an
+    # account - its balance, its limit, whether it is on hold - and an
+    # evaluation read all of that, plus the full phone number in the draft
+    # link, from an anonymous request. Those two message types are prepared by
+    # the shop, through the owner gate, and nobody else.
+    owner = _is_demo_owner(event)
+    if message_type in KHATA_MESSAGE_TYPES and not owner:
+        return _owner_gate_response(
+            "A khata message states a customer's balance and credit limit. It "
+            "is prepared by the shop owner, through the ShopFlow demo "
+            "workspace.")
 
     data = cached_dataset()
     customer = data.customer(customer_id) if customer_id else None
@@ -1113,6 +1265,9 @@ def _create_whatsapp_send(event) -> dict:
     # figures; no total, quantity or unit is recalculated for any language,
     # and the customer-safe allow-list is the same one in all of them.
     language = _language_of(payload)
+
+    if not owner:
+        return _public_whatsapp_draft(message_type, quote, payload, language)
 
     try:
         if message_type == QUOTATION:
@@ -1229,10 +1384,15 @@ def _create_whatsapp_send(event) -> dict:
 # record for the owner, kept intact in storage and in the owner view, and not
 # something to hand a customer. `decisionTrace` is the customer's account of
 # how the quotation was worked out.
+#
+# `matches`, `modelId`, `turns` and `elapsedMs` used to be on this list. A
+# second evaluation found what that meant: `matches` carried the model's own
+# search arguments and every line-isolation correction ("from": "Havells",
+# "red", "90m" on a switch line), and the other three describe the model and
+# its run rather than the customer's order. They are the workspace's.
 CUSTOMER_RESULT_FIELDS = frozenset({
-    "status", "summary", "message", "quote", "clarification", "matches",
-    "grounded", "ungroundedNumbers", "modelId", "turns", "elapsedMs",
-    "decisionTrace", "localized",
+    "status", "summary", "message", "quote", "clarification",
+    "grounded", "ungroundedNumbers", "decisionTrace", "localized",
 })
 
 # Top-level fields of a voice-transcript result a customer may receive.
@@ -1304,24 +1464,170 @@ def _scrub_owner_keys(value):
     return value
 
 
+# ---------------------------------------------------------------------------
+# Default-deny, at every depth
+# ---------------------------------------------------------------------------
+# The top-level allow-lists above were not enough. A quote line is an allowed
+# object, and it carried `onHand`, `weeklyVelocity`, `coverageWeeks` and an
+# evidence string reading "ordered 20, 14 in stock, short 6". The recursive
+# scrub below them only removes keys it recognises as owner economics, and a
+# stock count is not one - so it rode out inside an allowed object.
+#
+# So the customer view is now a SCHEMA: every key at every depth must be
+# named here, and anything not named is dropped. `LEAF` accepts a plain value
+# and refuses a nested object or list, so an allowed field that one day starts
+# carrying a dict does not smuggle that dict out. The owner-key scrub still
+# runs afterwards, as a second layer that should find nothing.
+LEAF = None
+
+_SCHEMA_EVIDENCE_LINE = {"lineTotal": LEAF, "units": LEAF}
+_SCHEMA_QUOTE_LINE = {
+    "skuId": LEAF, "name": LEAF, "unit": LEAF, "quantity": LEAF,
+    "sellingPrice": LEAF, "lineTotal": LEAF, "inStock": LEAF,
+    "catalogueUom": LEAF, "requestedUom": LEAF, "uomStatus": LEAF,
+    "conversion": LEAF,
+    "baseEquivalent": {"quantity": LEAF, "uom": LEAF, "perUnit": LEAF,
+                       "calculation": LEAF},
+    "evidence": _SCHEMA_EVIDENCE_LINE,
+}
+_SCHEMA_GST_LINE = {
+    "skuId": LEAF, "quantity": LEAF, "unitPrice": LEAF, "taxableValue": LEAF,
+    "gstRate": LEAF, "treatment": LEAF, "hsnHeading": LEAF, "cgst": LEAF,
+    "sgst": LEAF, "igst": LEAF, "taxAmount": LEAF, "lineTotal": LEAF,
+    "evidence": {"taxable": LEAF, "tax": LEAF, "rounding": LEAF},
+}
+_SCHEMA_GST = {
+    "available": LEAF, "reason": LEAF, "taxMode": LEAF, "taxModeSource": LEAF,
+    "taxModeNote": LEAF, "priceBasis": LEAF, "display": LEAF,
+    "lines": [_SCHEMA_GST_LINE], "subtotal": LEAF, "totalTaxableValue": LEAF,
+    "cgst": LEAF, "sgst": LEAF, "igst": LEAF, "totalGst": LEAF,
+    "grandTotal": LEAF, "rates": [LEAF], "configStatus": LEAF,
+    "configVersion": LEAF, "notice": LEAF, "unconfiguredSkus": [LEAF],
+    "evidence": {"subtotal": LEAF, "totalGst": LEAF, "grandTotal": LEAF},
+}
+_SCHEMA_QUOTE = {
+    "lines": [_SCHEMA_QUOTE_LINE], "total": LEAF, "itemCount": LEAF,
+    "lineCount": LEAF, "allInStock": LEAF, "evidence": {"total": LEAF},
+    "gst": _SCHEMA_GST,
+}
+_SCHEMA_CLARIFICATION = {
+    "requestedText": LEAF, "clarifyingAttribute": LEAF, "question": LEAF,
+    "questionSource": LEAF,
+    "options": [{"skuId": LEAF, "name": LEAF, "value": LEAF,
+                 "sellingPrice": LEAF, "unit": LEAF}],
+}
+_SCHEMA_LOCALIZED = {
+    "language": LEAF, "direction": LEAF, "nativeName": LEAF, "coverage": LEAF,
+    "reviewNotice": LEAF,
+    "quote": {"language": LEAF, "direction": LEAF, "heading": LEAF,
+              "itemsLabel": LEAF, "customerLabel": LEAF, "totalLabel": LEAF,
+              "totalText": LEAF, "notice": LEAF},
+    "clarification": {"language": LEAF, "direction": LEAF, "heading": LEAF,
+                      "question": LEAF, "chooseLabel": LEAF, "attribute": LEAF},
+}
+_SCHEMA_TRACE = {
+    "available": LEAF, "audience": LEAF, "reason": LEAF, "source": LEAF,
+    "lines": [LEAF],
+    "steps": [{field: LEAF for field in decision_trace.PUBLIC_FIELDS}],
+}
+CUSTOMER_ORDER_SCHEMA = {
+    "status": LEAF, "summary": LEAF, "message": LEAF, "grounded": LEAF,
+    "ungroundedNumbers": [LEAF], "quote": _SCHEMA_QUOTE,
+    "clarification": _SCHEMA_CLARIFICATION, "decisionTrace": _SCHEMA_TRACE,
+    "localized": _SCHEMA_LOCALIZED,
+}
+CUSTOMER_TRANSCRIPT_SCHEMA = {
+    "transcript": LEAF, "provider": LEAF, "handledBy": LEAF,
+    "detectedLanguage": LEAF,
+    "localized": {k: LEAF for k in ("language", "direction", "nativeName",
+                                    "coverage", "reviewNotice")},
+}
+CUSTOMER_SCHEMA_BY_JOB = {
+    JOB_ORDER: CUSTOMER_ORDER_SCHEMA,
+    JOB_TRANSCRIPT: CUSTOMER_TRANSCRIPT_SCHEMA,
+}
+# The job envelope. `customerId` is deliberately absent.
+CUSTOMER_JOB_FIELDS = frozenset({"jobId", "jobType", "status", "orderText",
+                                 "language", "createdAt", "error"})
+
+_DROP = object()
+
+
+def _allow(value, schema):
+    """`value` reduced to exactly what `schema` names. Anything else is gone."""
+    if value is None:
+        # "no quotation" is information: a clarification says quote: null.
+        return None
+    if schema is LEAF:
+        if isinstance(value, (str, int, float, bool)):
+            return value
+        return _DROP
+    if isinstance(schema, list):
+        if not isinstance(value, list):
+            return _DROP
+        kept = [_allow(item, schema[0]) for item in value]
+        return [item for item in kept if item is not _DROP]
+    if not isinstance(value, dict):
+        return _DROP
+    out = {}
+    for key, item in value.items():
+        if key not in schema:
+            continue
+        kept = _allow(item, schema[key])
+        if kept is not _DROP:
+            out[key] = kept
+    return out
+
+
+def _customer_quote_summary(quote: dict) -> str:
+    """One sentence from the fields a customer may see, and nothing else."""
+    lines = quote.get("lineCount") or len(quote.get("lines") or [])
+    total = quote.get("total")
+    text = f"{lines} items quoted at Rs {total}."
+    if quote.get("allInStock") is False:
+        text += (" Some items are not in stock right now; the shop will "
+                 "confirm delivery.")
+    elif quote.get("allInStock") is True:
+        text += " Everything ordered is in stock."
+    return text
+
+
 def customer_job_view(body: dict) -> dict:
     """The job exactly as a customer may see it.
 
     Takes the job body as `_get_job` assembled it and returns a new one. The
     input is not modified, so nothing stored is changed by being viewed.
     """
-    view = {k: v for k, v in body.items() if not _owner_key(k)}
+    view = {k: v for k, v in body.items()
+            if k in CUSTOMER_JOB_FIELDS and not _owner_key(k)}
+    view = {k: v for k, v in view.items()
+            if v is None or isinstance(v, (str, int, float, bool))}
     result = body.get("result")
     if isinstance(result, dict):
-        allowed = CUSTOMER_FIELDS_BY_JOB.get(view.get("jobType", JOB_ORDER))
-        if allowed is None:
+        job_type = view.get("jobType", JOB_ORDER)
+        schema = CUSTOMER_SCHEMA_BY_JOB.get(job_type)
+        allowed = CUSTOMER_FIELDS_BY_JOB.get(job_type)
+        if schema is None or allowed is None:
             # A job type nobody has decided a customer view for.
-            view.pop("result", None)
             return _scrub_owner_keys(view)
         result = {k: v for k, v in result.items() if k in allowed}
-        if result.get("status") == "FAILED" and result.get("message"):
-            result["message"] = CUSTOMER_FAILURE_MESSAGE
-        view["result"] = _scrub_owner_keys(result)
+        if job_type == JOB_ORDER:
+            # The workspace trace carries stock counts and the model's own
+            # proposals; the customer is given the public reading of it.
+            result["decisionTrace"] = decision_trace.public_view(
+                result.get("decisionTrace"))
+            if result.get("status") == "FAILED":
+                # The summary of a failed run is the model's own prose.
+                result["summary"] = CUSTOMER_FAILURE_MESSAGE
+                result["message"] = CUSTOMER_FAILURE_MESSAGE
+            elif isinstance(result.get("quote"), dict):
+                # The owner's summary names each shortfall ("short by 6
+                # piece"), and ordered-minus-short is the shop's stock count.
+                # The customer is told only what the allowed quote fields say.
+                result["summary"] = _customer_quote_summary(result["quote"])
+        allowed_result = _allow(result, schema)
+        view["result"] = _scrub_owner_keys(
+            allowed_result if allowed_result is not _DROP else {})
     return _scrub_owner_keys(view)
 
 
@@ -1810,11 +2116,21 @@ OWNER_ROUTES = frozenset({
 })
 
 # Routes whose output can reach a customer. Nothing here may carry supplier
-# cost, margin or purchasing internals.
+# cost, margin or purchasing internals. `POST /api/whatsapp/send` is here
+# because its TEXT reaches a customer; the khata message types on it are
+# gated inside the route, and an anonymous caller only ever gets a draft.
 CUSTOMER_FACING_ROUTES = frozenset({
     "POST /api/orders",
     "GET /api/jobs/{jobId}",
     "POST /api/whatsapp/send",
+})
+
+# Routes that carry no business figure at all: the language registry, the
+# seeded demo example, and speech-to-text of the caller's own recording.
+PUBLIC_ROUTES = frozenset({
+    "GET /api/languages",
+    "GET /api/demo",
+    "POST /api/voice/transcribe",
 })
 
 # The demo-owner gate.
@@ -1873,6 +2189,10 @@ def handler(event, context):
     route = event.get("routeKey") or ""
     fn = ROUTES.get(route)
     if fn is None:
+        return _response(404, {"error": "not found"})
+    # Default-deny: a route nobody has classified is not served. Adding a
+    # handler to ROUTES without deciding who may read it fails closed.
+    if route not in OWNER_ROUTES | CUSTOMER_FACING_ROUTES | PUBLIC_ROUTES:
         return _response(404, {"error": "not found"})
 
     if route in OWNER_ROUTES and not _is_demo_owner(event):

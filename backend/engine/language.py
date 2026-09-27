@@ -671,7 +671,12 @@ def localize_clarification(clarification: dict, code: str = DEFAULT_LANGUAGE) ->
     """
     if not isinstance(clarification, dict):
         return {}
-    asked = str(clarification.get("attribute") or clarification.get("missing") or "")
+    # `clarifyingAttribute` is the name the order flow actually uses; reading
+    # only the other two left every order clarification on the generic
+    # "please choose one". The orchestrator now sets this attribute only when
+    # the real options differ on it, so the localized question is grounded.
+    asked = str(clarification.get("attribute") or clarification.get("missing")
+                or clarification.get("clarifyingAttribute") or "")
     key = _CLARIFY_KEYS.get(asked.lower())
     question = translate(code, key) if key else ""
     return {

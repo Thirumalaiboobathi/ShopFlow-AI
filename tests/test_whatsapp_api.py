@@ -475,8 +475,17 @@ def seed_quote_job(table, quote, credit=None, customer_id=RAVI):
     return job_id
 
 
-def post_send(body):
-    return {"routeKey": "POST /api/whatsapp/send", "body": json.dumps(body)}
+# The shop's workspace is what sends messages, and it asks as the demo owner.
+# Every test in this file exercises that path. What an anonymous caller may
+# receive from the same route is pinned in tests/test_p1_whatsapp_boundary.py.
+OWNER_HEADERS = {"x-shopflow-demo-owner": "demo-workspace"}
+
+
+def post_send(body, *, owner: bool = True):
+    event = {"routeKey": "POST /api/whatsapp/send", "body": json.dumps(body)}
+    if owner:
+        event["headers"] = dict(OWNER_HEADERS)
+    return event
 
 
 def body_of(response):

@@ -187,7 +187,10 @@ def test_1_an_unresolved_product_explained_in_prose_is_not_a_failure(
 
     fake = FakeBedrock(search_then_prose(
         args, "<thinking>not in the catalog</thinking> We do not carry that."))
-    result = run_order_agent(seeded, "order", client=fake)
+    # The customer's sentence is passed as the customer's words, so the
+    # product text that comes back is checked against what they wrote.
+    result = run_order_agent(seeded, "order", client=fake,
+                             customer_text=args["requestedText"])
 
     assert result.status == STATUS_NEEDS_CLARIFICATION, label
     assert result.status != STATUS_FAILED
@@ -362,8 +365,9 @@ def test_a_model_written_question_is_sanitized(seeded):
     ])
     result = run_order_agent(seeded, "order", client=fake)
 
-    assert result.clarification["question"] == "Which colour?"
-    assert result.summary == "Which colour?"
+    assert result.clarification["question"] == (
+        'Which colour do you need for "Finolex Wire": Black, Blue or Red?')
+    assert result.summary == result.clarification["question"]
     facing = _owner_facing(result)
     assert "offer colours" not in facing
     assert "thinking" not in facing
@@ -379,8 +383,13 @@ def test_a_question_that_is_all_reasoning_falls_back(seeded):
     ])
     result = run_order_agent(seeded, "order", client=fake)
 
-    assert result.clarification["question"] == CLARIFY_FALLBACK
-    assert result.summary == CLARIFY_FALLBACK
+    # Nothing of the model's survives - and because the question is built
+    # from the options, an all-reasoning reply no longer costs the owner a
+    # real question: they are asked about colour, not "one more detail".
+    assert result.clarification["question"] == (
+        'Which colour do you need for "Finolex Wire": Black, Blue or Red?')
+    assert "thinking" not in result.clarification["question"]
+    assert result.summary == result.clarification["question"]
     assert "thinking out loud" not in _owner_facing(result)
 
 

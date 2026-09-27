@@ -200,8 +200,24 @@ def test_an_order_job_carries_its_decision_trace(env):
     trace = body["result"]["decisionTrace"]
     assert trace["available"] is True
     assert trace["audience"] == "customer"
-    assert any(s["step"] == "SHORTAGE_DETECTED" for s in trace["steps"])
-    assert any("short by 6" in line for line in trace["lines"])
+    # The public trace says a line is not all in stock. It does not say how
+    # many units are on the shelf or by how many the shop is short - those
+    # are in the owner's trace.
+    availability = [s for s in trace["steps"] if s["step"] == "AVAILABILITY"]
+    assert availability and any(s["inStock"] is False for s in availability)
+    assert not any(s["step"] in ("SHORTAGE_DETECTED", "INVENTORY_CHECK")
+                   for s in trace["steps"])
+    import re
+    assert not any("short by" in line or re.search(r"\d+ in stock", line)
+                   for line in trace["lines"])
+    assert not any("onHand" in s or "shortage" in s for s in trace["steps"])
+
+    owner = body_of(api.handler({"routeKey": "GET /api/jobs/{jobId}",
+                                 "headers": OWNER_HEADERS,
+                                 "pathParameters": {"jobId": job_id}}, None))
+    owner_trace = owner["result"]["decisionTrace"]
+    assert any(s["step"] == "SHORTAGE_DETECTED" for s in owner_trace["steps"])
+    assert any("short by 6" in line for line in owner_trace["lines"])
 
 
 def test_the_trace_on_a_customer_route_carries_no_owner_data(env):
@@ -224,9 +240,17 @@ def test_a_stored_trace_is_not_rebuilt_over(env):
               "steps": [{"step": "ORDER_RECEIVED"}], "lines": ["from worker"]}
     job_id = order_job(table, dict(QUOTED_RESULT, decisionTrace=stored))
 
+    # The owner is shown the worker's trace exactly as stored.
+    owner = body_of(api.handler({"routeKey": "GET /api/jobs/{jobId}",
+                                 "headers": OWNER_HEADERS,
+                                 "pathParameters": {"jobId": job_id}}, None))
+    assert owner["result"]["decisionTrace"]["lines"] == ["from worker"]
+    # A customer is shown the public reading of it: re-rendered from the
+    # steps that are allowed out, so stored words cannot bypass the filter.
     body = body_of(api.handler({"routeKey": "GET /api/jobs/{jobId}",
                                 "pathParameters": {"jobId": job_id}}, None))
-    assert body["result"]["decisionTrace"]["lines"] == ["from worker"]
+    assert body["result"]["decisionTrace"]["steps"] == [{"step": "ORDER_RECEIVED"}]
+    assert body["result"]["decisionTrace"]["lines"] == ["Order received."]
 
 
 def test_an_order_poll_is_still_open_to_the_customer(env):

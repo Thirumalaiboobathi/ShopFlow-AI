@@ -76,6 +76,10 @@ CLARIFICATION_REQUIRED = "CLARIFICATION_REQUIRED"
 QUANTITY_CHECK = "QUANTITY_CHECK"
 PROPOSAL_REJECTED = "PROPOSAL_REJECTED"
 PROCESSING_FAILED = "PROCESSING_FAILED"
+GST_APPLIED = "GST_APPLIED"
+# The public form of INVENTORY_CHECK: whether the line is in stock, never how
+# many units the shop holds.
+AVAILABILITY = "AVAILABILITY"
 
 # Owner-only steps.
 SUPPLIER_PRICE_CHECK = "SUPPLIER_PRICE_CHECK"
@@ -103,7 +107,37 @@ SAFE_FIELDS = frozenset({
     # Quantity, by source. See THREE VOICES above.
     "customerText", "customerQuantity", "customerQuantities",
     "proposedQuantity", "proposed", "quotedQuantity", "source",
+    # GST, as the engine calculated it.
+    "taxMode", "totalGst", "grandTotal", "inStock",
 })
+
+# ---------------------------------------------------------------------------
+# The PUBLIC trace
+# ---------------------------------------------------------------------------
+# `customer_steps` is shown in the shop's own workspace, and it carries facts
+# the shop needs and a customer does not: how many units are on the shelf,
+# what the model proposed before the engine refused it, which filters the
+# line guard corrected and the model's own wording of each search. An
+# evaluation found all of that on the anonymous `GET /api/jobs/{id}`.
+#
+# `public_view` is what leaves the building. It is an allow-list twice over:
+# of step NAMES, and of the FIELDS each step may carry. A step or field added
+# to the workspace trace tomorrow is absent here until someone adds it on
+# purpose. INVENTORY_CHECK is not passed through; it is replaced by an
+# AVAILABILITY step that says in stock or not, and never how many.
+PUBLIC_STEPS = (ORDER_RECEIVED, PRODUCTS_DETECTED, SKU_MATCHED, QUANTITY_CHECK,
+                AVAILABILITY, QUOTATION, GST_APPLIED, CLARIFICATION_REQUIRED,
+                PROCESSING_FAILED)
+PUBLIC_FIELDS = frozenset({
+    "step", "skuId", "name", "verdict", "status", "lineCount",
+    "customerQuantity", "quotedQuantity", "unitPrice", "lineTotal", "uom",
+    "total", "currency", "attribute", "optionCount", "inStock", "source",
+    "taxMode", "totalGst", "grandTotal", "requestedText",
+})
+# Steps whose `requestedText` is the customer's own words (a clarification
+# carries text already grounded by the orchestrator). Everywhere else that
+# field is the MODEL's wording of a search, and it is dropped.
+_PUBLIC_REQUESTED_TEXT = (CLARIFICATION_REQUIRED,)
 
 # Why the quote tool refused a model proposal. A closed set, read from the
 # tool's own `errorKind`, so no error message text - which can quote the
@@ -285,6 +319,16 @@ def customer_steps(result_dict: Dict,
             total=quote.get("total"),
             currency=CURRENCY,
         ))
+        tax = quote.get("gst") or {}
+        if tax.get("available"):
+            steps.append(_step(
+                GST_APPLIED, SAFE_FIELDS,
+                taxMode=tax.get("taxMode"),
+                totalGst=tax.get("totalGst"),
+                grandTotal=tax.get("grandTotal"),
+                source="engine.gst.quote_gst",
+                currency=CURRENCY,
+            ))
 
     # 8. the two ways an order ends without a quotation. The clarification's
     # question is the model's wording and is NOT carried: the attribute and
@@ -400,6 +444,14 @@ def render(steps: List[Dict]) -> List[str]:
         elif name == QUOTATION:
             out.append(f"Quotation: {step.get('lineCount')} line(s), "
                        f"total {step.get('total')}.")
+        elif name == GST_APPLIED:
+            out.append(f"GST ({step.get('taxMode')}): {step.get('totalGst')}; "
+                       f"total including GST {step.get('grandTotal')}.")
+        elif name == AVAILABILITY:
+            out.append(f"{step.get('skuId')}: {step.get('quotedQuantity')} "
+                       f"quoted, "
+                       + ("in stock." if step.get("inStock")
+                          else "not all in stock - the shop will confirm."))
         elif name == CLARIFICATION_REQUIRED:
             out.append(f"Clarification needed for "
                        f"\"{step.get('requestedText', '')}\".")
@@ -426,6 +478,19 @@ def _render_quantity(step: Dict) -> str:
     customer = step.get("customerQuantity")
     proposed = step.get("proposedQuantity")
     verdict = step.get("verdict")
+    if "proposedQuantity" not in step:
+        # The public form: the customer's number and the decision, never the
+        # model's proposal.
+        if verdict == "VERIFIED" and step.get("quotedQuantity") is not None:
+            return (f"{sku}: customer asked for {customer}; quoted "
+                    f"{step['quotedQuantity']}.")
+        if verdict == "VERIFIED":
+            return (f"{sku}: customer asked for {customer}; not quoted because "
+                    f"another line needs confirming.")
+        if customer is not None:
+            return (f"{sku}: customer asked for {customer}; the quantity could "
+                    f"not be verified, so nothing was quoted.")
+        return f"{sku}: the quantity needs confirming, so nothing was quoted."
     if verdict == "VERIFIED":
         quoted = step.get("quotedQuantity")
         if quoted is None:
@@ -453,6 +518,54 @@ def unavailable(reason: str = "Trace unavailable") -> Dict:
     quotation stands untouched.
     """
     return {"available": False, "reason": reason, "steps": [], "lines": []}
+
+
+def _public_step(step: Dict) -> Optional[Dict]:
+    """One workspace step as the public may see it, or None to drop it."""
+    name = step.get("step")
+    if name == INVENTORY_CHECK:
+        # Converted, not passed through: in stock or not, never how many.
+        shortage = step.get("shortage")
+        step = {"step": AVAILABILITY, "skuId": step.get("skuId"),
+                "name": step.get("name"),
+                "quotedQuantity": step.get("quotedQuantity",
+                                           step.get("requested")),
+                "customerQuantity": step.get("customerQuantity"),
+                "unitPrice": step.get("unitPrice"),
+                "lineTotal": step.get("lineTotal"), "uom": step.get("uom"),
+                "inStock": (shortage or 0) == 0}
+        name = AVAILABILITY
+    if name not in PUBLIC_STEPS:
+        return None
+    if name == PRODUCTS_DETECTED and step.get("lineCount") is None:
+        return None  # the search-count variant: how often the model searched
+    out = {}
+    for key, value in step.items():
+        if key not in PUBLIC_FIELDS or value is None:
+            continue
+        if key == "requestedText" and name not in _PUBLIC_REQUESTED_TEXT:
+            continue
+        out[key] = value
+    return out
+
+
+def public_view(trace: Optional[Dict]) -> Dict:
+    """The decision trace as a customer may see it. Never raises.
+
+    Takes the stored (workspace) trace and returns a new one: allowed steps
+    only, allowed fields only, lines re-rendered from what survived. The input
+    is not modified.
+    """
+    try:
+        if not isinstance(trace, dict) or not trace.get("available"):
+            return unavailable()
+        steps = [s for s in (_public_step(dict(step))
+                             for step in trace.get("steps") or []
+                             if isinstance(step, dict)) if s]
+        return {"available": True, "audience": "customer", "steps": steps,
+                "lines": render(steps), "source": "agent.decision_trace"}
+    except Exception as exc:  # noqa: BLE001
+        return unavailable(f"Trace unavailable ({type(exc).__name__})")
 
 
 def build(result_dict: Dict, *, owner: bool = False,

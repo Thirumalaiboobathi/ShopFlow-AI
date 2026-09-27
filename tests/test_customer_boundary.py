@@ -366,14 +366,36 @@ def test_6_customer_and_owner_views_of_one_job_differ_only_by_owner_data(run_ord
 
     assert customer_response["headers"]["x-shopflow-audience"] == "customer"
     assert owner_response["headers"]["x-shopflow-audience"] == "owner"
-    # The commercial quotation is identical for both.
-    assert customer["result"]["quote"] == {
-        k: v for k, v in owner["result"]["quote"].items()}
-    assert customer["result"]["decisionTrace"] == owner["result"]["decisionTrace"]
-    # And everything the owner has that the customer lacks is owner data:
-    # the margin panel, the khata position, and the raw tool-call audit record.
+    # The commercial quotation is the same quotation for both: same lines,
+    # same quantities, same prices, same totals, same GST. The customer's
+    # lines simply carry fewer fields - no stock count, no sales velocity, no
+    # cover, no evidence string that spells out the stock.
+    customer_quote, owner_quote = (customer["result"]["quote"],
+                                   owner["result"]["quote"])
+    assert customer_quote["total"] == owner_quote["total"] == CANONICAL_TOTAL
+    # The same GST, figure for figure. Only the internal module name in the
+    # evidence is dropped from the customer's copy.
+    owner_gst = dict(owner_quote["gst"],
+                     evidence={k: v for k, v in owner_quote["gst"]["evidence"].items()
+                               if k != "source"})
+    assert customer_quote["gst"] == owner_gst
+    for c_line, o_line in zip(customer_quote["lines"], owner_quote["lines"]):
+        assert set(c_line) < set(o_line)
+        assert {k: o_line[k] for k in c_line if k != "evidence"} == \
+            {k: v for k, v in c_line.items() if k != "evidence"}
+        for internal in ("onHand", "shortageQty", "weeklyVelocity",
+                         "coverageWeeks"):
+            assert internal not in c_line and internal in o_line
+    # The customer's trace is the public reading of the owner's.
+    from agent import decision_trace
+    assert customer["result"]["decisionTrace"] == \
+        decision_trace.public_view(owner["result"]["decisionTrace"])
+    # And everything the owner has that the customer lacks is owner or
+    # internal data: the margin panel, the khata position, the raw tool-call
+    # audit record, the model's own search arguments, and the model run.
     missing = set(owner["result"]) - set(customer["result"])
-    assert missing == {"marginProtection", "credit", "trace"}
+    assert missing == {"marginProtection", "credit", "trace", "matches",
+                       "modelId", "turns", "elapsedMs"}
 
 
 # ---------------------------------------------------------------------------
@@ -482,13 +504,12 @@ def test_the_customer_view_keeps_everything_a_customer_needs(run_order):
     assert result["status"] == "QUOTED"
     assert result["quote"]["total"] == CANONICAL_TOTAL
     lines = {l["skuId"]: l for l in result["quote"]["lines"]}
-    assert (lines[SWITCH]["quantity"], lines[SWITCH]["onHand"],
-            lines[SWITCH]["shortageQty"]) == (20, 14, 6)
-    assert (lines[WIRE]["quantity"], lines[WIRE]["onHand"],
-            lines[WIRE]["shortageQty"]) == (3, 1, 2)
-    assert (lines[MCB]["quantity"], lines[MCB]["onHand"],
-            lines[MCB]["shortageQty"]) == (2, 5, 0)
+    # Whether each line is in stock - yes; how many units the shop holds - no.
+    assert (lines[SWITCH]["quantity"], lines[SWITCH]["inStock"]) == (20, False)
+    assert (lines[WIRE]["quantity"], lines[WIRE]["inStock"]) == (3, False)
+    assert (lines[MCB]["quantity"], lines[MCB]["inStock"]) == (2, True)
     assert all("sellingPrice" in l and "lineTotal" in l for l in lines.values())
+    assert result["quote"]["gst"]["grandTotal"] == 26321.64
     assert result["decisionTrace"]["available"] is True
     assert result["summary"]
 
@@ -684,12 +705,14 @@ def test_p1d_model_facing_keys_are_removed_at_any_depth():
             "lineIsolation": {"blocking": ["search_catalog ..."],
                               "changes": [{"reason": "the line names Anchor"}]}}]}}
     view = api.customer_job_view(body)
-    match = view["result"]["matches"][0]
-    assert "instruction" not in match
-    assert "diagnostic" not in match
-    assert "blocking" not in match["lineIsolation"]
-    # A deterministic fact about the line is not a model instruction; it stays.
-    assert match["lineIsolation"]["changes"][0]["reason"] == "the line names Anchor"
+    # Not scrubbed field by field any more: the whole search record is the
+    # model's arguments and the guards' corrections of them, and none of it
+    # is the customer's. It is absent from the customer view entirely.
+    assert "matches" not in view["result"]
+    served = json.dumps(view)
+    for internal in ("instruction", "diagnostic", "blocking", "lineIsolation",
+                     "the line names Anchor"):
+        assert internal not in served
     # And the input is untouched.
     assert body["result"]["matches"][0]["instruction"] == "Use this skuId."
 

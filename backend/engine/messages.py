@@ -220,12 +220,20 @@ def customer_safe_quote(quote: Dict) -> dict:
     if not isinstance(quote, dict) or not quote.get("lines"):
         raise InvalidMessageRequest("that quotation has no lines")
     lines = [customer_safe_line(l) for l in quote["lines"][:MAX_LINES_IN_MESSAGE]]
-    return {
+    safe = {
         "lines": lines,
         "total": quote.get("total"),
         "lineCount": len(lines),
         "truncated": len(quote["lines"]) > MAX_LINES_IN_MESSAGE,
     }
+    # The engine's GST totals, when the quotation has them. Copied, never
+    # recomputed - `engine.gst.quote_gst` is the only place tax is worked out.
+    tax = quote.get("gst") or {}
+    if tax.get("available"):
+        safe["gst"] = {k: tax.get(k) for k in
+                       ("taxMode", "cgst", "sgst", "igst", "totalGst",
+                        "grandTotal")}
+    return safe
 
 
 # ---------------------------------------------------------------------------
@@ -265,6 +273,27 @@ def _finish(lines: List[str]) -> str:
     return text
 
 
+def _gst_lines(safe: Dict, language) -> List[str]:
+    """GST under the total, when the quotation carries the engine's figures.
+
+    "Total" above stays the taxable value it has always been; these lines add
+    the tax and the amount the customer actually pays. Nothing is added up
+    here - both figures are the GST engine's.
+    """
+    tax = safe.get("gst")
+    if not tax:
+        return []
+    if tax.get("taxMode") == "INTER_STATE":
+        parts = [f"IGST: {format_rupees(tax['igst'])}"]
+    elif tax.get("taxMode") == "INTRA_STATE":
+        parts = [f"CGST: {format_rupees(tax['cgst'])}",
+                 f"SGST: {format_rupees(tax['sgst'])}"]
+    else:
+        parts = [f"GST: {format_rupees(tax['totalGst'])}"]
+    return parts + [f"{_t(language, 'quote.totalWithGst', 'Total incl. GST')}: "
+                    f"{format_rupees(tax['grandTotal'])}"]
+
+
 def build_quotation_message(quote: Dict, customer: Optional[Dict] = None,
                             credit: Optional[Dict] = None,
                             language: str = "en") -> dict:
@@ -296,6 +325,7 @@ def build_quotation_message(quote: Dict, customer: Optional[Dict] = None,
 
     out += ["", f"{_t(language, 'quote.total', 'Total')}: "
                 f"{format_rupees(safe['total'])}"]
+    out += _gst_lines(safe, language)
 
     if credit and credit.get("decision"):
         word = _credit_word(credit["decision"], language)
@@ -339,7 +369,9 @@ def build_order_confirmation_message(quote: Dict,
                    f" — {format_rupees(line['lineTotal'])}")
 
     out += ["", f"{_t(language, 'quote.total', 'Total')}: "
-                f"{format_rupees(safe['total'])}", "",
+                f"{format_rupees(safe['total'])}"]
+    out += _gst_lines(safe, language)
+    out += ["",
             _t(language, "order.delivery",
                "The shop will contact you about delivery."),
             _t(language, "footer.sentBy", _FOOTER)]
