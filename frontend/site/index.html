@@ -106,6 +106,9 @@
   .pill.ok{background:var(--ok-soft); color:var(--ok)}
   .pill.low{background:var(--warn-soft); color:var(--warn)}
   .pill.short{background:var(--bad-soft); color:var(--bad)}
+  .pill.wa-pill{background:var(--ok-soft); color:var(--ok); font-size:.72rem;
+    letter-spacing:.04em}
+  .wa-h{margin:18px 0 8px; font-size:.95rem}
 
   .invfilter{display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center;
     margin-top:14px}
@@ -962,6 +965,18 @@
           <span class="klab">Failed</span></div>
       </div>
       <p id="opsNote" class="note"></p>
+      <div id="waBox" hidden>
+        <h4 class="wa-h">Customer messages by channel</h4>
+        <div class="tablewrap">
+          <table class="wstable">
+            <thead><tr>
+              <th>Channel</th><th>From</th><th>Message</th><th>Outcome</th>
+              <th>Reply</th>
+            </tr></thead>
+            <tbody id="waBody"></tbody>
+          </table>
+        </div>
+      </div>
       <p class="note">
         Counted from job records, which expire after 24 hours. The durable
         operational history is in CloudWatch, on the
@@ -1750,10 +1765,29 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
     el("opsQuoted").textContent = ops.outcomes.QUOTED || 0;
     el("opsClarify").textContent = ops.outcomes.NEEDS_CLARIFICATION || 0;
     el("opsFailed").textContent = ops.outcomes.FAILED || 0;
+    paintWhatsApp((intel && intel.whatsapp) || {});
     el("opsNote").textContent = intel && intel.eventsEnabled
       ? "Business events are being published to EventBridge."
       : "Business events are not configured in this environment. Orders, " +
         "quotations and purchase plans are unaffected.";
+  }
+
+  // ---- WhatsApp channel ---------------------------------------------------
+  // Messages that arrived through the WhatsApp webhook, each marked with its
+  // channel. The number arrives masked from the API; the reply shown is the
+  // customer-safe text that was sent (or why it was not).
+  function paintWhatsApp(wa) {
+    var rows = wa.messages || [];
+    el("waBox").hidden = !rows.length;
+    el("waBody").innerHTML = rows.map(function (m) {
+      var outcome = esc(m.outcome || "") +
+        (m.total != null ? " · " + esc(rupees(Number(m.total))) : "");
+      var reply = m.replySent ? "Sent" : "Not sent (" + esc(m.replyReason || "") + ")";
+      return '<tr><td><span class="pill wa-pill">WHATSAPP</span></td>' +
+        "<td>" + esc(m.sender || "") + "</td>" +
+        "<td>" + esc(m.text || "(" + (m.messageType || "") + ")") + "</td>" +
+        "<td>" + outcome + "</td><td>" + reply + "</td></tr>";
+    }).join("");
   }
 
   // ---- Supplier negotiation ---------------------------------------------

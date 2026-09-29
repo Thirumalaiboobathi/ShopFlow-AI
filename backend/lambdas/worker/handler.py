@@ -77,6 +77,10 @@ from engine.brief import brief_signature, build_brief
 from engine.margin import margin_alerts, quotation_margin_impact
 from engine.price_alerts import evaluate_price_change
 from engine.supplier_prices import InvalidSupplierLineError, review_price_list
+from engine import gst
+from engine.quote import calculate_quote
+from integrations import whatsapp
+from integrations import whatsapp_inbound as wa_inbound
 from observability import events, metrics
 
 TABLE_NAME = os.environ["TABLE_NAME"]
@@ -94,6 +98,7 @@ JOB_ORDER = "ORDER"
 JOB_PRICE_LIST = "PRICE_LIST"
 JOB_COUNTER_OFFER = "COUNTER_OFFER"
 JOB_SUPPLIER_REPLY = "SUPPLIER_REPLY"
+JOB_WHATSAPP = "WHATSAPP"
 
 # Statuses. DONE is this codebase's completed state and has been since the
 # first stage - the browser polls for it and the API returns it. It is named
@@ -848,6 +853,8 @@ def _process_message(message: dict, delivery: dict | None = None) -> dict:
             return _process_counter_offer(job_id, item)
         if job_type == JOB_SUPPLIER_REPLY:
             return _process_supplier_reply(job_id, item)
+        if job_type == JOB_WHATSAPP:
+            return _process_whatsapp(job_id, item)
         return _process_order(job_id, item)
     except Exception as exc:  # noqa: BLE001
         receives = (delivery or {}).get("receives") or 1
@@ -906,6 +913,7 @@ def _process_message(message: dict, delivery: dict | None = None) -> dict:
             events.publish(events.ORDER_PROCESSING_FAILED, job_id=job_id,
                            jobId=job_id, jobType=job_type,
                            reason="retries_exhausted")
+            _whatsapp_failure_reply(job_id, job_type, busy=True)
             return {"ok": False, "reason": "retries-exhausted"}
         print(f"ERROR terminal failure for {job_id} ({kind}): "
               f"{type(exc).__name__}: {exc}")
@@ -920,11 +928,204 @@ def _process_message(message: dict, delivery: dict | None = None) -> dict:
                        else "supplier reply reading failed"
                        if job_type == JOB_SUPPLIER_REPLY
                        else "order processing failed"))
+        _whatsapp_failure_reply(job_id, job_type, busy=False)
         metrics.emit(metrics.WORKER_FAILURES, job_id=job_id,
                      dimensions={"JobType": job_type, "Outcome": "TERMINAL"})
         metrics.emit(metrics.ORDERS_FAILED, job_id=job_id,
                      dimensions={"JobType": job_type, "Outcome": "FAILED"})
         return {"ok": False, "reason": "terminal"}
+
+
+# ---------------------------------------------------------------------------
+# WhatsApp: a customer message, through the same order path
+# ---------------------------------------------------------------------------
+# The webhook recorded the message and queued its job id; this is where it is
+# read. An order goes through `_process_order` - the same agent, the same
+# quantity guard, the same engines, the same stored result as a website
+# order - and the customer is sent the interpretation. A YES re-prices those
+# lines through `engine.quote.calculate_quote` and `engine.gst.quote_gst` and
+# sends the quotation. Nothing here computes a figure.
+#
+# The reply is sent once. A send that fails is recorded on the job for the
+# owner and not retried, because a retry after a timeout could deliver the
+# same message twice and a customer cannot un-read a duplicate quotation. An
+# SQS redelivery of a finished job is refused by `_claim` before this runs, so
+# a duplicate delivery sends nothing.
+
+def _whatsapp_conversation_key(item: dict) -> dict:
+    return {"PK": f"WACONV#{item.get('senderKey')}", "SK": "META"}
+
+
+def _whatsapp_conversation(item: dict, now: int) -> dict:
+    row = _table.get_item(Key=_whatsapp_conversation_key(item)).get("Item") or {}
+    if int(row.get("expiresAt") or 0) <= now:
+        # TTL removes rows lazily; an expired conversation is no conversation.
+        return {}
+    return row
+
+
+def _save_whatsapp_conversation(item: dict, now: int, **state) -> None:
+    _table.put_item(Item={
+        **_whatsapp_conversation_key(item),
+        "updatedAt": now,
+        "lastMessageId": item.get("externalMessageId"),
+        "expiresAt": now + wa_inbound.CONVERSATION_SECONDS,
+        **state,
+    })
+
+
+def _whatsapp_send(item: dict, text: str) -> dict:
+    """Send one reply. Never raises; the outcome is returned for the record."""
+    try:
+        sent = whatsapp.send_text("+" + str(item.get("waSender") or ""), text)
+        return {"sent": True, "reason": "OK", "messageId": sent.get("messageId"),
+                "text": text}
+    except whatsapp.WhatsAppError as exc:
+        return {"sent": False, "reason": exc.reason, "text": text}
+    except Exception as exc:  # noqa: BLE001 - a reply may never fail the job
+        print(json.dumps({"event": "whatsapp_reply_error",
+                          "error": type(exc).__name__}))
+        return {"sent": False, "reason": whatsapp.API_ERROR, "text": text}
+
+
+def _reprice(pending: dict) -> dict:
+    """The confirmed order, priced again by the engines. Raises if it cannot be.
+
+    The lines are the ones the customer confirmed - SKU, quantity and the unit
+    they used - taken from the earlier engine result, never from the model.
+    GST uses the place of supply the earlier quotation read from the
+    customer's own words.
+    """
+    stored = json.loads(pending.get("result") or "{}")
+    quote = stored.get("quote") or {}
+    items = []
+    for line in quote.get("lines") or []:
+        item = {"skuId": line["skuId"], "quantity": line["quantity"]}
+        if line.get("requestedUom"):
+            item["uom"] = line["requestedUom"]
+        items.append(item)
+    if not items:
+        raise ValueError("no confirmed lines")
+    data = cached_dataset()
+    fresh = calculate_quote(data, items).as_dict()
+    earlier_tax = quote.get("gst") or {}
+    try:
+        fresh["gst"] = gst.quote_gst(
+            data, fresh, earlier_tax.get("taxMode"),
+            tax_mode_source=earlier_tax.get("taxModeSource") or "default",
+            display=earlier_tax.get("display"))
+    except (gst.GstConfigError, gst.GstInputError):
+        fresh["gst"] = {"available": False, "reason": "GST_CONFIGURATION_ERROR",
+                        "notice": gst.NOT_TAX_ADVICE}
+    return fresh
+
+
+def _whatsapp_order(job_id: str, item: dict, text: str,
+                    clarifications: list, now: int) -> tuple:
+    """Run the message through the existing order path; say what came back."""
+    _process_order(job_id, {**item, "orderText": text,
+                            "clarifications": clarifications,
+                            "customerId": "", "language": "en"})
+    row = _table.get_item(Key=_job_key(job_id)).get("Item") or {}
+    payload = json.loads(row.get("result") or "{}")
+    status = payload.get("status")
+    if status == "QUOTED" and payload.get("quote"):
+        _save_whatsapp_conversation(item, now, status="AWAITING_CONFIRMATION",
+                                    pendingJobId=job_id)
+        return "AWAITING_CONFIRMATION", wa_inbound.interpretation(payload["quote"])
+    if status == "NEEDS_CLARIFICATION":
+        question, options = wa_inbound.clarification(payload.get("clarification"))
+        if options:
+            _save_whatsapp_conversation(
+                item, now, status="AWAITING_CHOICE", options=options,
+                originalText=text,
+                requestedText=str((payload.get("clarification") or {})
+                                  .get("requestedText") or "")[:200],
+                clarifications=clarifications)
+        else:
+            _save_whatsapp_conversation(item, now, status="IDLE")
+        return "NEEDS_CLARIFICATION", question
+    # No quotation and no question: a greeting, a message naming nothing the
+    # shop sells, or an order the agent could not finish. The customer is
+    # asked for product names either way; the owner's row keeps the detail.
+    _save_whatsapp_conversation(item, now, status="IDLE")
+    return "NOT_UNDERSTOOD", wa_inbound.NO_PRODUCT
+
+
+def _process_whatsapp(job_id: str, item: dict) -> dict:
+    now = int(time.time())
+    text = str(item.get("orderText") or "")
+    conversation = _whatsapp_conversation(item, now)
+    state = conversation.get("status")
+    kind, choice = wa_inbound.intent(text)
+    result = None
+
+    if not item.get("supported"):
+        kind, outcome, reply = "UNSUPPORTED", "UNSUPPORTED", wa_inbound.UNSUPPORTED
+    elif item.get("tooLong"):
+        kind, outcome, reply = "TOO_LONG", "TOO_LONG", wa_inbound.TOO_LONG
+    elif kind == wa_inbound.CONFIRM:
+        if state == "AWAITING_CONFIRMATION":
+            pending = _table.get_item(
+                Key=_job_key(str(conversation.get("pendingJobId")))).get("Item")
+            try:
+                quote = _reprice(pending or {})
+                result = {"status": "CONFIRMED_QUOTE", "quote": quote,
+                          "confirmsJobId": conversation.get("pendingJobId")}
+                outcome, reply = "QUOTATION_SENT", wa_inbound.quotation(quote)
+            except Exception as exc:  # noqa: BLE001 - the engines refused
+                print(json.dumps({"event": "whatsapp_reprice_failed",
+                                  "jobId": job_id, "error": type(exc).__name__}))
+                outcome, reply = "REPRICE_FAILED", wa_inbound.REPRICE_FAILED
+            _save_whatsapp_conversation(item, now, status="IDLE")
+        else:
+            outcome, reply = "NOTHING_PENDING", wa_inbound.NOTHING_PENDING
+    elif kind == wa_inbound.DECLINE:
+        outcome, reply = "CANCELLED", wa_inbound.CANCELLED
+        _save_whatsapp_conversation(item, now, status="IDLE")
+    elif kind == wa_inbound.AMBIGUOUS_REPLY and state == "AWAITING_CONFIRMATION":
+        outcome, reply = "ASKED_YES_NO", wa_inbound.ASK_YES_NO
+    elif kind == wa_inbound.CHOICE and state == "AWAITING_CHOICE" and \
+            1 <= (choice or 0) <= len(conversation.get("options") or []):
+        option = conversation["options"][choice - 1]
+        clarifications = list(conversation.get("clarifications") or []) + [{
+            "requestedText": conversation.get("requestedText") or "",
+            "skuId": option["skuId"]}]
+        outcome, reply = _whatsapp_order(
+            job_id, item, str(conversation.get("originalText") or ""),
+            clarifications, now)
+    elif kind == wa_inbound.OWNER_REQUEST:
+        outcome, reply = "OWNER_ONLY", wa_inbound.OWNER_ONLY
+    else:
+        kind = wa_inbound.ORDER
+        outcome, reply = _whatsapp_order(job_id, item, text, [], now)
+
+    sent = _whatsapp_send(item, reply)
+    fields = {"waIntent": kind, "waOutcome": outcome,
+              "waReply": json.dumps(sent), "finishedAt": int(time.time())}
+    if kind not in (wa_inbound.ORDER, wa_inbound.CHOICE):
+        # An order's row was already finished by `_process_order`.
+        fields["status"] = STATUS_DONE
+        if result is not None:
+            fields["result"] = json.dumps(result)
+    _update(job_id, **fields)
+    print(json.dumps({"event": "whatsapp_message_processed", "jobId": job_id,
+                      "intent": kind, "outcome": outcome,
+                      "replySent": sent["sent"], "replyReason": sent["reason"]}))
+    return {"ok": True, "status": outcome, "replySent": sent["sent"]}
+
+
+def _whatsapp_failure_reply(job_id: str, job_type: str, busy: bool) -> None:
+    """After a WhatsApp job fails for good, tell the customer. Never raises."""
+    if job_type != JOB_WHATSAPP:
+        return
+    try:
+        item = _table.get_item(Key=_job_key(job_id)).get("Item") or {}
+        sent = _whatsapp_send(item, wa_inbound.BUSY if busy else wa_inbound.NOT_READ)
+        _update(job_id, waReply=json.dumps(sent), waOutcome="FAILED")
+    except Exception as exc:  # noqa: BLE001
+        print(json.dumps({"event": "whatsapp_failure_reply_error",
+                          "error": type(exc).__name__}))
 
 
 def _publish_order_events(job_id: str, payload: dict, status: str,

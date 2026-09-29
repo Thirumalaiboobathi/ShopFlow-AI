@@ -12,6 +12,8 @@ Three routes, no more than the workflow needs:
     POST /api/credit/check        deterministic credit decision for an amount
     POST /api/voice/transcribe    Amazon Transcribe: audio in, transcript out
     POST /api/whatsapp/send       send a customer message, or return a draft
+    GET  /api/whatsapp/webhook    Meta's webhook subscription handshake
+    POST /api/whatsapp/webhook    a customer's WhatsApp message, from Meta
     GET  /api/languages           the language registry and capability matrix
     GET  /api/jobs/{id}           poll a queued job
     GET  /api/demo                the seeded example, so the UI hard-codes nothing
@@ -97,6 +99,7 @@ from engine.messages import (
     wa_me_url,
 )
 from integrations import whatsapp
+from integrations import whatsapp_inbound
 from engine.speech import (
     AUDIO_PREFIX,
     MAX_AUDIO_BODY_BYTES,
@@ -1533,6 +1536,177 @@ def _create_whatsapp_send(event) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# WhatsApp inbound: Meta's webhook
+# ---------------------------------------------------------------------------
+# A customer writes to the shop's WhatsApp number; Meta POSTs it here. This
+# route does four things and returns: checks the signature, writes one job row
+# per message (conditionally, so a retried delivery is a duplicate and not a
+# second order), counts the sender against a small rate limit, and puts the
+# job id on the same SQS queue every other job uses. No model, no quotation,
+# no outbound message - the worker does all of that, so Meta gets its 200 in
+# milliseconds and a slow Bedrock turn cannot cause a redelivery.
+#
+# Meta should be pointed at the API Gateway URL, not the CloudFront one: the
+# distribution maps every 403 to the site's index page, which would turn this
+# route's refusals into 200s.
+
+JOB_WHATSAPP = "WHATSAPP"
+
+
+def _raw_body(event) -> bytes:
+    body = event.get("body") or ""
+    if event.get("isBase64Encoded"):
+        try:
+            return base64.b64decode(body)
+        except (ValueError, TypeError):
+            return b""
+    return body.encode("utf-8")
+
+
+def _header(event, name: str) -> str:
+    for key, value in (event.get("headers") or {}).items():
+        if str(key).strip().lower() == name:
+            return str(value)
+    return ""
+
+
+def _whatsapp_verify(event) -> dict:
+    """Meta's subscription handshake: echo the challenge, or refuse."""
+    credentials = whatsapp.webhook_credentials()
+    if not whatsapp.webhook_ready(credentials):
+        return _response(404, {"error": "WhatsApp webhook is not configured"})
+    status, text = whatsapp_inbound.verify_subscription(
+        event.get("queryStringParameters"), credentials["verifyToken"])
+    if status != 200:
+        print(json.dumps({"event": "whatsapp_verify_refused"}))
+        return _response(403, {"error": "verification failed"})
+    return {"statusCode": 200,
+            "headers": {"content-type": "text/plain", "cache-control": "no-store"},
+            "body": text}
+
+
+def _whatsapp_rate_ok(key: str, now: int) -> bool:
+    """One counter row per sender per window. Fails open on a store error:
+    losing a customer's order to a counter outage is the worse failure, and
+    the API stage throttle still bounds everything."""
+    window = now // whatsapp_inbound.RATE_WINDOW_SECONDS
+    try:
+        response = table().update_item(
+            Key={"PK": f"WARATE#{key}", "SK": f"W#{window}"},
+            UpdateExpression="ADD #count :one SET expiresAt = :expires",
+            ExpressionAttributeNames={"#count": "count"},
+            ExpressionAttributeValues={
+                ":one": 1,
+                ":expires": now + 2 * whatsapp_inbound.RATE_WINDOW_SECONDS},
+            ReturnValues="UPDATED_NEW",
+        )
+        count = int((response.get("Attributes") or {}).get("count") or 0)
+    except Exception as exc:  # noqa: BLE001
+        print(json.dumps({"event": "whatsapp_rate_counter_failed",
+                          "error": type(exc).__name__}))
+        return True
+    return count <= whatsapp_inbound.RATE_LIMIT_PER_WINDOW
+
+
+def _accept_whatsapp_message(message: dict, now: int) -> str:
+    """Record and queue one customer message. Returns what happened to it.
+
+    The job row IS the idempotency record: its key is derived from Meta's
+    message id and it is written only if absent. A second delivery of the
+    same message finds it and stops, before anything is queued.
+    """
+    from botocore.exceptions import ClientError
+
+    job_id = whatsapp_inbound.job_id_for(message["externalMessageId"])
+    key = whatsapp_inbound.sender_key(message["sender"])
+    limited = not _whatsapp_rate_ok(key, now)
+    item = {
+        **_job_key(job_id),
+        **_job_index(job_id, JOB_WHATSAPP, now),
+        "jobId": job_id,
+        "jobType": JOB_WHATSAPP,
+        "channel": whatsapp_inbound.CHANNEL,
+        "status": "DONE" if limited else "QUEUED",
+        "externalMessageId": message["externalMessageId"],
+        # The customer's number is needed to reply, and is personal data: it
+        # is kept on this row only, masked in every view and every log.
+        "waSender": message["sender"],
+        "senderKey": key,
+        "messageType": message["type"],
+        "orderText": message["text"],
+        "supported": message["supported"],
+        "tooLong": message["tooLong"],
+        "receivedAt": message["receivedAt"],
+        "language": DEFAULT_LANGUAGE,
+        "createdAt": now,
+        "expiresAt": now + whatsapp_inbound.MESSAGE_RECORD_SECONDS,
+    }
+    if limited:
+        item["waOutcome"] = "RATE_LIMITED"
+    try:
+        table().put_item(Item=item,
+                         ConditionExpression="attribute_not_exists(PK)")
+    except ClientError as exc:
+        if exc.response.get("Error", {}).get("Code") == \
+                "ConditionalCheckFailedException":
+            return "duplicate"
+        raise
+    if limited:
+        return "rateLimited"
+    try:
+        _enqueue(job_id, JOB_WHATSAPP)
+    except Exception:
+        # Undo the record so Meta's retry of this delivery is not mistaken
+        # for a duplicate, then let the caller answer 503 to ask for it.
+        try:
+            table().delete_item(Key=_job_key(job_id))
+        except Exception as cleanup:  # noqa: BLE001
+            print(json.dumps({"event": "whatsapp_orphan_row",
+                              "error": type(cleanup).__name__}))
+        raise
+    metrics.emit(metrics.ORDERS_QUEUED,
+                 dimensions={"JobType": JOB_WHATSAPP}, job_id=job_id)
+    return "queued"
+
+
+def _whatsapp_webhook(event) -> dict:
+    """A delivery from Meta: authenticate, record, queue, acknowledge."""
+    credentials = whatsapp.webhook_credentials()
+    if not whatsapp.webhook_ready(credentials):
+        return _response(404, {"error": "WhatsApp webhook is not configured"})
+    raw = _raw_body(event)
+    if len(raw) > whatsapp_inbound.MAX_WEBHOOK_BYTES:
+        return _response(413, {"error": "request body too large"})
+    if not whatsapp_inbound.valid_signature(
+            raw, _header(event, "x-hub-signature-256"), credentials["appSecret"]):
+        print(json.dumps({"event": "whatsapp_signature_refused",
+                          "bytes": len(raw)}))
+        return _response(403, {"error": "invalid signature"})
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        return _response(400, {"error": "body must be JSON"})
+
+    parsed = whatsapp_inbound.parse_webhook(payload, credentials["phoneNumberId"])
+    now = int(time.time())
+    counts = {"queued": 0, "duplicate": 0, "rateLimited": 0}
+    for message in parsed["messages"]:
+        try:
+            counts[_accept_whatsapp_message(message, now)] += 1
+        except Exception as exc:  # noqa: BLE001
+            print(json.dumps({"event": "whatsapp_enqueue_failed",
+                              "error": type(exc).__name__}))
+            # Not acknowledged, so Meta delivers it again. Messages already
+            # recorded from this delivery become duplicates on that retry.
+            return _response(503, {"error": "not queued; retry"})
+    print(json.dumps({"event": "whatsapp_webhook", **counts,
+                      "statuses": parsed["statuses"],
+                      "ignored": parsed["ignored"]}))
+    return _response(200, {"received": len(parsed["messages"]), **counts,
+                           "ignored": parsed["ignored"]})
+
+
+# ---------------------------------------------------------------------------
 # The customer's view of a job
 # ---------------------------------------------------------------------------
 # `GET /api/jobs/{jobId}` is customer-facing: anybody holding a job id can poll
@@ -1886,6 +2060,23 @@ def _get_job(event) -> dict:
             return owner_only
         body["skuId"] = item.get("skuId")
 
+    if body["jobType"] == JOB_WHATSAPP:
+        # A WhatsApp message carries a customer's phone number and their own
+        # words. The customer already has their answer on WhatsApp; this job
+        # is the shop's record of it, behind the owner gate.
+        if not _is_demo_owner(event):
+            owner_only = _response(401, {
+                "error": "owner route",
+                "message": ("A WhatsApp conversation is the shop's record. "
+                            "Poll this job with the ShopFlow demo workspace."),
+                "demoGate": True,
+                "isAuthentication": False,
+                "note": OWNER_GATE_NOTE,
+            })
+            owner_only.setdefault("headers", {})["x-shopflow-audience"] = "owner"
+            return owner_only
+        body.update(_whatsapp_summary(item))
+
     if body["jobType"] == JOB_PRICE_LIST:
         # A price-list result IS supplier cost: every matched row carries what
         # the shop last paid and what the document says it will now pay. This
@@ -2024,12 +2215,44 @@ def _document_summary(row: dict) -> dict:
     return summary
 
 
+def _whatsapp_summary(row: dict) -> dict:
+    """One WhatsApp message, as the owner sees it. The number is masked."""
+    total = None
+    try:
+        result = json.loads(row["result"]) or {}
+        tax = (result.get("quote") or {}).get("gst") or {}
+        total = tax.get("grandTotal") if tax.get("available") else \
+            (result.get("quote") or {}).get("total")
+    except (KeyError, TypeError, ValueError):
+        result = {}
+    reply = {}
+    try:
+        reply = json.loads(row.get("waReply") or "{}") or {}
+    except (TypeError, ValueError):
+        reply = {}
+    return {
+        "channel": whatsapp_inbound.CHANNEL,
+        "sender": mask_phone("+" + str(row.get("waSender") or "")),
+        "messageType": row.get("messageType"),
+        "intent": row.get("waIntent"),
+        "outcome": row.get("waOutcome") or result.get("status"),
+        "total": total,
+        "replySent": reply.get("sent"),
+        "replyReason": reply.get("reason"),
+        "replyText": reply.get("text"),
+    }
+
+
+# WhatsApp outcomes that mean the message was read as an order.
+_WHATSAPP_ORDER_INTENTS = frozenset({"ORDER", "CHOICE"})
+
+
 def _operations(rows: list) -> dict:
     """Counts of what the queue has been doing. Operations, not business."""
     outcomes = {"QUOTED": 0, "NEEDS_CLARIFICATION": 0, "FAILED": 0,
                 "REVIEWED": 0}
     counts = {"total": 0, "orders": 0, "documents": 0, "queued": 0,
-              "processing": 0, "done": 0, "failed": 0}
+              "processing": 0, "done": 0, "failed": 0, "whatsapp": 0}
 
     for row in rows:
         counts["total"] += 1
@@ -2038,6 +2261,12 @@ def _operations(rows: list) -> dict:
             counts["orders"] += 1
         elif job_type == JOB_PRICE_LIST:
             counts["documents"] += 1
+        elif job_type == JOB_WHATSAPP:
+            counts["whatsapp"] += 1
+            # A WhatsApp message that was read as an order is an order; a YES
+            # or an unsupported photo is not, and is not counted as one.
+            if row.get("waIntent") in _WHATSAPP_ORDER_INTENTS:
+                counts["orders"] += 1
 
         status = str(row.get("status") or "")
         if status == "QUEUED":
@@ -2049,6 +2278,9 @@ def _operations(rows: list) -> dict:
         elif status == "FAILED":
             counts["failed"] += 1
 
+        if job_type == JOB_WHATSAPP and                 row.get("waIntent") not in _WHATSAPP_ORDER_INTENTS:
+            # A confirmed quotation re-prices an order already counted.
+            continue
         try:
             result = json.loads(row["result"]) or {}
         except (KeyError, TypeError, ValueError):
@@ -2228,6 +2460,17 @@ def _get_intelligence(event) -> dict:
         "documents": documents,
         "alerts": alerts,
         "operations": _operations(rows),
+        # Recent WhatsApp messages, newest first, each marked with its
+        # channel. Numbers masked; the reply is the customer-safe text sent.
+        "whatsapp": {
+            "enabled": whatsapp.is_enabled(),
+            "messages": [_whatsapp_summary(row) | {
+                "jobId": row.get("jobId"),
+                "createdAt": int(row.get("createdAt") or 0),
+                "text": row.get("orderText")}
+                for row in rows
+                if str(row.get("jobType")) == JOB_WHATSAPP][:20],
+        },
         "eventsEnabled": bool(events.bus_name()),
         "brief": brief,
         "alertDelivery": alert_delivery(),
@@ -2407,6 +2650,12 @@ CUSTOMER_FACING_ROUTES = frozenset({
     "POST /api/orders",
     "GET /api/jobs/{jobId}",
     "POST /api/whatsapp/send",
+    # The WhatsApp webhook. Its caller is Meta, authenticated by signature,
+    # and what it sets in motion is a reply to a customer - so nothing it
+    # returns, and nothing the worker sends because of it, may carry owner
+    # data. Its own responses carry counts and nothing else.
+    "GET /api/whatsapp/webhook",
+    "POST /api/whatsapp/webhook",
 })
 
 # Routes that carry no business figure at all: the language registry, the
@@ -2462,6 +2711,8 @@ ROUTES = {
     "POST /api/credit/check": _create_credit_check,
     "POST /api/voice/transcribe": _create_transcription,
     "POST /api/whatsapp/send": _create_whatsapp_send,
+    "GET /api/whatsapp/webhook": _whatsapp_verify,
+    "POST /api/whatsapp/webhook": _whatsapp_webhook,
     "GET /api/languages": _get_languages,
     "GET /api/jobs/{jobId}": _get_job,
     "GET /api/demo": _get_demo,

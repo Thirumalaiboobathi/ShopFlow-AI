@@ -48,7 +48,14 @@ Names only - no value for any of these appears anywhere in this repository.
     WHATSAPP_TOKEN_SECRET_ARN   preferred: a Secrets Manager ARN holding it
     WHATSAPP_TEMPLATE_NAME      optional approved template name
     WHATSAPP_TEMPLATE_LANGUAGE  optional template language, default en
-    WHATSAPP_API_VERSION        optional Graph version, default v21.0
+    WHATSAPP_API_VERSION        optional Graph version, default v26.0
+    WHATSAPP_APP_SECRET         the Meta app secret (dev/local use only)
+    WHATSAPP_VERIFY_TOKEN       the webhook verify token (dev/local use only)
+
+The Secrets Manager secret may hold the bare access token, or a JSON document
+with `accessToken`, `appSecret` and `verifyToken` - the second form is what
+the inbound webhook (`integrations.whatsapp_inbound`) needs, because it checks
+every delivery's signature with the app secret.
 
 A token in a Lambda environment variable is acceptable for a local trial and
 is not what a real deployment should do; `WHATSAPP_TOKEN_SECRET_ARN` is read
@@ -66,7 +73,9 @@ import urllib.request
 from typing import Optional
 
 GRAPH_HOST = "graph.facebook.com"
-DEFAULT_API_VERSION = "v21.0"
+# Graph API v26.0 was the current version on 2026-09-29, checked against
+# Meta's changelog. Configurable, because Meta retires versions on a schedule.
+DEFAULT_API_VERSION = "v26.0"
 REQUEST_TIMEOUT_SECONDS = 10
 
 ENV_ENABLED = "WHATSAPP_API_ENABLED"
@@ -76,6 +85,13 @@ ENV_TOKEN_SECRET = "WHATSAPP_TOKEN_SECRET_ARN"
 ENV_TEMPLATE = "WHATSAPP_TEMPLATE_NAME"
 ENV_TEMPLATE_LANG = "WHATSAPP_TEMPLATE_LANGUAGE"
 ENV_API_VERSION = "WHATSAPP_API_VERSION"
+ENV_APP_SECRET = "WHATSAPP_APP_SECRET"
+ENV_VERIFY_TOKEN = "WHATSAPP_VERIFY_TOKEN"
+
+# The webhook reads the app secret on every delivery. Holding it for five
+# minutes keeps a burst of deliveries from becoming a burst of Secrets Manager
+# calls, and a rotation still takes effect within the same five minutes.
+WEBHOOK_SECRET_TTL_SECONDS = 300
 
 # Failure reasons the caller may act on. Every one of them leaves the wa.me
 # draft available, because a message that could not be sent is still a message
@@ -129,6 +145,38 @@ def is_enabled() -> bool:
     return _env(ENV_ENABLED).lower() in ("true", "1", "yes", "on")
 
 
+def _secret_document() -> dict:
+    """The configured secret as a dict, or {} when no ARN is configured.
+
+    A secret holding the bare token reads as {"accessToken": <token>}. No value
+    from it is ever logged, returned or stored by this module.
+    """
+    arn = _env(ENV_TOKEN_SECRET)
+    if not arn:
+        return {}
+    import boto3
+
+    try:
+        secret = boto3.client("secretsmanager").get_secret_value(SecretId=arn)
+    except Exception as exc:  # noqa: BLE001
+        raise WhatsAppError(NOT_CONFIGURED,
+                            f"secret unreadable: {type(exc).__name__}") from exc
+    raw = secret.get("SecretString") or ""
+    # A secret may hold the bare token or a small JSON document.
+    try:
+        parsed = json.loads(raw)
+        if isinstance(parsed, dict):
+            return {
+                "accessToken": str(parsed.get("token")
+                                   or parsed.get("accessToken") or ""),
+                "appSecret": str(parsed.get("appSecret") or ""),
+                "verifyToken": str(parsed.get("verifyToken") or ""),
+            }
+    except (ValueError, TypeError):
+        pass
+    return {"accessToken": raw.strip()}
+
+
 def _access_token() -> str:
     """The token, from Secrets Manager if an ARN is configured.
 
@@ -136,25 +184,42 @@ def _access_token() -> str:
     the secret takes effect without redeploying. The value is never logged,
     never returned and never stored anywhere by this module.
     """
-    arn = _env(ENV_TOKEN_SECRET)
-    if arn:
-        import boto3
-
-        try:
-            secret = boto3.client("secretsmanager").get_secret_value(SecretId=arn)
-        except Exception as exc:  # noqa: BLE001
-            raise WhatsAppError(NOT_CONFIGURED,
-                                f"secret unreadable: {type(exc).__name__}") from exc
-        raw = secret.get("SecretString") or ""
-        # A secret may hold the bare token or a small JSON document.
-        try:
-            parsed = json.loads(raw)
-            if isinstance(parsed, dict):
-                return str(parsed.get("token") or parsed.get("accessToken") or "")
-        except (ValueError, TypeError):
-            pass
-        return raw.strip()
+    if _env(ENV_TOKEN_SECRET):
+        return _secret_document().get("accessToken", "")
     return _env(ENV_TOKEN)
+
+
+_webhook_cache: dict = {}
+
+
+def webhook_credentials(now: Optional[float] = None) -> dict:
+    """What the inbound webhook needs: the app secret, the verify token and
+    the phone number id. Empty strings for anything not configured.
+
+    Only ever returned to the webhook code in this process - never to a
+    response, a log or a trace.
+    """
+    import time
+
+    now = time.time() if now is None else now
+    cached = _webhook_cache.get("value")
+    if cached and now - _webhook_cache.get("at", 0) < WEBHOOK_SECRET_TTL_SECONDS:
+        return cached
+    document = _secret_document() if _env(ENV_TOKEN_SECRET) else {}
+    value = {
+        "appSecret": document.get("appSecret") or _env(ENV_APP_SECRET),
+        "verifyToken": document.get("verifyToken") or _env(ENV_VERIFY_TOKEN),
+        "phoneNumberId": _env(ENV_PHONE_ID),
+    }
+    _webhook_cache.update(value=value, at=now)
+    return value
+
+
+def webhook_ready(credentials: dict) -> bool:
+    """The webhook serves nothing unless sending is on and all three are set."""
+    return bool(is_enabled() and credentials.get("appSecret")
+                and credentials.get("verifyToken")
+                and credentials.get("phoneNumberId"))
 
 
 def configuration_status() -> dict:

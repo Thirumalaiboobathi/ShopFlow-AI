@@ -95,6 +95,40 @@ CONTEXT_ARGS=(
   -c "monthlyBudgetUsd=${MONTHLY_BUDGET_USD}"
 )
 
+# WhatsApp Cloud API - optional, and off unless these are set. The values are
+# Meta ids and a Secrets Manager ARN; no credential is ever passed here. The
+# secret itself (accessToken, appSecret, verifyToken) is created by the owner.
+#
+#     SHOPFLOW_WHATSAPP_ENABLED=true
+#     SHOPFLOW_WHATSAPP_PHONE_NUMBER_ID=<phone number id from Meta>
+#     SHOPFLOW_WHATSAPP_SECRET_ARN=<arn of the secret>
+#     SHOPFLOW_WHATSAPP_TEMPLATE_NAME=<optional approved template>
+#     SHOPFLOW_WHATSAPP_API_VERSION=<optional, default v26.0>
+[[ -n "${SHOPFLOW_WHATSAPP_ENABLED:-}" ]] && \
+  CONTEXT_ARGS+=(-c "whatsappEnabled=${SHOPFLOW_WHATSAPP_ENABLED}")
+[[ -n "${SHOPFLOW_WHATSAPP_PHONE_NUMBER_ID:-}" ]] && \
+  CONTEXT_ARGS+=(-c "whatsappPhoneNumberId=${SHOPFLOW_WHATSAPP_PHONE_NUMBER_ID}")
+[[ -n "${SHOPFLOW_WHATSAPP_SECRET_ARN:-}" ]] && \
+  CONTEXT_ARGS+=(-c "whatsappTokenSecretArn=${SHOPFLOW_WHATSAPP_SECRET_ARN}")
+[[ -n "${SHOPFLOW_WHATSAPP_TEMPLATE_NAME:-}" ]] && \
+  CONTEXT_ARGS+=(-c "whatsappTemplateName=${SHOPFLOW_WHATSAPP_TEMPLATE_NAME}")
+[[ -n "${SHOPFLOW_WHATSAPP_API_VERSION:-}" ]] && \
+  CONTEXT_ARGS+=(-c "whatsappApiVersion=${SHOPFLOW_WHATSAPP_API_VERSION}")
+
+# The same trap as the budget: WhatsApp context is optional, so a deploy from
+# a shell without it would quietly switch a live WhatsApp integration off.
+if [[ -z "${SHOPFLOW_WHATSAPP_ENABLED:-}" ]]; then
+  LIVE_WA="$(aws lambda get-function-configuration --function-name shopflow-api \
+    --query 'Environment.Variables.WHATSAPP_API_ENABLED' --output text 2>/dev/null || true)"
+  if [[ "${LIVE_WA}" == "true" ]]; then
+    red "REFUSING TO DEPLOY: WhatsApp is switched on in the deployed stack,"
+    echo "and SHOPFLOW_WHATSAPP_ENABLED is not set in this shell. Deploying"
+    echo "would switch it off. Export the SHOPFLOW_WHATSAPP_* variables first,"
+    echo "or set SHOPFLOW_WHATSAPP_ENABLED=false to switch it off on purpose."
+    exit 1
+  fi
+fi
+
 # ---------------------------------------------------------------------------
 # 2. Show exactly what is about to run
 # ---------------------------------------------------------------------------
@@ -102,6 +136,7 @@ bold "ShopFlow deployment"
 echo "  stack           ${STACK}"
 echo "  alert email     ${SHOPFLOW_ALERT_EMAIL}"
 echo "  monthly budget  \$${MONTHLY_BUDGET_USD} USD"
+echo "  whatsapp        ${SHOPFLOW_WHATSAPP_ENABLED:-false (not configured)}"
 echo "  working dir     ${INFRA_DIR}"
 echo
 bold "Command to be run:"

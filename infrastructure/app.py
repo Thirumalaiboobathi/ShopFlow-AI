@@ -15,6 +15,11 @@ Secrets Manager secret, it does not contain one:
     -c whatsappTokenSecretArn=<arn of a secret holding the access token>
     -c whatsappTemplateName=<an approved template, if sending outside the
                              24-hour customer service window>
+    -c whatsappApiVersion=<Graph API version, default v26.0>
+
+The same secret serves the inbound webhook when it is a JSON document with
+`accessToken`, `appSecret` and `verifyToken`. scripts/deploy.sh passes these
+from SHOPFLOW_WHATSAPP_* environment variables.
 
 With none of these supplied the API returns the wa.me draft it always has.
 """
@@ -38,6 +43,7 @@ stack = ShopFlowStack(
     whatsapp_phone_number_id=app.node.try_get_context("whatsappPhoneNumberId"),
     whatsapp_token_secret_arn=app.node.try_get_context("whatsappTokenSecretArn"),
     whatsapp_template_name=app.node.try_get_context("whatsappTemplateName"),
+    whatsapp_api_version=app.node.try_get_context("whatsappApiVersion"),
     env=cdk.Environment(
         account=os.environ.get("CDK_DEFAULT_ACCOUNT"),
         region=os.environ.get("CDK_DEFAULT_REGION", "ap-south-1"),

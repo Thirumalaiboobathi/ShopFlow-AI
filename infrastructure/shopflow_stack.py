@@ -69,6 +69,7 @@ class ShopFlowStack(Stack):
                  whatsapp_phone_number_id: str | None = None,
                  whatsapp_token_secret_arn: str | None = None,
                  whatsapp_template_name: str | None = None,
+                 whatsapp_api_version: str | None = None,
                  **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
@@ -338,6 +339,25 @@ class ShopFlowStack(Stack):
             ),
         )
 
+        # WhatsApp is off unless switched on deliberately. With no context
+        # supplied the only variable added reads "false": the API falls back
+        # to the wa.me draft and the inbound webhook answers 404.
+        whatsapp_env = {
+            "WHATSAPP_API_ENABLED": "true" if whatsapp_enabled else "false",
+            **({"WHATSAPP_PHONE_NUMBER_ID": whatsapp_phone_number_id}
+               if whatsapp_phone_number_id else {}),
+            # The ARN of a secret, never the token itself. No credential
+            # value is ever placed in a Lambda environment by this stack. The
+            # secret holds the access token, the app secret (the webhook's
+            # signature key) and the webhook verify token.
+            **({"WHATSAPP_TOKEN_SECRET_ARN": whatsapp_token_secret_arn}
+               if whatsapp_token_secret_arn else {}),
+            **({"WHATSAPP_TEMPLATE_NAME": whatsapp_template_name}
+               if whatsapp_template_name else {}),
+            **({"WHATSAPP_API_VERSION": whatsapp_api_version}
+               if whatsapp_api_version else {}),
+        }
+
         # ---- order worker: the only function allowed to reach Bedrock ----
         worker_fn = lambda_.Function(
             self, "WorkerFunction",
@@ -357,6 +377,10 @@ class ShopFlowStack(Stack):
                 # to this bus and carries on regardless if it cannot.
                 "EVENT_BUS_NAME": event_bus.event_bus_name,
                 "ALERT_DELIVERY": alert_delivery,
+                # WhatsApp replies to inbound customer messages are sent from
+                # here, after the order is read. The same switch and the same
+                # secret ARN as the API; never a credential value.
+                **whatsapp_env,
             },
             log_group=logs.LogGroup(
                 self, "WorkerLogs",
@@ -497,15 +521,7 @@ class ShopFlowStack(Stack):
                 # WhatsApp is off unless switched on deliberately. With no
                 # context supplied this is the only variable added, it reads
                 # "false", and the API falls back to the wa.me draft.
-                "WHATSAPP_API_ENABLED": "true" if whatsapp_enabled else "false",
-                **({"WHATSAPP_PHONE_NUMBER_ID": whatsapp_phone_number_id}
-                   if whatsapp_phone_number_id else {}),
-                # The ARN of a secret, never the token itself. No credential
-                # value is ever placed in a Lambda environment by this stack.
-                **({"WHATSAPP_TOKEN_SECRET_ARN": whatsapp_token_secret_arn}
-                   if whatsapp_token_secret_arn else {}),
-                **({"WHATSAPP_TEMPLATE_NAME": whatsapp_template_name}
-                   if whatsapp_template_name else {}),
+                **whatsapp_env,
             },
             log_group=logs.LogGroup(
                 self, "ApiLogs",
@@ -565,10 +581,13 @@ class ShopFlowStack(Stack):
         # to that one secret - never secretsmanager:* and never a wildcard
         # resource.
         if whatsapp_token_secret_arn:
-            api_fn.add_to_role_policy(iam.PolicyStatement(
-                actions=["secretsmanager:GetSecretValue"],
-                resources=[whatsapp_token_secret_arn],
-            ))
+            # The API reads it for the webhook's signature check; the worker
+            # for the access token it replies with. Both to this one secret.
+            for fn in (api_fn, worker_fn):
+                fn.add_to_role_policy(iam.PolicyStatement(
+                    actions=["secretsmanager:GetSecretValue"],
+                    resources=[whatsapp_token_secret_arn],
+                ))
 
         http_api = apigw.HttpApi(
             self, "HttpApi",
@@ -599,6 +618,11 @@ class ShopFlowStack(Stack):
             ("/api/credit/check", apigw.HttpMethod.POST),
             ("/api/voice/transcribe", apigw.HttpMethod.POST),
             ("/api/whatsapp/send", apigw.HttpMethod.POST),
+            # Meta's webhook: the subscription handshake and the deliveries.
+            # Configure Meta with the API Gateway URL, not CloudFront's - the
+            # distribution maps 403 to the site's index page.
+            ("/api/whatsapp/webhook", apigw.HttpMethod.GET),
+            ("/api/whatsapp/webhook", apigw.HttpMethod.POST),
             ("/api/languages", apigw.HttpMethod.GET),
             ("/api/jobs/{jobId}", apigw.HttpMethod.GET),
             ("/api/demo", apigw.HttpMethod.GET),
