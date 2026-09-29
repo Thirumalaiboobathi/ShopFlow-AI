@@ -54,7 +54,7 @@ from engine.uom import METER, normalize_uom, product_uom
 
 # The catalogue tokenisers, for the same reason `line_guard` imports them: a
 # second vocabulary would drift from the matcher's.
-from engine.matching import _product_tokens, _tokens
+from engine.matching import _product_tokens, _tokens, normalize_ratings
 
 VERIFIED = "VERIFIED"
 MISMATCH = "MISMATCH"          # the line says one number, the quote another
@@ -169,6 +169,10 @@ _GROUPED_TOKEN = re.compile(r"^(\d{1,3})((?:" + _GROUP_MARK + r"\d{2,3})+)$")
 
 def _segments(text: str) -> List[str]:
     text = _ABBREVIATION.sub(lambda m: m.group(1) + " ", text or "")
+    # A current rating is a specification, however it was written or heard:
+    # "32 amp", "32 AC curve" (a transcription of "32 amp C curve") -> "32A".
+    # Without this, "32 AC curve" read as a second count of 32.
+    text, _ = normalize_ratings(text)
     text = _GROUPED.sub(lambda m: m.group(1).replace(",", _GROUP_MARK), text)
     return [s.strip() for s in _BREAK.split(text) if s and s.strip()]
 

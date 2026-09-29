@@ -84,6 +84,13 @@ _RATING_FORMS = (
 )
 
 
+# Amazon Transcribe writes a spoken "32 amp C curve" as "32 AC curve" - the
+# unit and the curve letter fused (live, 2026-09-29). Read that way only when
+# "curve" follows, so "230V AC" or a bare "AC" is never touched.
+_CURVE_FUSED = re.compile(r"(?<![\w.])(\d{1,3})\s*A([BCD])(?=[\s-]*curve\b)",
+                          re.IGNORECASE)
+
+
 def normalize_ratings(text: str) -> Tuple[str, List[str]]:
     """Write every explicit current rating as the catalogue does ("32A").
 
@@ -99,7 +106,12 @@ def normalize_ratings(text: str) -> Tuple[str, List[str]]:
             notes.append(f"{' '.join(m.group(0).split())} -> {new}")
         return new
 
-    out = text or ""
+    def fused(m: "re.Match") -> str:
+        new = f"{m.group(1)}A {m.group(2).upper()}"
+        notes.append(f"{' '.join(m.group(0).split())} -> {new}")
+        return new
+
+    out = _CURVE_FUSED.sub(fused, text or "")
     for pattern in _RATING_FORMS:
         out = pattern.sub(one, out)
     return out, notes

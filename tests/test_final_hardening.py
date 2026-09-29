@@ -252,6 +252,30 @@ def test_voice_shows_the_rating_rewrite():
     assert qg.order_lines(text)[0]["quantity"] == 2
 
 
+@pytest.mark.parametrize("heard,normalised", [
+    # Amazon Transcribe's own output for a spoken "... 32 amp C curve",
+    # captured live on 2026-09-29.
+    ("2 Havels MCB single pole 32 AC curve.", "2 Havells MCB SP 32A C curve"),
+    ("2 Havels MCB 32 AC curve.", "2 Havells MCB 32A C curve"),
+])
+def test_transcribed_ac_curve_is_the_rating_and_the_curve(heard, normalised):
+    text, applied = normalize_transcript(heard)
+    assert text == normalised and "32 AC -> 32A C" in applied
+    # One line, one count: "32" is no longer read as a second quantity.
+    assert [l["quantity"] for l in qg.order_lines(text)] == [2]
+    assert [l["quantity"] for l in qg.order_lines(heard)] == [2]
+
+
+@pytest.mark.parametrize("text", ["230V AC supply", "2 AC units", "AC 32 curve"])
+def test_ac_is_left_alone_without_a_curve(text):
+    assert normalize_ratings(text) == (text, [])
+
+
+def test_the_live_transcript_resolves(shop):
+    r = resolve_product(shop, requested_text="Havells MCB SP 32 AC curve")
+    assert (r.status, r.skuId) == (RESOLVED, MCB)
+
+
 def test_thirty_two_amp_in_words_is_not_guessed():
     # Written-out ratings are not supported; the text is left for the
     # matcher, which asks.
