@@ -5,6 +5,14 @@
 >
 > **Category:** Commercial Potential · **Focus track:** Startup
 > **Live application:** https://d3m3lwn03zb2eu.cloudfront.net
+>
+> **Status note (2026-09-29):** this draft was written before the voice,
+> WhatsApp, supplier counter-offer and reply-reader work, and its figures -
+> the 1,490-test count among them - are as of that time. The README and
+> [`docs/evidence/`](evidence/) describe the current system. Its statement
+> that no real shop has used ShopFlow remains true; the workflow has since
+> been shaped with one shop owner's description of their process, which is
+> workflow validation, not a pilot.
 
 ---
 
@@ -516,9 +524,9 @@ open work.
 Also outstanding: document extraction is tested against one price-list layout
 rather than arbitrary supplier documents; confirmed costs store only the current
 value per SKU, not a history; ambiguous price-list lines are surfaced but not
-resolvable in the interface; clarification is single-round; and there is no
-authentication or multi-shop support. Voice input and Tamil output were
-deliberately not built, and are not claimed.
+resolvable in the interface; and there is no authentication or multi-shop
+support. (At the time of writing clarification was single-round and voice
+input was not built; both have since been added - see the README.)
 
 ## 17. Commercial potential
 

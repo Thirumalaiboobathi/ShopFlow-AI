@@ -91,6 +91,38 @@ _CURVE_FUSED = re.compile(r"(?<![\w.])(\d{1,3})\s*A([BCD])(?=[\s-]*curve\b)",
                           re.IGNORECASE)
 
 
+# A rating spoken in words - "thirty two amp", "thirty-two amps", "sixteen
+# ampere" - read as digits. Guarded hard: only 1 to 99, and only when the
+# words sit directly before amp/amps/ampere. "thirty two" on its own, or
+# "two 32 amp", is left exactly as written, because a bare number word is far
+# more often a quantity than a rating.
+_UNITS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+          "seven": 7, "eight": 8, "nine": 9}
+_TEENS = {"ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13,
+          "fourteen": 14, "fifteen": 15, "sixteen": 16, "seventeen": 17,
+          "eighteen": 18, "nineteen": 19}
+_TENS = {"twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60,
+         "seventy": 70, "eighty": 80, "ninety": 90}
+_WORD_RATING = re.compile(
+    r"(?<![\w-])(?:(?P<tens>" + "|".join(_TENS) + r")(?:[\s-]+(?P<unit>"
+    + "|".join(_UNITS) + r"))?|(?P<small>" + "|".join({**_TEENS, **_UNITS})
+    + r"))\s*-?\s*amp(?:ere)?s?(?![A-Za-z0-9])", re.IGNORECASE)
+
+
+def _rating_words(text: str, notes: List[str]) -> str:
+    def one(m: "re.Match") -> str:
+        if m.group("tens"):
+            value = _TENS[m.group("tens").lower()] + (
+                _UNITS[m.group("unit").lower()] if m.group("unit") else 0)
+        else:
+            small = m.group("small").lower()
+            value = _TEENS.get(small) or _UNITS[small]
+        new = f"{value}A"
+        notes.append(f"{' '.join(m.group(0).split())} -> {new}")
+        return new
+    return _WORD_RATING.sub(one, text)
+
+
 def normalize_ratings(text: str) -> Tuple[str, List[str]]:
     """Write every explicit current rating as the catalogue does ("32A").
 
@@ -112,6 +144,7 @@ def normalize_ratings(text: str) -> Tuple[str, List[str]]:
         return new
 
     out = _CURVE_FUSED.sub(fused, text or "")
+    out = _rating_words(out, notes)
     for pattern in _RATING_FORMS:
         out = pattern.sub(one, out)
     return out, notes

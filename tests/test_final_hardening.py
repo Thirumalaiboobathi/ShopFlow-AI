@@ -276,10 +276,13 @@ def test_the_live_transcript_resolves(shop):
     assert (r.status, r.skuId) == (RESOLVED, MCB)
 
 
-def test_thirty_two_amp_in_words_is_not_guessed():
-    # Written-out ratings are not supported; the text is left for the
-    # matcher, which asks.
-    assert normalize_ratings("thirty two amp") == ("thirty two amp", [])
+def test_thirty_two_amp_in_words_is_read_only_before_amp():
+    # Written-out ratings are now read - but only 1-99, and only directly
+    # before amp/amps/ampere. A bare number word is never a rating, and
+    # anything larger is left for the matcher, which asks.
+    assert normalize_ratings("thirty two amp") == ("32A", ["thirty two amp -> 32A"])
+    assert normalize_ratings("thirty two") == ("thirty two", [])
+    assert normalize_ratings("one hundred amp") == ("one hundred amp", [])
 
 
 # ---------------------------------------------------------------------------

@@ -181,11 +181,20 @@ def test_04c_the_model_searching_again_gets_the_answer_not_the_question(shop):
 
 
 def test_04d_without_the_fix_the_same_run_is_refused(shop):
-    """Control: the legacy client-supplied SKU is only a hint to the model, so
-    the live failure still reproduces through it - the guard is intact."""
-    _a, row = shop.order({"orderText": MCB_LINE, "clarifications": [
-        {"requestedText": MCB_LINE, "skuId": MCB}]}, turn(quote_call((MCB, 2))))
-    result = shop.result(row)
+    """Control: the old path - the choice as a sentence to the model, which a
+    client used to be able to trigger through `clarifications` - still
+    reproduces the live failure at the worker, so the coverage guard is
+    intact. The API no longer accepts that path at all."""
+    assert shop.post({"orderText": MCB_LINE, "clarifications": [
+        {"requestedText": MCB_LINE, "skuId": MCB}]})["statusCode"] == 400
+    shop.store.put_item(Item={"PK": "JOB#" + "c" * 32, "SK": "META",
+                              "jobId": "c" * 32, "jobType": "ORDER",
+                              "status": "QUEUED", "orderText": MCB_LINE,
+                              "clarifications": [{"requestedText": MCB_LINE,
+                                                  "skuId": MCB}]})
+    shop.models.append(FakeBedrock([turn(quote_call((MCB, 2)))]))
+    shop.worker._process_message({"jobId": "c" * 32})
+    result = shop.result(shop.store.items[("JOB#" + "c" * 32, "META")])
     assert result["status"] == "NEEDS_CLARIFICATION"
     assert "no product was looked up" in result["clarification"]["question"]
 
@@ -243,16 +252,51 @@ def test_06c_an_option_that_left_the_catalogue_is_asked_again(shop):
     assert queued[-1]["confirmed"] == []
 
 
-def test_07_a_sku_in_the_request_is_never_the_answer(shop):
+@pytest.mark.parametrize("extra", [{"skuId": "FAKE-001"}, {"skuId": MCB_DP},
+                                   {"price": 1}, {"total": 1}, {"sku": MCB}])
+def test_07_a_choice_carries_an_option_and_nothing_else(shop, extra):
     job, question = ask(shop, MCB_LINE, MCB_LINE)
     sp = option_for(question, MCB)
-    response = shop.post({"orderText": MCB_LINE, "choice": {
-        "jobId": job, "option": sp, "skuId": "FAKE-001"}})
-    assert json.loads(response["body"])["choice"]["skuId"] == MCB
-    # A choice and client-supplied SKUs together are refused outright.
-    both = shop.post({"orderText": MCB_LINE, "choice": {"jobId": job, "option": sp},
-                      "clarifications": [{"requestedText": "x", "skuId": MCB_DP}]})
-    assert both["statusCode"] == 400
+    response = shop.post({"orderText": MCB_LINE,
+                          "choice": {"jobId": job, "option": sp, **extra}})
+    assert response["statusCode"] == 400
+    assert not shop.queue.messages
+
+
+@pytest.mark.parametrize("extra", [
+    {"clarifications": [{"requestedText": "x", "skuId": MCB_DP}]},
+    {"skuId": MCB_DP}, {"price": 1}, {"unitPrice": 1}, {"gst": 0},
+    {"subtotal": 1}, {"total": 1}, {"grandTotal": 1}, {"productCode": "X"},
+    {"quote": {"total": 1}},
+])
+def test_07a_an_order_may_not_supply_what_shopflow_works_out(shop, extra):
+    job, question = ask(shop, MCB_LINE, MCB_LINE)
+    response = shop.post({"orderText": MCB_LINE, **extra,
+                          "choice": {"jobId": job, "option": option_for(question, MCB)}})
+    assert response["statusCode"] == 400
+    plain = shop.post({"orderText": MCB_LINE, **extra})
+    assert plain["statusCode"] == 400
+    assert not shop.queue.messages
+
+
+def test_07c_an_option_from_another_question_resolves_only_to_that_question(shop):
+    """An earlier question of the same order may be re-answered; it can only
+    give a SKU that question offered, and the later answers are not carried."""
+    job, q1 = ask(shop, DEMO, MCB_LINE)
+    a2, row = shop.order({"orderText": DEMO, "choice": {
+        "jobId": job, "option": option_for(q1, MCB)}},
+        turn(("search_catalog", {"requestedText": WIRE_LINE})), prose())
+    again = json.loads(shop.post({"orderText": DEMO, "choice": {
+        "jobId": job, "option": option_for(q1, MCB_DP)}})["body"])
+    queued = shop.store.items[("JOB#" + again["jobId"], "META")]
+    assert [c["skuId"] for c in queued["confirmed"]] == [MCB_DP]
+
+
+def test_07d_a_body_that_is_not_an_object_is_refused(shop):
+    for body in ([], ["2 switches"], "2 switches", 5):
+        response = api.handler({"routeKey": "POST /api/orders",
+                                "body": json.dumps(body)}, None)
+        assert response["statusCode"] == 400
 
 
 def test_07b_the_agent_ignores_a_choice_the_matcher_never_offered():

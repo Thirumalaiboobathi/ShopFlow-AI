@@ -1,3 +1,16 @@
+# Evidence
+
+| What | Where | Status |
+|---|---|---|
+| Live checks against the deployed app, reproducible from `scripts/live/` | [live-checks.md](live-checks.md) | run 2026-09-29; results recorded |
+| WhatsApp | [whatsapp-status.md](whatsapp-status.md) | implemented, **not** live-verified with Meta |
+| Product screenshots | [screenshots/README.md](screenshots/README.md) | list only — **none captured yet** |
+| AWS console / coding-agent screenshots | this file, below | **none captured yet** |
+| Agent AWS log evidence | [agent-aws-evidence.md](agent-aws-evidence.md) | captured 2026-09-27 |
+| Shop-owner validation sessions | [../validation/README.md](../validation/README.md) | template only — no session recorded |
+
+---
+
 # Evidence pack — capture checklist
 
 Screenshots required for the AWS "Zero to Shipped" submission, in particular

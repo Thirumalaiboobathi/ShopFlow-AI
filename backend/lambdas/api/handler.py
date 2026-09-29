@@ -268,6 +268,8 @@ def _create_order(event) -> dict:
         payload = json.loads(raw) if raw else {}
     except json.JSONDecodeError:
         return _response(400, {"error": "body must be JSON"})
+    if not isinstance(payload, dict):
+        return _response(400, {"error": "body must be a JSON object"})
 
     # An order is text. `str()` on whatever arrived used to turn {"a": 1} into
     # the literal "{'a': 1}" and send it to the model, which is not a customer
@@ -294,24 +296,28 @@ def _create_order(event) -> dict:
                 customer_id):
             return _response(400, {"error": "invalid customerId"})
 
-    # Owner-confirmed answers to an earlier clarification. Validated here so an
-    # invented SKU can never re-enter the flow through the front door.
-    clarifications = payload.get("clarifications") or []
-    if not isinstance(clarifications, list) or len(clarifications) > MAX_CLARIFICATIONS:
-        return _response(400, {"error": "clarifications must be a short array"})
+    # Nothing a quotation is made of may come from the caller. The product,
+    # the price, the tax and the totals are ShopFlow's to work out; a request
+    # that tries to supply one is refused rather than quietly ignored, so a
+    # client bug or an attack is visible instead of half-applied.
+    supplied = sorted(SERVER_DERIVED_ORDER_FIELDS & set(payload))
+    if supplied:
+        return _response(400, {
+            "error": "these are worked out by ShopFlow and cannot be supplied: "
+                     + ", ".join(supplied)})
+
+    # The old answer format carried a SKU chosen by the client. Checked against
+    # the catalogue, it still let the caller - not ShopFlow - name the product.
+    # An answer is now `choice: {jobId, option}`, resolved from the options
+    # ShopFlow itself stored (see `_resolve_choice`). An empty list is what
+    # older pages sent with every order and is accepted as "no answer".
+    if payload.get("clarifications") not in (None, []):
+        return _response(400, {
+            "error": "clarifications are not accepted; answer ShopFlow's "
+                     "question with choice: {jobId, option}"})
 
     data = cached_dataset()
     cleaned = []
-    for item in clarifications:
-        if not isinstance(item, dict):
-            return _response(400, {"error": "each clarification must be an object"})
-        sku_id = str(item.get("skuId") or "")
-        if sku_id not in data.products:
-            return _response(400, {"error": f"unknown skuId: {sku_id}"})
-        cleaned.append({
-            "requestedText": _CONTROL.sub("", str(item.get("requestedText") or ""))[:200],
-            "skuId": sku_id,
-        })
 
     # An answer to ShopFlow's own question: which of the options it offered
     # on an earlier job. Resolved here, from that job's stored result - the
@@ -360,6 +366,13 @@ def _create_order(event) -> dict:
     return _response(202, accepted)
 
 
+# Fields a client may never send with an order: each is derived by ShopFlow.
+SERVER_DERIVED_ORDER_FIELDS = frozenset({
+    "sku", "skuId", "productCode", "product", "price", "unitPrice",
+    "sellingPrice", "gst", "gstRate", "taxMode", "subtotal", "total",
+    "grandTotal", "lineTotal", "quote", "lines", "confirmed",
+})
+
 # How long ShopFlow's question stays answerable. After this the order is read
 # again without the stale answer, which asks the question afresh.
 CHOICE_MAX_AGE_SECONDS = int(os.environ.get("CHOICE_MAX_AGE_SECONDS", 3600))
@@ -382,6 +395,10 @@ def _resolve_choice(raw, order_text: str, data) -> dict:
 
     if not isinstance(raw, dict):
         return refuse("choice must be an object")
+    if set(raw) - {"jobId", "option"}:
+        # A SKU, price or anything else beside the option is refused: the
+        # option is the whole answer, and the server knows what it offered.
+        return refuse("choice may carry only jobId and option")
     earlier_id, option = raw.get("jobId"), raw.get("option")
     if not isinstance(earlier_id, str) or not re.fullmatch(r"[0-9a-f]{32}", earlier_id):
         return refuse("choice.jobId is invalid")

@@ -774,23 +774,30 @@
     <h3>Who this is for</h3>
     <dl class="profile">
       <dt>Intended customer</dt>
-      <dd>A single independent electrical or hardware shop in India —
-        typically operating without an ERP, with orders coming through
-        WhatsApp and phone calls, a ledger for customer credit, and a fixed
-        amount of cash available for weekly restocking.</dd>
+      <dd>A single independent electrical shop in India, without an ERP.
+        Electrician and customer orders often arrive on paper; the owner checks
+        stock by hand, reorders what is missing, buys largely on supplier
+        credit and settles suppliers weekly against turnover.</dd>
       <dt>Core workflow</dt>
       <dd>Messy order → verified quote with GST → stock check → supplier price
-        change → margin impact → cash-constrained purchasing → What-If before
-        deciding.</dd>
+        change → margin impact → walk-away price → purchasing within the
+        capacity you enter → counter-offer → supplier reply → you decide.</dd>
       <dt>Expected value</dt>
       <dd>Fewer wrong quotations, earlier visibility into supplier price
         increases, and purchasing decisions based on the cash actually
         available.</dd>
       <dt>Current validation status</dt>
-      <dd>The demo uses synthetic data modeled on an independent
-        electrical-retail workflow. <strong>No real shop has used
-        ShopFlow.</strong> Real-shop validation is the next step.</dd>
-      <dt>What real-shop validation will test</dt>
+      <dd>The workflow above was described by an electrical shop owner in
+        Tamil Nadu. This is <strong>workflow validation, not a production
+        pilot</strong>: the shop has not used ShopFlow, the demo data is
+        synthetic, and no time saving, ROI or willingness to pay has been
+        measured.</dd>
+      <dt>Not yet supported</dt>
+      <dd>Reading a photographed paper order; supplier-credit accounts (the
+        planner works from the purchasing amount you enter); importing a
+        shop's own catalogue; production login. WhatsApp is implemented but
+        not live-verified with Meta.</dd>
+      <dt>What a pilot would test</dt>
       <dd>Whether customer messages are matched correctly; how often
         clarification is required; whether shop owners trust and act on the
         purchase plan; whether GST treatment matches their existing process;
@@ -1016,6 +1023,11 @@
     understanding messy orders and asking for clarification. Deterministic code
     controls prices, inventory, budgets and purchasing decisions — the model
     never writes a business number.</p>
+  <p class="notbot"><strong>Status.</strong> The workflow was shaped with an
+    electrical shop owner in Tamil Nadu &mdash; workflow validation, not a
+    pilot. Demo data is synthetic. Orders are typed or spoken here; photographed
+    paper orders are not read yet. WhatsApp is implemented but not live-verified
+    with Meta.</p>
 
   <div class="jobs">
     <div class="job"><span class="jk">Sell</span>
@@ -2287,7 +2299,6 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
   // the server loads the engine's own result - the browser never transmits a
   // price, a total or a line.
   var lastJobId = null;
-  var pendingClarifications = [];
   // An answer to ShopFlow's own question: the job that asked and the option
   // number. The server reads the SKU from that job - the page never sends one.
   var pendingChoice = null;
@@ -2778,14 +2789,12 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
   ambigBtn.addEventListener("click", function () {
     orderBox.value = demo.ambiguousExample ||
       "Anna, 3 coils Finolex 1.5 sq mm wire.";
-    pendingClarifications = [];
     pendingChoice = null;
     clearOutput();
     orderBox.focus();
   });
 
   resetBtn.addEventListener("click", function () {
-    pendingClarifications = [];
     pendingChoice = null;
     orderBox.value = demo.exampleOrder || "";
     clearOutput();
@@ -2833,8 +2842,7 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
         // Presentation only. The matcher, the quotation and the credit check
         // behave identically whatever this says.
         language: lang.code
-      }, pendingChoice ? { choice: pendingChoice }
-                       : { clarifications: pendingClarifications }))
+      }, pendingChoice ? { choice: pendingChoice } : {}))
     }).then(function (r) {
       // Throttled before the order was accepted: nothing was queued, so
       // sending again cannot duplicate it. Bounded, and said out loud.
@@ -3048,7 +3056,6 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
 
     Array.prototype.forEach.call(clarifyBox.querySelectorAll(".option"), function (btn) {
       btn.addEventListener("click", function () {
-        pendingClarifications = [];
         pendingChoice = { jobId: lastJobId,
                           option: Number(btn.getAttribute("data-option")) };
         submit(orderBox.value);
@@ -3380,7 +3387,9 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
 
       if (l.status === "MATCHED") {
         html += '<div class="sku mono">' + esc(l.skuId) + '</div>';
-        if (c && c.materialChange) {
+        if (c && c.plausibility === "EXTREME_CHANGE") {
+          html += '<span class="badge b-short">Extreme change &middot; check the document before confirming</span>';
+        } else if (c && c.materialChange) {
           html += '<span class="badge b-short">Material change</span>';
         }
       } else if (l.status === "AMBIGUOUS") {

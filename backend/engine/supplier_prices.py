@@ -12,6 +12,8 @@ figure printed on the document.
 
 from __future__ import annotations
 
+import math
+import os
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
@@ -75,6 +77,36 @@ REVIEW_STATES = (STATE_EXTRACTED, STATE_MATCHED, STATE_REVIEW_REQUIRED,
 # This is the single definition. `agent.textract_reader` imports it rather
 # than keeping a second number that could drift away from this one.
 MIN_ROW_CONFIDENCE = 90.0
+
+# ---------------------------------------------------------------------------
+# Plausibility
+# ---------------------------------------------------------------------------
+# A price list is read by OCR, and OCR misreads digits: ₹6,300 read as
+# ₹63,000 is a tenfold "rise" that is really one extra character. Two bounds,
+# both configurable:
+#
+# MAX_SUPPLIER_UNIT_PRICE  a hard ceiling. A row above it, or a row whose price
+#     is not a finite positive number, is not read as a price at all - it is
+#     excluded and listed, like "N/A". ₹10,00,000 per unit is about 65 times the
+#     highest supplier cost in this catalogue (₹15,200), so it can only catch a
+#     misread, never a real electrical-trade price.
+#
+# PLAUSIBLE_MIN_RATIO / PLAUSIBLE_MAX_RATIO  a band around what the shop last
+#     paid: 0.5x to 3x. The same band the Supplier Reply Reader applies to a
+#     supplier's reply (`engine.supplier_reply`), so one policy governs every
+#     supplier price ShopFlow reads. A price outside it is NOT rejected - real
+#     prices do jump - but it is marked EXTREME_CHANGE, always waits for the
+#     owner, and raises no price alert until the owner has confirmed it.
+MAX_SUPPLIER_UNIT_PRICE = float(
+    os.environ.get("SHOPFLOW_MAX_SUPPLIER_UNIT_PRICE") or 1_000_000)
+PLAUSIBLE_MIN_RATIO = float(
+    os.environ.get("SHOPFLOW_PRICE_PLAUSIBLE_MIN_RATIO") or 0.5)
+PLAUSIBLE_MAX_RATIO = float(
+    os.environ.get("SHOPFLOW_PRICE_PLAUSIBLE_MAX_RATIO") or 3.0)
+
+WITHIN_RANGE = "WITHIN_RANGE"
+EXTREME_CHANGE = "EXTREME_CHANGE"
+NO_PREVIOUS_PRICE = "NO_PREVIOUS_PRICE"
 
 
 class InvalidSupplierLineError(ValueError):
@@ -142,6 +174,20 @@ class PriceComparison:
         return INCREASE if delta > 0 else DECREASE
 
     @property
+    def plausibility(self) -> str:
+        """Is the new price within 0.5x-3x of what the shop last paid?
+
+        A judgement about whether a person should check the document before
+        trusting the figure - not a verdict on the supplier.
+        """
+        if not self.previousPrice:
+            return NO_PREVIOUS_PRICE
+        ratio = float(self.currentPrice) / float(self.previousPrice)
+        if PLAUSIBLE_MIN_RATIO <= ratio <= PLAUSIBLE_MAX_RATIO:
+            return WITHIN_RANGE
+        return EXTREME_CHANGE
+
+    @property
     def materialChange(self) -> bool:
         """Material means: big enough that the owner should look.
 
@@ -161,6 +207,8 @@ class PriceComparison:
             "direction": self.direction,
             "materialChange": self.materialChange,
             "thresholdPercent": self.threshold,
+            "plausibility": self.plausibility,
+            "plausibleRange": [PLAUSIBLE_MIN_RATIO, PLAUSIBLE_MAX_RATIO],
             "evidence": self._evidence(),
         }
 
@@ -225,9 +273,16 @@ def build_supplier_line(raw: Dict) -> SupplierLine:
     if isinstance(price, bool) or not isinstance(price, (int, float)):
         raise InvalidSupplierLineError(
             f"price for {description!r} must be a number, got {price!r}")
+    if not math.isfinite(float(price)):
+        raise InvalidSupplierLineError(
+            f"price for {description!r} must be a finite number, got {price!r}")
     if price <= 0:
         raise InvalidSupplierLineError(
             f"price for {description!r} must be positive, got {price!r}")
+    if price > MAX_SUPPLIER_UNIT_PRICE:
+        raise InvalidSupplierLineError(
+            f"price for {description!r} is above the plausible ceiling of "
+            f"{MAX_SUPPLIER_UNIT_PRICE:,.0f} per unit, got {price!r}")
 
     def opt(key: str) -> Optional[str]:
         value = raw.get(key)
@@ -279,6 +334,10 @@ def review_state(result: "SupplierLineResult",
 
     confidence = result.line.confidence
     if confidence is not None and float(confidence) < min_confidence:
+        return STATE_REVIEW_REQUIRED
+
+    if result.comparison is not None and             result.comparison.plausibility == EXTREME_CHANGE:
+        # Far outside what the shop last paid - check the document first.
         return STATE_REVIEW_REQUIRED
 
     if result.comparison is not None and result.comparison.materialChange:

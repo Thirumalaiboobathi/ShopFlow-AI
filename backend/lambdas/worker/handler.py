@@ -441,7 +441,11 @@ def _publish_price_alerts(job_id: str, payload: dict) -> list:
     """
     increases = events.unique([
         line for line in payload.get("lines") or []
-        if (line.get("comparison") or {}).get("direction") == "INCREASE"])
+        if (line.get("comparison") or {}).get("direction") == "INCREASE"
+        # A price far outside what the shop last paid is more often a misread
+        # than a rise. It waits for the owner; once confirmed, Intelligence
+        # shows it with every other confirmed change.
+        and (line.get("comparison") or {}).get("plausibility") != "EXTREME_CHANGE"])
     if not increases:
         return []
     try:

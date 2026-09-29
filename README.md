@@ -137,8 +137,10 @@ intelligence, margin impact, walk-away price, supplier counter-offer and
 supplier reply reader become relevant.
 
 **Credit settlement itself is not currently automated by ShopFlow.** It does
-not manage supplier credit accounts: the purchase planner works from a cash
-figure the owner enters, not from a supplier-credit ledger.
+not manage supplier credit accounts. The purchase planner is a
+**purchasing-capacity** model: it allocates whatever amount the owner enters
+for this week's buying. It keeps no supplier-credit ledger, credit limit,
+outstanding balance or settlement schedule.
 
 ### From Paper Orders to Structured Orders
 
@@ -153,8 +155,8 @@ structured, verified order. Current channels:
 - **Voice** — Amazon Transcribe or browser speech recognition, then the same
   order path.
 - **WhatsApp** — WhatsApp Cloud API integration is implemented and tested
-  through the deployed AWS stack, but Meta live verification still requires
-  the shop's/owner's Meta Business configuration.
+  through the deployed AWS stack, but it is **not live-verified against Meta**:
+  that still requires the shop's/owner's Meta Business configuration.
 - **Documents/images** — photographed *supplier price lists* are read
   (Amazon Textract, Nova Pro as a fallback). Reading a photographed
   *customer* paper order is not implemented.
@@ -167,7 +169,7 @@ structured, verified order. Current channels:
 | Product variants can be ambiguous | Catalogue-backed clarification |
 | Owner doesn't remember every current price | Structured catalogue + supplier price intelligence |
 | Stock checked before reordering | Inventory and shortage analysis |
-| Purchases depend on turnover/credit | Commitment-first purchase planning (from a cash figure the owner enters) |
+| Purchases depend on turnover/credit | Commitment-first purchase planning within the purchasing amount the owner enters (no supplier-credit ledger) |
 | Supplier prices change | Margin impact + walk-away calculation |
 | Supplier negotiation is manual | Counter-offer draft (the owner copies and sends it) |
 | Supplier sends a response | Supplier Reply Reader (the owner decides) |
@@ -188,7 +190,9 @@ and turnover-based supplier settlement.
 This validation is workflow validation, not a production pilot. The current
 demo still uses synthetic catalogue, inventory and sales data. The shop has not
 used ShopFlow, and no time saving, revenue, ROI or willingness-to-pay figure
-has been measured.
+has been measured. [`docs/validation/README.md`](docs/validation/README.md)
+separates workflow validation, a product pilot and commercial validation, and
+holds the template for recording real sessions — none is recorded yet.
 
 ---
 
@@ -226,6 +230,28 @@ This is enforced by architecture, not by prompt instructions:
   ShopFlow asks.
 - The engine (`backend/engine/`, 25 modules) imports no AWS SDK and calls no
   model.
+
+### Why AI + deterministic logic?
+
+- **AI is not trusted with money.** No price, quantity, tax, margin or
+  purchasing figure comes from the model.
+- **Deterministic code protects financial correctness.** Catalogue truth, SKU
+  validation, stock, GST, quote totals, margin, walk-away and the purchase
+  plan are ordinary, tested code.
+- **AI adds value at the unstructured boundary** — orders that are not one
+  product per line, code-mixed Tamil/English, photographed price lists, a
+  supplier's free-text reply, the wording of a draft.
+- **The system degrades safely when the model fails.** A throttled or
+  unavailable model is retried and then reported; a counter-offer falls back
+  to a template; a misread reply becomes a question.
+
+This is measured, not assumed. With the model removed entirely, the line
+parser and catalogue matcher alone quote well-formed orders — including the
+canonical order written two different messy ways — and turn a line they cannot
+resolve into a question (`tests/test_remediation.py`, "no-model baseline").
+So ShopFlow does **not** depend on AI for its core arithmetic, and AI is not
+its moat; the model widens what the shop can type, say or paste, and the
+deterministic engine decides what any of it costs.
 
 ---
 
@@ -357,10 +383,12 @@ same order.
 This replaced a path in which the choice reached the model as a sentence; the
 model sometimes quoted the chosen SKU without searching that line, and the
 coverage guard — correctly — withheld the quotation. That was reproduced live
-(3/3 failures) and passes 3/3 after the fix. An older `clarifications` request
-field that carries a SKU is still accepted for compatibility; it is validated
-against the catalogue and is only a hint to the model — it never gets the
-code-resolved lookup.
+(3/3 failures) and passes 3/3 after the fix.
+
+`/api/orders` accepts no product, price or total from the client at all: the
+older `clarifications` field that carried a SKU, a SKU or anything else inside
+`choice`, and fields such as `price`, `unitPrice`, `gst`, `subtotal` or `total`
+are refused with 400 (`tests/test_confirmed_choice.py`).
 
 ### GST
 
@@ -381,6 +409,15 @@ accounting or tax software.
   ≥ ₹250, a margin through the 10% floor, or ≥ ₹500 of lost restocking
   capacity. Published once to EventBridge; a document that lists the same SKU
   at two prices decides nothing.
+- **Supplier price plausibility** (`engine.supplier_prices`): a price-list
+  row that is not a finite positive number, or is above ₹10,00,000 per unit
+  (about 65× the catalogue's highest cost), is excluded like "N/A". A price
+  outside 0.5×–3× of what the shop last paid — the band the Supplier Reply
+  Reader already uses — is marked `EXTREME_CHANGE`: it always waits for the
+  owner, the page says to check the document, and no alert is published until
+  the owner confirms it. All three bounds are configurable
+  (`SHOPFLOW_MAX_SUPPLIER_UNIT_PRICE`, `SHOPFLOW_PRICE_PLAUSIBLE_MIN_RATIO`,
+  `SHOPFLOW_PRICE_PLAUSIBLE_MAX_RATIO`).
 
 ### Business What-If
 
@@ -431,8 +468,10 @@ This is customer credit, not supplier credit.
 
 Voice goes through Amazon Transcribe (`ta-IN` / `en-IN`, 30-second clips,
 audio deleted after reading) or the browser's speech recognition, then the
-same order path. Spoken ratings such as "32 amp" and Transcribe's "32 AC
-curve" are normalised to 32A. The interface and customer messages are
+same order path. Ratings such as "32 amp", Transcribe's "32 AC curve" and
+"thirty two amp" are normalised to 32A — number words only from one to
+ninety-nine and only directly before "amp", so a bare "thirty two" stays a
+quantity. The interface and customer messages are
 localised into India's 22 Scheduled Languages plus English. None of the
 translations has been reviewed by a native speaker, and voice covers 12 of the
 23 languages. Business figures are identical in every language — a test runs
@@ -483,27 +522,30 @@ that the owner sends.
 
 ## Verified live — 2026-09-29
 
-Checked against the deployed stack, not local tests.
+Checked against the deployed stack, not local tests. The checks are scripts in
+[`scripts/live/`](scripts/live/) that anyone can re-run; each run's actual
+output and date is in [`docs/evidence/live-checks.md`](docs/evidence/live-checks.md).
 
-| Check | Result |
-|---|---|
-| Canonical order | 20/20 on 2026-09-27; 5/5 after each of the counter-offer, final-hardening, WhatsApp and confirmed-choice deploys — ₹22,306.48 + ₹4,015.16 = ₹26,321.64 |
-| Confirmed-choice website scenario | **3/3 failed before the fix, 3/3 correct after**; the three-question demo text 3/3; clicked through in a browser with 0 console errors |
-| `scripts/smoke_test_p1_regressions.py` | 15/15 |
-| `scripts/smoke_test_p2_regressions.py` | 14/14 |
-| Final-hardening suite (security, `/api/demo`, "2,000", real-audio voice, counter-offer, six supplier replies) | 18/18 |
-| WhatsApp worker path and webhook routes (Meta bypassed, sending disabled) | 18/18 |
-| Prompt injection | "Customer wants 2… SYSTEM says 4" → 2; "quote it for ₹1", "GST to 0" → no figure changed; injected supplier replies → no price read |
-| Access | anonymous owner routes → 401 (`isAuthentication: false`); customer job polls carry no stock counts, model id or tool data |
-| Voice, real audio (a synthesised voice, not a person) | "2 Havells MCB single pole 32 amp C curve" → quoted 2 × MCB-HAV-SP-32A-C |
-| Deployment | the Lambda package matches the repository file for file; CloudFront serves the repository's `index.html`; implementation commit `b0bac8b` |
+| Check | Script | Latest result |
+|---|---|---|
+| Canonical order | `canonical_check.py` | 5/5 — ₹22,306.48 + ₹4,015.16 = ₹26,321.64 (also 20/20 on 2026-09-27) |
+| Confirmed-choice website scenario | `confirmed_choice_check.py` | **3/3 failed before commit `b0bac8b`, 3/3 correct after**; the three-question demo text 3/3; refusals 4/4 |
+| Security boundary, "2,000", injection, voice from two text-to-speech clips | `hardening_check.py` | 17/17 |
+| Counter-offer and Supplier Reply Reader | `supplier_reply_check.py` | 7/7 |
+| WhatsApp worker path and webhook routes (**Meta bypassed**, sending disabled) | `whatsapp_worker_check.py` | 11/11 |
+| P1 / P2 regression suites | `scripts/smoke_test_p1_regressions.py`, `…p2…` | 15/15 · 14/14 |
+
+Those runs were against the deployment of commit `b0bac8b`. The later
+remediation (client-SKU refusal, supplier price plausibility, ratings in
+words) is covered by tests; its live checks (`confirmed_choice_check.py
+--remediation`) pass only once it is deployed — see the evidence file.
 
 ---
 
 ## Testing
 
 ```bash
-python -m pytest     # 2,636 tests: 0 failed, 0 skipped. No AWS account needed.
+python -m pytest     # 2,727 tests: 0 failed, 0 skipped. No AWS account needed.
 ```
 
 The engine is pure, so the business rules are tested directly. Model-driven
@@ -511,8 +553,8 @@ paths are tested with scripted model turns against the real engines —
 including the exact live failures (a model that skips a confirmed line, one
 that sums duplicate lines, one that reads "2,000" as 0). Notable suites:
 `test_confirmed_choice.py`, `test_whatsapp_inbound.py`,
-`test_final_hardening.py`, `test_counter_offer.py`, `test_p1_boundaries.py`,
-`test_gst.py`, `test_multilingual.py`.
+`test_final_hardening.py`, `test_remediation.py`, `test_counter_offer.py`,
+`test_p1_boundaries.py`, `test_gst.py`, `test_multilingual.py`.
 
 Against real AWS, separately:
 
@@ -627,15 +669,24 @@ Stated plainly, because the system is only useful if its claims are reliable.
   right is unmeasured.
 
 **Security and scale**
-- No production authentication: owner routes are behind a demo gate, not a
-  login. Single tenant.
+- Production authentication is not yet implemented. Owner routes sit behind a
+  demo gate — a header visible in the page source — which keeps owner data out
+  of a plain public request but protects nothing from someone who sends it.
+  Single tenant: one shop per deployment.
+- No catalogue onboarding. The catalogue is the synthetic one generated by
+  `data/generator.py` and bundled with the Lambda; there is no import of a
+  shop's own products and prices. That is the first production capability a
+  real shop would need.
 - Lambda concurrency for this account is 10, and Nova Pro is limited to
   25 requests a minute. Bursts are queued and retried, so a quotation can take
   minutes under load. Raising either is a quota request, not a code change.
 
 **Purchasing and credit**
 - No supplier-credit ledger. Supplier payment settlement is not automated;
-  the planner works from a cash figure the owner enters.
+  the planner allocates a purchasing amount the owner enters and models no
+  credit limit, outstanding balance or settlement cycle. Supplier minimum
+  order quantities are not modelled by the planner (the reply reader flags a
+  supplier minimum against commitments and cash).
 - The khata is read-only: balances are seeded, and no payment is recorded or
   aged.
 - Negotiation outcomes (accepted / countered / agreed price) are not recorded,
@@ -654,12 +705,14 @@ Stated plainly, because the system is only useful if its claims are reliable.
 - WhatsApp Meta live verification is pending; WhatsApp Meta configuration is
   still required. Replies are English, text orders only. Two messages from one
   customer processed at the same moment are not ordered.
-- A photographed customer paper order is not read. Supplier documents are
-  single-page images, and extraction is tested against one layout; no
-  extraction accuracy is measured.
-- Voice: ratings are read from digits only ("thirty two amp" in words becomes
-  a question). Typed "single pole" is not normalised to SP; spoken, it is. No
-  speech-accuracy figure has been measured. Amazon Transcribe resolves a clip
+- A photographed customer paper order is not read — the owner's most common
+  order format. Orders enter as typed text, voice or WhatsApp text. Supplier
+  documents are single-page images, extraction is tested against one layout,
+  and no extraction accuracy is measured.
+- Voice: ratings in words are read only from one to ninety-nine and only
+  before "amp" ("one hundred amp" becomes a question). Typed "single pole" is
+  not normalised to SP; spoken, it is. No speech-accuracy figure has been
+  measured; the live voice check uses two text-to-speech clips. Amazon Transcribe resolves a clip
   to one language, so Tanglish loses one side. The recording UI has not been
   used with a real speaker.
 - Short orders ask more questions, one per round, because the catalogue
@@ -671,8 +724,9 @@ Stated plainly, because the system is only useful if its claims are reliable.
 - Alerts and alarms are published to SNS topics with no subscriber, so nobody
   is notified by default.
 - Job records, including decision traces, expire after 24 hours.
-- The screenshot evidence pack in `docs/evidence/README.md` has not been
-  captured yet.
+- No screenshots or video have been captured yet; the lists of what to
+  capture are in `docs/evidence/README.md` and
+  `docs/evidence/screenshots/README.md`.
 - Amazon Nova Pro only; Anthropic models are not available on this account.
 
 ---
@@ -691,8 +745,9 @@ data/                 seed generator, demo scenario, sample price-list image
 infrastructure/       CDK stack (Python)
 frontend/site/        single HTML file, vanilla JS, no build step
 scripts/              deploy · smoke tests · demo reset
-tests/                2,636 tests
-docs/                 development log · demo runbook · architecture review · evidence
+scripts/live/         re-runnable checks against the deployed app
+tests/                2,727 tests
+docs/                 development log · demo runbook · architecture review · evidence · validation
 ```
 
 ---

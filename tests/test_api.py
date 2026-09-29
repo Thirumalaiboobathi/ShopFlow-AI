@@ -254,19 +254,25 @@ def test_clarification_with_an_invented_sku_is_rejected(api_env):
         "clarifications": [{"requestedText": "wire", "skuId": "MADE-UP"}],
     }), None)
     assert response["statusCode"] == 400
-    assert "unknown skuId" in body_of(response)["error"]
+    assert "choice" in body_of(response)["error"]
     assert queue.messages == []
 
 
-def test_clarification_with_a_real_sku_is_accepted(api_env):
-    table, _lam, _s3 = api_env
+def test_clarification_with_a_real_sku_is_no_longer_accepted(api_env):
+    """A client may not name the product either, even a real one: the answer to
+    a question is `choice: {jobId, option}`, resolved from ShopFlow's own stored
+    options (tests/test_confirmed_choice.py). An empty list - what older pages
+    sent with every order - still means "no answer"."""
+    table, queue, _s3 = api_env
     response = api.handler(post_order({
         "orderText": "3 coils Finolex 1.5 wire",
         "clarifications": [{"requestedText": "wire", "skuId": "W-FIN-1.5-RED-90M"}],
     }), None)
-    assert response["statusCode"] == 202
-    item = next(iter(table.items.values()))
-    assert item["clarifications"][0]["skuId"] == "W-FIN-1.5-RED-90M"
+    assert response["statusCode"] == 400
+    assert table.items == {} and queue.messages == []
+    empty = api.handler(post_order({"orderText": "3 coils Finolex 1.5 wire",
+                                    "clarifications": []}), None)
+    assert empty["statusCode"] == 202
 
 
 def test_control_characters_are_stripped_from_order_text(api_env):
