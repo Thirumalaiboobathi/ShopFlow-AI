@@ -562,6 +562,10 @@ def test_10b_three_questions_in_turn_end_in_the_canonical_quotation(world):
      "3 coils Finolex Red 90m"),
     ("2 HAVELLS mcb", "2 Havells MCB", "Havells MCB SP 32A C-Curve",
      "2 Havells MCB SP 32A C-Curve"),
+    # Live: the ambiguous words began after the count.
+    ("x, 20 Anchor modular switch 1 way white", "Anchor modular switch 1 way white",
+     "Anchor Modular Switch 1-Way 10A White",
+     "x, 20 Anchor Modular Switch 1-Way 10A White"),
 ])
 def test_10c_a_choice_keeps_the_customers_count_and_unit(order, requested, name,
                                                           expected):

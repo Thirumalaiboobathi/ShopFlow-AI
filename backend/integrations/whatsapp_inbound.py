@@ -344,10 +344,11 @@ def quotation(quote: Dict) -> str:
 
 # A count and unit at the start of a line ("2 ", "3 coils ", "20 x "), kept
 # when the rest of the line is replaced by the product the customer chose.
+# Optional as a whole: the ambiguous words may start after the count.
 _LEADING_COUNT = re.compile(
-    r"^\s*\d[\d,]*(?:\.\d+)?\s*(?:[x×]\s*)?"
+    r"^\s*(?:\d[\d,]*(?:\.\d+)?\s*(?:[x×]\s*)?"
     r"(?:(?:nos?|pcs?|pieces?|coils?|units?|rolls?|boxes?|packets?|metres?|"
-    r"meters?|mtrs?)\b\s*)?", re.IGNORECASE)
+    r"meters?|mtrs?)\b\s*)?)?", re.IGNORECASE)
 _TRAILING_UNIT = re.compile(r"\s+(coils?|rolls?|pieces?|pcs|nos?|boxes?|packets?)\s*$",
                             re.IGNORECASE)
 
