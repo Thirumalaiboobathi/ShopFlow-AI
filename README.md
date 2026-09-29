@@ -1078,8 +1078,9 @@ the settings from the environment - ids and an ARN, never a credential:
 
 ```bash
 export SHOPFLOW_WHATSAPP_ENABLED=true
-export SHOPFLOW_WHATSAPP_PHONE_NUMBER_ID=<phone number id from Meta>
-export SHOPFLOW_WHATSAPP_SECRET_ARN=<arn of the secret>
+# fill in: the phone number id from Meta, and the ARN of the secret
+export SHOPFLOW_WHATSAPP_PHONE_NUMBER_ID=""
+export SHOPFLOW_WHATSAPP_SECRET_ARN=""
 # optional: SHOPFLOW_WHATSAPP_TEMPLATE_NAME, SHOPFLOW_WHATSAPP_API_VERSION
 SHOPFLOW_ALERT_EMAIL=you@example.com ./scripts/deploy.sh
 ```
