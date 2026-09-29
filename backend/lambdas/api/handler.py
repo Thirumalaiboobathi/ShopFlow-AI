@@ -130,6 +130,7 @@ from engine.brief import brief_signature, build_brief
 from engine.price_alerts import evaluate_price_change
 from engine import negotiation
 from engine import supplier_reply
+from engine import commercial, supplier_reliability
 
 MAX_ORDER_CHARS = 1000
 # A customer id is an internal key, not free text. Bounded and pattern-checked
@@ -1047,6 +1048,86 @@ def _create_supplier_reply(payload: dict) -> dict:
                            "stateChanged": False, "sent": False})
 
 
+# Commercial intelligence: four owner questions on the same owner route, each
+# model-free and read-only. A request names a product or a supplier and, for
+# buy-now-vs-wait, the cash the owner has; supplier quotes carry the offers to
+# compare. Everything else - costs, shortages, totals, margins, exposure,
+# scores, history, a recommendation - is the engines', so a request carrying
+# anything beyond its allowed fields is refused rather than half-trusted.
+MONEY_AT_RISK_KIND = "MONEY_AT_RISK"
+BUY_VS_WAIT_KIND = "BUY_VS_WAIT"
+SUPPLIER_QUOTES_KIND = "SUPPLIER_QUOTES"
+SUPPLIER_RELIABILITY_KIND = "SUPPLIER_RELIABILITY"
+COMMERCIAL_FIELDS = {
+    MONEY_AT_RISK_KIND: frozenset({"kind", "skuId"}),
+    BUY_VS_WAIT_KIND: frozenset({"kind", "skuId", "budget"}),
+    SUPPLIER_QUOTES_KIND: frozenset({"kind", "skuId", "offers"}),
+    SUPPLIER_RELIABILITY_KIND: frozenset({"kind", "supplierId"}),
+}
+
+
+def _create_commercial(kind: str, payload: dict) -> dict:
+    """Money at risk, buy now vs wait, supplier quotes, supplier reliability."""
+    extra = sorted(set(payload) - COMMERCIAL_FIELDS[kind])
+    if extra:
+        return _response(400, {
+            "error": "these are worked out by ShopFlow and cannot be supplied: "
+                     + ", ".join(str(k)[:40] for k in extra[:10])})
+    data = cached_dataset()
+
+    if kind == SUPPLIER_RELIABILITY_KIND:
+        supplier_id = payload.get("supplierId")
+        if supplier_id is not None and (not isinstance(supplier_id, str)
+                                        or supplier_id not in data.suppliers):
+            return _response(400, {"error": "unknown supplierId"})
+        ids = [supplier_id] if supplier_id else sorted(data.suppliers)
+        results = []
+        for sid in ids:
+            result = supplier_reliability.score_supplier(
+                sid, supplier_reliability.shop_history(sid))
+            if not result["evidence"]["recordsSupplied"]:
+                result["reason"] = supplier_reliability.NOT_RECORDED_REASON
+            result["supplierName"] = data.suppliers[sid].name
+            results.append(result)
+        return _response(200, {"kind": kind, "suppliers": results,
+                               "note": supplier_reliability.NOTE,
+                               "stateChanged": False})
+
+    sku_id = payload.get("skuId")
+    if sku_id is not None and (not isinstance(sku_id, str)
+                               or sku_id not in data.products):
+        return _response(400, {"error": "unknown skuId"})
+    confirmed = {sku: e["cost"] for sku, e in _confirmed_costs().items()}
+
+    if kind == MONEY_AT_RISK_KIND:
+        skus = [sku_id] if sku_id else commercial.committed_skus(data)
+        items = [commercial.money_at_risk(data, s, confirmed) for s in skus]
+        return _response(200, {"kind": kind, "items": items,
+                               "note": commercial.NOT_ADDED_NOTE,
+                               "stateChanged": False})
+
+    if not sku_id:
+        return _response(400, {"error": "skuId is required"})
+    if kind == BUY_VS_WAIT_KIND:
+        budget = payload.get("budget", BRIEF_BUDGET)
+        if budget is None or isinstance(budget, bool) \
+                or not isinstance(budget, (int, float)):
+            return _response(400, {"error": "budget must be a number"})
+        try:
+            result = commercial.buy_now_vs_wait(data, sku_id, confirmed,
+                                                budget=budget)
+        except InvalidBudgetError as exc:
+            return _response(400, {"error": str(exc)})
+        return _response(200, {"kind": kind, **result})
+
+    try:
+        result = commercial.compare_supplier_quotes(
+            data, sku_id, payload.get("offers"), confirmed)
+    except commercial.InvalidOfferError as exc:
+        return _response(400, {"error": str(exc)})
+    return _response(200, {"kind": kind, **result})
+
+
 def _confirmed_costs() -> dict:
     """The shop's durable confirmed purchase costs, keyed by SKU.
 
@@ -1121,6 +1202,9 @@ def _create_shop_query(event) -> dict:
     if isinstance(payload, dict) and \
             str(payload.get("kind") or "").upper() == SUPPLIER_REPLY_KIND:
         return _create_supplier_reply(payload)
+    if isinstance(payload, dict) and \
+            str(payload.get("kind") or "").upper() in COMMERCIAL_FIELDS:
+        return _create_commercial(str(payload["kind"]).upper(), payload)
 
     # Same contract as orderText: a transcript is text, not a coerced object.
     raw_transcript = payload.get("transcript")

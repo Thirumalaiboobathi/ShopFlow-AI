@@ -3,6 +3,7 @@
 | What | Where | Status |
 |---|---|---|
 | Live checks against the deployed app, reproducible from `scripts/live/` | [live-checks.md](live-checks.md) | run 2026-09-29; results recorded |
+| Commercial intelligence (money at risk, buy now vs wait, supplier quotes, reliability) | [commercial-intelligence.md](commercial-intelligence.md) | local run 2026-09-29, 22/22; **not deployed** |
 | WhatsApp | [whatsapp-status.md](whatsapp-status.md) | implemented, **not** live-verified with Meta |
 | Product screenshots | [screenshots/README.md](screenshots/README.md) | list only — **none captured yet** |
 | AWS console / coding-agent screenshots | this file, below | **none captured yet** |

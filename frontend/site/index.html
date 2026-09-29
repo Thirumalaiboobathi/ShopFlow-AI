@@ -243,6 +243,13 @@
   .nego button{padding:8px 14px; font-size:.87rem}
   .nego .nbadge{margin:12px 0 6px; font-weight:600; font-size:.88rem}
   .nego textarea{min-height:120px}
+  .ci-pick{display:block; max-width:420px; margin:6px 0 4px}
+  .ci-pick select{width:100%}
+  .ci-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:0 14px}
+  .ci-offers input{width:100%; min-width:70px}
+  .ci-offers td{padding:6px 8px}
+  .ci-flag{display:inline-block; font-size:.72rem; font-weight:700; letter-spacing:.04em;
+    padding:1px 6px; margin:2px 4px 0 0; border:1px solid var(--line); border-radius:6px}
   .nego .nmsg{margin:10px 0 0; font-size:.88rem}
   .nego-reply{margin-top:14px; border-top:1px dashed var(--line); padding-top:12px}
   .nego-reply label{font-size:.88rem; margin-bottom:0}
@@ -991,6 +998,7 @@
         dead-letter queue depth and processing time.
       </p>
     </div>
+
   </section>
   <section id="paneOrders" class="wspane">
     <h2>Orders</h2>
@@ -1277,6 +1285,46 @@
     <p class="hint" id="wiContext"></p>
     <div class="err" id="wiError" hidden></div>
     <div id="wiResult" hidden></div>
+  </div>
+</section>
+
+<section id="commercial">
+  <h2>Commercial intelligence — the money in each purchasing choice</h2>
+  <div class="app">
+    <p class="hint" style="margin-top:0">
+      Customer commitments, shortages, supplier price changes, purchasing
+      capacity and supplier quote terms, side by side. Every figure is
+      calculated by ShopFlow&rsquo;s deterministic engines &mdash; no language
+      model is involved. ShopFlow shows the trade-offs; <strong>you
+      decide</strong>. Nothing is bought, ordered or sent.
+    </p>
+    <label class="ci-pick">Product
+      <select id="ciSku" aria-label="Product"></select></label>
+    <div class="ci-grid">
+      <div class="nego" id="ciRisk" aria-live="polite">
+        <p class="nlabel">MONEY AT RISK</p><p class="nmsg">Loading…</p></div>
+      <div class="nego" id="ciWait">
+        <p class="nlabel">BUY NOW VS WAIT</p>
+        <label>Cash available for purchasing (₹)
+          <input id="ciBudget" type="number" min="0" step="1" value="25000"></label>
+        <button type="button" class="primary" id="ciWaitGo">Compare the two choices</button>
+        <div id="ciWaitOut" aria-live="polite"></div></div>
+    </div>
+    <div class="nego" id="ciQuotes">
+      <p class="nlabel">SUPPLIER QUOTES</p>
+      <p class="note">Enter the offers you have received for this product.
+        ShopFlow costs each one against what you need to buy. It does not
+        pick a supplier.</p>
+      <div class="tablewrap"><table class="wstable ci-offers">
+        <thead><tr><th>Supplier</th><th class="num">Unit price ₹</th>
+          <th class="num">Minimum order</th><th class="num">Available (optional)</th></tr></thead>
+        <tbody id="ciOfferRows"></tbody></table></div>
+      <button type="button" class="ghost" id="ciExample">Fill illustrative offers</button>
+      <button type="button" class="primary" id="ciQuotesGo">Compare offers</button>
+      <div id="ciQuotesOut" aria-live="polite"></div>
+    </div>
+    <div class="nego" id="ciRel" aria-live="polite">
+      <p class="nlabel">SUPPLIER RELIABILITY</p><p class="nmsg">Loading…</p></div>
   </div>
 </section>
 
@@ -4506,6 +4554,229 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
   if ("speechSynthesis" in window) {
     window.speechSynthesis.onvoiceschanged = function () {};
   }
+  // ---- Commercial intelligence --------------------------------------------
+  //
+  // Money at risk, buy now vs wait, supplier quotes and supplier reliability.
+  // Every figure is the server's (engine.commercial and
+  // engine.supplier_reliability): this code sends a product, a budget and the
+  // offers the owner typed, and lays out what comes back. It never computes a
+  // total, a margin or a score, and nothing here buys, orders or sends.
+  var ciItems = {}, ciLoaded = false;
+
+  function ciFacts(rows) {
+    return "<dl>" + rows.map(function (r) {
+      return "<dt>" + esc(r[0]) + "</dt><dd>" + esc(r[1]) + "</dd>";
+    }).join("") + "</dl>";
+  }
+
+  function ciPost(body) {
+    return fetch("/api/shop-queries", {
+      method: "POST",
+      headers: Object.assign({ "content-type": "application/json" }, OWNER_HEADERS),
+      body: JSON.stringify(body)
+    }).then(function (r) {
+      return r.json().then(function (b) {
+        if (!r.ok) throw new Error(b.error || "unavailable");
+        return b;
+      });
+    });
+  }
+
+  function ciSigned(n) {
+    return (n > 0 ? "+" : n < 0 ? "−" : "") + rupees(Math.abs(n));
+  }
+
+  function paintRisk() {
+    var r = ciItems[el("ciSku").value];
+    var box = el("ciRisk");
+    if (!r || r.status !== "AVAILABLE") {
+      box.innerHTML = '<p class="nlabel">MONEY AT RISK</p><p class="nmsg">' +
+        "No figures are available for this product.</p>";
+      return;
+    }
+    var u = r.unit || "unit";
+    box.innerHTML = '<p class="nlabel">MONEY AT RISK</p><p class="nprod">' +
+      esc(r.productName) + "</p>" + ciFacts([
+        ["Committed / in stock / to buy", r.committedQty + " / " + r.onHand +
+          " / " + r.shortageQty + " " + u],
+        ["Supplier price change", ciSigned(r.unitPriceChange) + " per " + u +
+          " (" + rupees(r.previousUnitCost) + " → " +
+          rupees(r.currentUnitCost) + ")"],
+        ["Purchase cash required", rupees(r.purchaseCashRequired) +
+          " — spent to fulfil the order, not lost"],
+        ["Extra cost from the price change", rupees(r.supplierPriceExposure)],
+        ["Margin impact on those units", rupees(r.marginImpact) + " (" +
+          rupees(r.marginPerUnitBefore) + " → " +
+          rupees(r.marginPerUnitNow) + " per " + u + ")"]
+      ]) + '<p class="nmsg">' + esc(r.explanation) + "</p>" +
+      '<p class="note">' + esc(r.notAddedTogether) + "</p>";
+  }
+
+  function paintWait(v) {
+    var b = v.buyNow, w = v.wait;
+    var yes = function (x) { return x ? "Yes" : "No"; };
+    el("ciWaitOut").innerHTML =
+      '<p class="nbadge">Buy now</p>' + ciFacts([
+        ["Cash required", rupees(b.cashRequired) + " at " +
+          rupees(b.priceUsed) + " each"],
+        ["Funded within budget", b.fundedQtyWithinBudget + " of " + b.quantity],
+        ["Commitment covered", yes(b.commitmentCovered)],
+        ["Margin on these units", rupees(b.marginOnPurchase)]
+      ]) + '<p class="nbadge">Wait</p>' + ciFacts([
+        ["Cash required now", rupees(w.cashRequiredNow)],
+        ["Shortage remaining", String(w.shortageRemaining)],
+        ["Commitment covered", yes(w.commitmentCovered)],
+        ["Purchasing capacity kept", rupees(w.purchasingCapacityPreserved)]
+      ]) + "<ul>" + v.facts.map(function (f) {
+        return "<li>" + esc(f) + "</li>"; }).join("") + "</ul>" +
+      '<p class="nbadge">Owner decision required.</p><p class="note">' +
+      esc(v.note) + " " + esc(v.forecastNote) + "</p>";
+  }
+
+  function ciOfferRow(o) {
+    o = o || {};
+    var cell = function (cls, type, value) {
+      return '<td><input class="' + cls + '" type="' + type + '" value="' +
+        esc(value == null ? "" : value) + '"' +
+        (type === "number" ? ' min="0" step="1"' : ' maxlength="40"') + "></td>";
+    };
+    return "<tr>" + cell("of-name", "text", o.supplierName) +
+      cell("of-price", "number", o.unitPrice) + cell("of-moq", "number", o.moq) +
+      cell("of-avail", "number", o.availableQty) + "</tr>";
+  }
+
+  function ciResetOffers(offers) {
+    el("ciOfferRows").innerHTML = [0, 1, 2].map(function (i) {
+      return ciOfferRow((offers || [])[i]); }).join("");
+    el("ciQuotesOut").innerHTML = "";
+  }
+
+  function ciReadOffers() {
+    var out = [];
+    Array.prototype.forEach.call(el("ciOfferRows").querySelectorAll("tr"), function (tr) {
+      var val = function (c) { return tr.querySelector("." + c).value.trim(); };
+      if (!val("of-name") && !val("of-price")) return;
+      var o = { supplierName: val("of-name"), unitPrice: Number(val("of-price")) };
+      if (val("of-moq")) o.moq = parseInt(val("of-moq"), 10);
+      if (val("of-avail")) o.availableQty = parseInt(val("of-avail"), 10);
+      out.push(o);
+    });
+    return out;
+  }
+
+  function paintQuotes(q) {
+    var u = q.unit || "unit";
+    el("ciQuotesOut").innerHTML =
+      '<p class="nmsg">Needed: ' + q.requiredQty + " " + esc(u) +
+      " (committed minus in stock). Current supplier " +
+      esc(q.reference.supplierName) + " at " + rupees(q.reference.unitPrice) +
+      " = " + rupees(q.reference.purchaseCost) + ".</p>" +
+      '<div class="tablewrap"><table class="wstable"><thead><tr>' +
+      "<th>Supplier</th><th class=\"num\">Unit price</th><th class=\"num\">MOQ</th>" +
+      "<th class=\"num\">Buy</th><th class=\"num\">Purchase cost</th>" +
+      "<th>Status</th></tr></thead><tbody>" +
+      q.offers.map(function (o) {
+        return "<tr><td>" + esc(o.supplierName) + '</td><td class="num">' +
+          rupees(o.unitPrice) + '</td><td class="num">' + o.moq +
+          '</td><td class="num">' + (o.purchaseQty == null ? "—" : o.purchaseQty) +
+          '</td><td class="num">' + (o.purchaseCost == null ? "—"
+            : rupees(o.purchaseCost)) + "</td><td>" +
+          [o.status].concat(o.flags).map(function (f) {
+            return '<span class="ci-flag">' + esc(f.replace(/_/g, " ")) + "</span>";
+          }).join("") + "</td></tr>";
+      }).join("") + "</tbody></table></div><ul>" +
+      q.offers.map(function (o) { return "<li>" + esc(o.explanation) + "</li>"; }).join("") +
+      '</ul><p class="note">' + esc(q.note) + "</p>";
+  }
+
+  function paintReliability(res) {
+    el("ciRel").innerHTML = '<p class="nlabel">SUPPLIER RELIABILITY</p>' +
+      "<ul>" + res.suppliers.map(function (s) {
+        return "<li><strong>" + esc(s.supplierName) + "</strong> — " +
+          (s.status === "AVAILABLE"
+            ? esc(s.summary.join(" "))
+            : "Reliability score unavailable. " + esc(s.reason)) + "</li>";
+      }).join("") + '</ul><p class="note">' + esc(res.note) + "</p>";
+  }
+
+  function loadCommercial() {
+    if (ciLoaded) return;
+    ciLoaded = true;
+    ciResetOffers();
+    ciPost({ kind: "MONEY_AT_RISK" }).then(function (b) {
+      var sel = el("ciSku"), best = null;
+      sel.innerHTML = b.items.filter(function (r) { return r.status === "AVAILABLE"; })
+        .map(function (r) {
+          ciItems[r.skuId] = r;
+          if (!best || r.supplierPriceExposure > best.supplierPriceExposure ||
+              (r.supplierPriceExposure === best.supplierPriceExposure &&
+               r.purchaseCashRequired > best.purchaseCashRequired)) best = r;
+          return '<option value="' + esc(r.skuId) + '">' + esc(r.productName) + "</option>";
+        }).join("");
+      if (best) sel.value = best.skuId;
+      paintRisk();
+    }).catch(function () {
+      el("ciRisk").innerHTML = '<p class="nlabel">MONEY AT RISK</p>' +
+        '<p class="nmsg">Unavailable right now. Nothing was changed.</p>';
+    });
+    ciPost({ kind: "SUPPLIER_RELIABILITY" }).then(paintReliability).catch(function () {
+      el("ciRel").innerHTML = '<p class="nlabel">SUPPLIER RELIABILITY</p>' +
+        '<p class="nmsg">Unavailable right now.</p>';
+    });
+  }
+
+  el("ciSku").addEventListener("change", function () {
+    paintRisk();
+    el("ciWaitOut").innerHTML = "";
+    ciResetOffers();
+  });
+  el("ciWaitGo").addEventListener("click", function () {
+    el("ciWaitOut").innerHTML = '<p class="nmsg">Checking…</p>';
+    ciPost({ kind: "BUY_VS_WAIT", skuId: el("ciSku").value,
+             budget: Number(el("ciBudget").value) })
+      .then(paintWait)
+      .catch(function (e) { el("ciWaitOut").innerHTML = '<p class="nmsg">' + esc(e.message) + "</p>"; });
+  });
+  el("ciExample").addEventListener("click", function () {
+    // Illustrative offers around today's cost, for trying the comparison.
+    // They are not real supplier quotes and are never stored.
+    var r = ciItems[el("ciSku").value];
+    if (!r) return;
+    var c = r.currentUnitCost, step = Math.max(1, Math.round(c * 0.024 / 10) * 10);
+    var need = Math.max(1, r.shortageQty);
+    ciResetOffers([
+      { supplierName: "Supplier A", unitPrice: c, moq: need },
+      { supplierName: "Supplier B", unitPrice: c - step, moq: need + 3 },
+      { supplierName: "Supplier C", unitPrice: c + step, moq: 1 }
+    ]);
+    el("ciQuotesOut").innerHTML = '<p class="note">Illustrative offers, not real ' +
+      "supplier quotes.</p>";
+  });
+  el("ciQuotesGo").addEventListener("click", function () {
+    var offers = ciReadOffers();
+    if (!offers.length) {
+      el("ciQuotesOut").innerHTML = '<p class="nmsg">Enter at least one offer.</p>';
+      return;
+    }
+    el("ciQuotesOut").innerHTML = '<p class="nmsg">Comparing…</p>';
+    ciPost({ kind: "SUPPLIER_QUOTES", skuId: el("ciSku").value, offers: offers })
+      .then(paintQuotes)
+      .catch(function (e) { el("ciQuotesOut").innerHTML = '<p class="nmsg">' + esc(e.message) + "</p>"; });
+  });
+
+  // Loaded when the section first comes into view, so the page's other
+  // owner reads are not slowed by it.
+  if ("IntersectionObserver" in window) {
+    new IntersectionObserver(function (entries, obs) {
+      if (entries.some(function (e) { return e.isIntersecting; })) {
+        obs.disconnect();
+        loadCommercial();
+      }
+    }).observe(el("commercial"));
+  } else {
+    loadCommercial();
+  }
+
 })();
 </script>
 
