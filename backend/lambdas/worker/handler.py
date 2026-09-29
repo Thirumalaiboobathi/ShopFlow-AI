@@ -64,6 +64,8 @@ from agent.orchestrator import (
 )
 from agent.brief_summary import summarize_brief
 from agent.negotiation_draft import draft_counter_offer
+from agent.supplier_reply import extract_reply_terms
+from engine import supplier_reply
 from agent.decision_trace import build as build_decision_trace
 from agent.textract_reader import (NOVA_PRO, TEXTRACT, TextractError,
                                    read_price_list)
@@ -91,6 +93,7 @@ TASK_DAILY_BRIEF = "DAILY_BRIEF"
 JOB_ORDER = "ORDER"
 JOB_PRICE_LIST = "PRICE_LIST"
 JOB_COUNTER_OFFER = "COUNTER_OFFER"
+JOB_SUPPLIER_REPLY = "SUPPLIER_REPLY"
 
 # Statuses. DONE is this codebase's completed state and has been since the
 # first stage - the browser polls for it and the API returns it. It is named
@@ -698,6 +701,64 @@ def _process_counter_offer(job_id: str, item: dict, client=None) -> dict:
     return {"ok": True, "status": "DRAFTED"}
 
 
+def _process_supplier_reply(job_id: str, item: dict, client=None) -> dict:
+    """Read one supplier reply and compare it with the shop's limits.
+
+    The model only extracts; `engine.supplier_reply` checks the extraction
+    against the reply's own text and evaluates the offer. A model failure is
+    a question for the owner, not a retry. Nothing is decided or sent.
+    """
+    started = time.perf_counter()
+    try:
+        context = json.loads(item.get("context") or "null")
+    except (TypeError, ValueError):
+        context = None
+    reply = item.get("replyText") or ""
+    if not isinstance(context, dict) or not context.get("available") or not reply:
+        print(json.dumps({"event": "supplier_reply_invalid_job", "jobId": job_id}))
+        _update(job_id, status=STATUS_FAILED,
+                error="supplier reply reading failed", finishedAt=int(time.time()))
+        return {"ok": False, "reason": "terminal"}
+
+    if client is None:
+        try:
+            from agent.orchestrator import _bedrock_client
+            client = _bedrock_client()
+        except Exception as exc:  # noqa: BLE001 - becomes a question
+            print(json.dumps({"event": "supplier_reply_client_unavailable",
+                              "jobId": job_id, "error": type(exc).__name__}))
+    read = extract_reply_terms(reply, context, client, MODEL_ID)
+    flagged = supplier_reply.instruction_like(reply)
+    result = {"jobType": JOB_SUPPLIER_REPLY, "context": context,
+              "extracted": read["extracted"], "readError": read["error"],
+              "instructionLikeText": flagged, "ownerDecisionRequired": True,
+              "stateChanged": False, "sent": False}
+    if not read["ok"]:
+        check = {"status": supplier_reply.AMBIGUOUS, "problems": ["NOT_READ"],
+                 "terms": None}
+    else:
+        check = supplier_reply.check_extraction(reply, read["extracted"], context)
+    result["check"] = check
+    if check["status"] == "OK":
+        result["status"] = "EVALUATED"
+        result["evaluation"] = supplier_reply.evaluate_offer(context, check["terms"])
+    else:
+        result["status"] = ("NEEDS_CLARIFICATION"
+                            if check["status"] == supplier_reply.AMBIGUOUS
+                            else "REJECTED_TERMS")
+        result["question"] = supplier_reply.question(check)
+    result["elapsedMs"] = round((time.perf_counter() - started) * 1000, 1)
+    print(json.dumps({"event": "supplier_reply_evaluated", "jobId": job_id,
+                      "skuId": context.get("skuId"), "status": result["status"],
+                      "priceStatus": (result.get("evaluation") or {}).get("status"),
+                      "problems": check["problems"][:8],
+                      "instructionLikeText": flagged,
+                      "elapsedMs": result["elapsedMs"]}))
+    _update(job_id, status=STATUS_DONE, finishedAt=int(time.time()),
+            result=json.dumps(result))
+    return {"ok": True, "status": result["status"]}
+
+
 def handler(event, context):
     """The SQS entry point.
 
@@ -785,6 +846,8 @@ def _process_message(message: dict, delivery: dict | None = None) -> dict:
             return _process_price_list(job_id, item)
         if job_type == JOB_COUNTER_OFFER:
             return _process_counter_offer(job_id, item)
+        if job_type == JOB_SUPPLIER_REPLY:
+            return _process_supplier_reply(job_id, item)
         return _process_order(job_id, item)
     except Exception as exc:  # noqa: BLE001
         receives = (delivery or {}).get("receives") or 1
@@ -854,6 +917,8 @@ def _process_message(message: dict, delivery: dict | None = None) -> dict:
                        if job_type == JOB_PRICE_LIST
                        else "counter-offer draft failed"
                        if job_type == JOB_COUNTER_OFFER
+                       else "supplier reply reading failed"
+                       if job_type == JOB_SUPPLIER_REPLY
                        else "order processing failed"))
         metrics.emit(metrics.WORKER_FAILURES, job_id=job_id,
                      dimensions={"JobType": job_type, "Outcome": "TERMINAL"})

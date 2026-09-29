@@ -327,7 +327,8 @@ def test_a_stockout_alert_matches_the_inventory_snapshot(env):
     alerted = {a["skuId"] for a in body["alerts"] if a["kind"] == "STOCKOUT"
                and a["detail"] == "Nothing on the shelf."}
 
-    inventory = body_of(api.handler({"routeKey": "GET /api/demo"}, None))
+    inventory = body_of(api.handler({"routeKey": "GET /api/demo",
+                                     "headers": OWNER_HEADERS}, None))
     empty = {row["skuId"] for row in inventory["inventory"]
              if row["status"] == "OUT OF STOCK"}
     assert alerted == empty
@@ -382,7 +383,8 @@ def test_a_promised_beyond_stock_alert_matches_the_shortage_rows(env):
     promised = {a["skuId"] for a in body["alerts"] if a["kind"] == "STOCKOUT"
                 and a["detail"] == "Promised beyond available stock."}
 
-    inventory = body_of(api.handler({"routeKey": "GET /api/demo"}, None))
+    inventory = body_of(api.handler({"routeKey": "GET /api/demo",
+                                     "headers": OWNER_HEADERS}, None))
     short = {row["skuId"] for row in inventory["inventory"]
              if row["status"] == "SHORTAGE"}
     assert promised == short

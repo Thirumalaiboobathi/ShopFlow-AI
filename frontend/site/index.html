@@ -241,6 +241,9 @@
   .nego .nbadge{margin:12px 0 6px; font-weight:600; font-size:.88rem}
   .nego textarea{min-height:120px}
   .nego .nmsg{margin:10px 0 0; font-size:.88rem}
+  .nego-reply{margin-top:14px; border-top:1px dashed var(--line); padding-top:12px}
+  .nego-reply label{font-size:.88rem; margin-bottom:0}
+  .nego-reply textarea{min-height:56px; margin:6px 0 8px}
   .hint{color:var(--muted); font-size:.87rem; margin:10px 0 0}
 
   .status{display:flex; gap:11px; align-items:center; margin-top:18px;
@@ -1487,7 +1490,8 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
 
   function load() {
     if (shop) { paint(); return; }
-    fetch("/api/demo").then(function (r) { return r.json(); })
+    // Sent as the owner: the stock table is only in the owner's view.
+    fetch("/api/demo", { headers: OWNER_HEADERS }).then(function (r) { return r.json(); })
       .then(function (d) { shop = d; paint(); })
       .catch(function () {
         el("invCount").textContent = "Inventory is unavailable right now.";
@@ -1790,7 +1794,12 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
           '<p class="nlabel">PRICE SHOCK</p><p class="nprod">' +
           esc(pa.product) + "</p>" + negoFacts(rows) +
           '<button type="button" class="primary nego-draft">Draft counter-offer' +
-          '</button><div class="nego-out" aria-live="polite"></div></div>';
+          '</button><div class="nego-out" aria-live="polite"></div>' +
+          '<div class="nego-reply"><label>Supplier\u2019s reply' +
+          '<textarea class="reply-text" maxlength="500" rows="2" ' +
+          'placeholder="e.g. 6100 final, 5 coils min"></textarea></label>' +
+          '<button type="button" class="ghost reply-read">Read supplier reply' +
+          '</button><div class="reply-out" aria-live="polite"></div></div></div>';
       }).join("");
   }
 
@@ -1822,8 +1831,14 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
         ["Target counter-offer", briefMoney(t.targetCounterOffer)],
         ["Quantity", qty],
         ["Price gap", briefMoney(t.priceGap)],
-        ["Supplier", t.supplierName || "not on record"]
+        ["Supplier", t.supplierName ||
+          ((t.labelsWithheld || []).indexOf("supplierName") >= 0
+            ? "withheld — the catalogue name failed a safety check"
+            : "not on record")]
       ]) +
+      ((t.labelsWithheld || []).indexOf("productName") >= 0
+        ? '<p class="note">The catalogue product name failed a safety check, ' +
+          "so the draft says “the product” instead.</p>" : "") +
       '<textarea class="nego-text" readonly aria-label="Counter-offer draft">' +
       esc(res.draft) + "</textarea>" +
       '<div class="row"><button type="button" class="ghost nego-draft">' +
@@ -1833,24 +1848,45 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
       "suppliers: copy this and send it yourself if you approve it.</p>";
   }
 
-  function negoPoll(out, jobId, attempt) {
+  // One poll and one POST for both owner actions on this card.
+  function negoPoll(out, jobId, attempt, render, failText) {
     fetch("/api/jobs/" + encodeURIComponent(jobId), { headers: OWNER_HEADERS })
       .then(function (r) { return r.json().then(function (b) { return { ok: r.ok, body: b }; }); })
       .then(function (res) {
         var job = res.body || {};
         if (res.ok && job.status === "DONE" && job.result) {
-          out.innerHTML = negoDraftHtml(job.result);
+          out.innerHTML = render(job.result);
         } else if (!res.ok || job.status === "FAILED" || attempt >= 40) {
-          out.innerHTML = '<p class="nmsg">The draft could not be prepared. ' +
-            "Nothing was sent. Try again.</p>";
+          out.innerHTML = '<p class="nmsg">' + failText + "</p>";
         } else {
-          setTimeout(function () { negoPoll(out, jobId, attempt + 1); }, 1500);
+          setTimeout(function () {
+            negoPoll(out, jobId, attempt + 1, render, failText);
+          }, 1500);
         }
       })
-      .catch(function () {
-        out.innerHTML = '<p class="nmsg">The draft could not be prepared. ' +
-          "Nothing was sent. Try again.</p>";
-      });
+      .catch(function () { out.innerHTML = '<p class="nmsg">' + failText + "</p>"; });
+  }
+
+  function negoPost(body, out, busyText, render, failText, done) {
+    fetch("/api/shop-queries", {
+      method: "POST",
+      headers: Object.assign({ "content-type": "application/json" }, OWNER_HEADERS),
+      body: body
+    })
+      .then(function (r) { return r.json().then(function (b) { return { status: r.status, body: b }; }); })
+      .then(function (res) {
+        var b = res.body || {};
+        if (res.status === 202 && b.jobId) {
+          out.innerHTML = '<p class="nmsg">' + busyText + "</p>";
+          negoPoll(out, b.jobId, 0, render, failText);
+        } else if (res.status === 200 && b.message) {
+          out.innerHTML = '<p class="nmsg">' + esc(b.message) + "</p>";
+        } else {
+          out.innerHTML = '<p class="nmsg">' + esc(b.error || failText) + "</p>";
+        }
+      })
+      .catch(function () { out.innerHTML = '<p class="nmsg">' + failText + "</p>"; })
+      .then(done || function () {});
   }
 
   function negoRequest(card) {
@@ -1858,39 +1894,94 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
     Array.prototype.forEach.call(card.querySelectorAll(".nego-draft"),
       function (b) { b.disabled = true; });
     out.innerHTML = '<p class="nmsg">Checking the figures…</p>';
-    fetch("/api/shop-queries", {
-      method: "POST",
-      headers: Object.assign({ "content-type": "application/json" }, OWNER_HEADERS),
-      body: JSON.stringify({ kind: "COUNTER_OFFER", skuId: card.getAttribute("data-sku") })
-    })
-      .then(function (r) { return r.json().then(function (b) { return { status: r.status, body: b }; }); })
-      .then(function (res) {
-        var b = res.body || {};
-        if (res.status === 202 && b.jobId) {
-          out.innerHTML = '<p class="nmsg">Wording the draft…</p>';
-          negoPoll(out, b.jobId, 0);
-        } else if (res.status === 200 && b.message) {
-          out.innerHTML = '<p class="nmsg">' + esc(b.message) + "</p>";
-        } else {
-          out.innerHTML = '<p class="nmsg">' + esc(b.error ||
-            "The draft could not be prepared.") + " Nothing was sent.</p>";
-        }
-      })
-      .catch(function () {
-        out.innerHTML = '<p class="nmsg">The draft could not be prepared. ' +
-          "Nothing was sent. Try again.</p>";
-      })
-      .then(function () {
+    negoPost(JSON.stringify({ kind: "COUNTER_OFFER", skuId: card.getAttribute("data-sku") }),
+      out, "Wording the draft…", negoDraftHtml,
+      "The draft could not be prepared. Nothing was sent. Try again.",
+      function () {
         var first = card.querySelector("button.primary.nego-draft");
         if (first) first.disabled = false;
       });
   }
+
+  // ---- Supplier reply -------------------------------------------------
+  // The model reads the supplier's words into terms; every figure below and
+  // the verdict are engine.supplier_reply's. The three decision buttons
+  // record nothing and send nothing: they say what the owner can do next.
+  var REPLY_STATUS = {
+    ABOVE_WALK_AWAY: "ABOVE WALK-AWAY", AT_WALK_AWAY: "AT WALK-AWAY",
+    BELOW_WALK_AWAY: "BELOW WALK-AWAY"
+  };
+
+  function replyHtml(res) {
+    if (res.status !== "EVALUATED") {
+      return '<p class="nbadge">' + (res.status === "REJECTED_TERMS"
+          ? "These terms were not accepted as an offer."
+          : "ShopFlow needs you to check this reply.") +
+        '</p><p class="nmsg">' + esc(res.question || "") + "</p>" +
+        (res.instructionLikeText ? '<p class="note">The reply contains ' +
+          "instruction-like text. It was treated as the supplier’s words " +
+          "only; nothing was changed.</p>" : "");
+    }
+    var e = res.evaluation || {};
+    var rows = [
+      ["Offered price", briefMoney(e.offeredPrice)],
+      ["Minimum quantity", e.minimumQuantity ? String(e.minimumQuantity) : "not stated"],
+      ["Walk-away price", briefMoney(e.walkAwayPrice)],
+      ["Difference from walk-away", briefMoney(e.differenceFromWalkAway)],
+      ["Result", REPLY_STATUS[e.status] || e.status]
+    ];
+    if (e.purchaseCost !== null && e.purchaseCost !== undefined) {
+      rows.push(["Cost of " + e.unitsPriced + " units", briefMoney(e.purchaseCost)]);
+      rows.push(["Cash available", briefMoney(e.cashAvailable)]);
+    }
+    return '<p class="nbadge">AI read the reply — ShopFlow compared it with your limits.</p>' +
+      negoFacts(rows) + '<p class="nmsg">' + esc(e.explanation) + "</p>" +
+      (res.instructionLikeText ? '<p class="note">The reply contains ' +
+        "instruction-like text. It was treated as the supplier’s words only.</p>" : "") +
+      '<p class="nbadge">Your decision — nothing is recorded or sent.</p>' +
+      '<div class="row"><button type="button" class="ghost reply-accept">Accept</button>' +
+      '<button type="button" class="ghost reply-counter">Counter</button>' +
+      '<button type="button" class="ghost reply-walk">Walk away</button></div>' +
+      '<p class="nmsg reply-next"></p>';
+  }
+
+  function replyRequest(card) {
+    var out = card.querySelector(".reply-out");
+    var text = card.querySelector(".reply-text").value || "";
+    if (!text.trim()) {
+      out.innerHTML = '<p class="nmsg">Type or paste the supplier’s reply first.</p>';
+      return;
+    }
+    out.innerHTML = '<p class="nmsg">Checking…</p>';
+    negoPost(JSON.stringify({ kind: "SUPPLIER_REPLY", skuId: card.getAttribute("data-sku"),
+                              replyText: text }),
+      out, "Reading the reply…", replyHtml,
+      "The reply could not be read. Nothing was decided.");
+  }
+
+  var REPLY_NEXT = {
+    "reply-accept": "To accept, reply to the supplier yourself. ShopFlow changes " +
+      "the supplier cost only when you confirm a price from their price list " +
+      "under Supplier documents.",
+    "reply-walk": "You chose not to buy at this price. Nothing has been " +
+      "recorded or sent."
+  };
 
   el("negoBox").addEventListener("click", function (e) {
     var btn = e.target.closest("button");
     var card = btn && btn.closest(".nego");
     if (!card) return;
     if (btn.classList.contains("nego-draft")) { negoRequest(card); return; }
+    if (btn.classList.contains("reply-read")) { replyRequest(card); return; }
+    if (btn.classList.contains("reply-counter")) {
+      negoRequest(card);
+      card.querySelector(".nego-out").scrollIntoView({ block: "nearest" });
+      return;
+    }
+    if (REPLY_NEXT[btn.classList[1]]) {
+      card.querySelector(".reply-next").textContent = REPLY_NEXT[btn.classList[1]];
+      return;
+    }
     if (btn.classList.contains("nego-copy")) {
       var text = card.querySelector(".nego-text");
       var done = function () {

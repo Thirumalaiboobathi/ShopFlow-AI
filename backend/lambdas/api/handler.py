@@ -124,6 +124,7 @@ from engine import gst, whatif
 from engine.brief import brief_signature, build_brief
 from engine.price_alerts import evaluate_price_change
 from engine import negotiation
+from engine import supplier_reply
 
 MAX_ORDER_CHARS = 1000
 # A customer id is an internal key, not free text. Bounded and pattern-checked
@@ -146,6 +147,7 @@ JOB_ORDER = "ORDER"
 JOB_PRICE_LIST = "PRICE_LIST"
 JOB_TRANSCRIPT = "TRANSCRIPT"
 JOB_COUNTER_OFFER = "COUNTER_OFFER"
+JOB_SUPPLIER_REPLY = "SUPPLIER_REPLY"
 
 # The shape of the message this API puts on the queue. Carried so a consumer
 # reading an unfamiliar message can say so instead of guessing at it.
@@ -832,6 +834,78 @@ def _create_counter_offer(payload: dict) -> dict:
                            "jobType": JOB_COUNTER_OFFER, "sent": False})
 
 
+SUPPLIER_REPLY_KIND = "SUPPLIER_REPLY"
+
+# The reply is the supplier's words. The terms in it are read by the worker
+# and checked there; none may be supplied alongside it.
+SUPPLIER_REPLY_SERVER_FIELDS = frozenset({
+    "offeredPrice", "minimumQuantity", "walkAwayPrice", "decision", "status",
+    "accepted", "cashAvailable", "terms", "context",
+})
+
+
+def _create_supplier_reply(payload: dict) -> dict:
+    """Read a supplier's reply: the shop's side now, the reading from the worker.
+
+    `POST /api/shop-queries` with `kind: "SUPPLIER_REPLY"`, a `skuId` and the
+    supplier's `replyText`, behind the owner gate. The comparison context -
+    walk-away price, commitment, planned restock, cash - is computed here
+    from the engines and written onto the job; the worker has the model read
+    the reply and `engine.supplier_reply` check and evaluate it. Nothing is
+    decided, accepted, recorded or sent: the owner decides.
+    """
+    supplied = sorted(SUPPLIER_REPLY_SERVER_FIELDS & set(payload))
+    if supplied:
+        return _response(400, {
+            "error": "these values are read or calculated by ShopFlow and "
+                     "cannot be supplied: " + ", ".join(supplied)})
+    sku_id = payload.get("skuId")
+    if not isinstance(sku_id, str) or not sku_id:
+        return _response(400, {"error": "skuId is required"})
+    raw = payload.get("replyText")
+    if not isinstance(raw, str):
+        return _response(400, {"error": "replyText must be a string"})
+    reply = supplier_reply.clean_reply(_CONTROL.sub("", raw))
+    if not reply:
+        return _response(400, {"error": "replyText is required"})
+    if len(raw) > supplier_reply.MAX_REPLY_CHARS:
+        return _response(400, {"error": f"replyText must be "
+                                        f"{supplier_reply.MAX_REPLY_CHARS} "
+                                        f"characters or fewer"})
+
+    confirmed = {sku: e["cost"] for sku, e in _confirmed_costs().items()}
+    context = supplier_reply.reply_context(cached_dataset(), sku_id, confirmed,
+                                           budget=BRIEF_BUDGET)
+    print(json.dumps({"event": "supplier_reply_requested", "skuId": sku_id[:60],
+                      "available": context["available"],
+                      "reason": context.get("reason")}))
+    if not context["available"]:
+        return _response(200, {"status": supplier_reply.UNAVAILABLE,
+                               "skuId": sku_id, "reason": context["reason"],
+                               "message": context["message"],
+                               "stateChanged": False})
+
+    job_id = uuid.uuid4().hex
+    now = int(time.time())
+    failed = _queue_job(job_id, JOB_SUPPLIER_REPLY, {
+        **_job_key(job_id),
+        **_job_index(job_id, JOB_SUPPLIER_REPLY, now),
+        "jobId": job_id,
+        "jobType": JOB_SUPPLIER_REPLY,
+        "status": "QUEUED",
+        "skuId": sku_id,
+        "replyText": reply,
+        "context": json.dumps(context),
+        "createdAt": now,
+        "expiresAt": now + JOB_TTL_SECONDS,
+    })
+    if failed:
+        return failed
+    return _response(202, {"status": "QUEUED", "jobId": job_id,
+                           "jobType": JOB_SUPPLIER_REPLY, "context": context,
+                           "stateChanged": False, "sent": False})
+
+
 def _confirmed_costs() -> dict:
     """The shop's durable confirmed purchase costs, keyed by SKU.
 
@@ -903,6 +977,9 @@ def _create_shop_query(event) -> dict:
     if isinstance(payload, dict) and \
             str(payload.get("kind") or "").upper() == COUNTER_OFFER_KIND:
         return _create_counter_offer(payload)
+    if isinstance(payload, dict) and \
+            str(payload.get("kind") or "").upper() == SUPPLIER_REPLY_KIND:
+        return _create_supplier_reply(payload)
 
     # Same contract as orderText: a transcript is text, not a coerced object.
     raw_transcript = payload.get("transcript")
@@ -1793,13 +1870,13 @@ def _get_job(event) -> dict:
         # loop in a Lambda and no background process that can outlive a tab.
         return _job_response(event, _poll_transcription(item, body))
 
-    if body["jobType"] == JOB_COUNTER_OFFER:
-        # A counter-offer carries the supplier cost and the walk-away price.
-        # Owner data, behind the same gate as a supplier price list.
+    if body["jobType"] in (JOB_COUNTER_OFFER, JOB_SUPPLIER_REPLY):
+        # A counter-offer or a supplier reply carries the supplier cost and
+        # the walk-away price. Owner data, behind the same gate as a price list.
         if not _is_demo_owner(event):
             owner_only = _response(401, {
                 "error": "owner route",
-                "message": ("A supplier counter-offer is owner data. Poll this "
+                "message": ("Supplier negotiation is owner data. Poll this "
                             "job with the ShopFlow demo workspace."),
                 "demoGate": True,
                 "isAuthentication": False,
@@ -2253,7 +2330,7 @@ def _get_demo(event) -> dict:
             parts.append(f"{line.quantity} {descriptor}")
         example = "Anna, " + ", ".join(parts) + "."
 
-    return _response(200, {
+    body = {
         "shopName": "Demo Electricals, Madurai",
         "catalogSize": len(data.products),
         # Every line names its variant, because the catalogue really does
@@ -2272,8 +2349,18 @@ def _get_demo(event) -> dict:
         "businessType": "Electrical & hardware retail",
         "dataNotice": ("Synthetic demo data. Inventory and sales history are "
                        "generated and do not represent a real shop's records."),
-        "inventory": _inventory_snapshot(data),
-    })
+    }
+    # The stock table - every SKU's on-hand count and stock status - is the
+    # shop's operational data. A customer's own order poll does not carry
+    # `onHand`, and this public route carried it for all 147 SKUs. It is now
+    # sent only to the owner's workspace; anyone else gets the examples.
+    owner = _is_demo_owner(event)
+    if owner:
+        body["inventory"] = _inventory_snapshot(data)
+    response = _response(200, body)
+    response.setdefault("headers", {})["x-shopflow-audience"] = (
+        "owner" if owner else "public")
+    return response
 
 
 # Which routes answer the shop owner about their own business, and which

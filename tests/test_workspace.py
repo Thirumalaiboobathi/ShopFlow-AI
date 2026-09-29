@@ -38,7 +38,8 @@ WORKSPACE_JS = PAGE[PAGE.index("// >>> workspace"):PAGE.index("// <<< workspace"
 
 @pytest.fixture(scope="module")
 def demo():
-    return json.loads(handler._get_demo({})["body"])
+    # The stock table is owner data: the workspace reads it as the owner.
+    return json.loads(handler._get_demo({"headers": {"x-shopflow-demo-owner": "demo-workspace"}})["body"])
 
 
 def _strip_comments(js: str) -> str:
@@ -159,7 +160,7 @@ def test_6b_stock_status_is_the_planners_calculation_not_a_new_rule():
 
     data = load_dataset()
     planner_low = {c.skuId for c in restock_candidates(data)}
-    inventory = json.loads(handler._get_demo({})["body"])["inventory"]
+    inventory = json.loads(handler._get_demo({"headers": {"x-shopflow-demo-owner": "demo-workspace"}})["body"])["inventory"]
     page_low = {i["skuId"] for i in inventory if i["status"] == "LOW STOCK"}
     page_short = {i["skuId"] for i in inventory if i["status"] == "SHORTAGE"}
 
@@ -284,7 +285,10 @@ def test_10_the_workspace_adds_no_second_agent_or_chatbot():
     assert re.findall(r'fetch\("([^"]+)"', js) == [
         "/api/demo", "/api/intelligence", "/api/jobs/", "/api/shop-queries"]
     assert js.count("/api/shop-queries") == 1
-    assert re.findall(r'kind:\s*"([A-Z_]+)"', js) == ["COUNTER_OFFER"]
+    # ...and the supplier reply reader on the same card: the supplier's words
+    # in, the engine's comparison out, nothing recorded or sent.
+    assert re.findall(r'kind:\s*"([A-Z_]+)"', js) == ["COUNTER_OFFER",
+                                                      "SUPPLIER_REPLY"]
 
 
 def test_10b_the_intelligence_read_is_sent_as_the_owner():
