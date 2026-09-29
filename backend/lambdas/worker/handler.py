@@ -1026,6 +1026,9 @@ def _whatsapp_order(job_id: str, item: dict, text: str,
     _process_order(job_id, {**item, "orderText": text,
                             "clarifications": clarifications,
                             "customerId": "", "language": "en"})
+    if text != item.get("orderText"):
+        # What was actually read, when a choice rewrote the customer's line.
+        _update(job_id, waOrderRead=text[:wa_inbound.MAX_TEXT_CHARS])
     row = _table.get_item(Key=_job_key(job_id)).get("Item") or {}
     payload = json.loads(row.get("result") or "{}")
     status = payload.get("status")
@@ -1088,12 +1091,24 @@ def _process_whatsapp(job_id: str, item: dict) -> dict:
     elif kind == wa_inbound.CHOICE and state == "AWAITING_CHOICE" and \
             1 <= (choice or 0) <= len(conversation.get("options") or []):
         option = conversation["options"][choice - 1]
-        clarifications = list(conversation.get("clarifications") or []) + [{
-            "requestedText": conversation.get("requestedText") or "",
-            "skuId": option["skuId"]}]
-        outcome, reply = _whatsapp_order(
-            job_id, item, str(conversation.get("originalText") or ""),
-            clarifications, now)
+        original = str(conversation.get("originalText") or "")
+        # The chosen product's catalogue name, written into the customer's
+        # own line, and the whole order read again. Passing the choice as a
+        # "confirmed SKU" note instead lets the model skip searching that
+        # line, and the coverage guard then - correctly - refuses a
+        # quotation for a product nobody looked up.
+        rewritten = wa_inbound.apply_choice(
+            original, conversation.get("requestedText") or "", option["name"])
+        if rewritten:
+            outcome, reply = _whatsapp_order(
+                job_id, item, rewritten,
+                list(conversation.get("clarifications") or []), now)
+        else:
+            clarifications = list(conversation.get("clarifications") or []) + [{
+                "requestedText": conversation.get("requestedText") or "",
+                "skuId": option["skuId"]}]
+            outcome, reply = _whatsapp_order(job_id, item, original,
+                                             clarifications, now)
     elif kind == wa_inbound.OWNER_REQUEST:
         outcome, reply = "OWNER_ONLY", wa_inbound.OWNER_ONLY
     else:

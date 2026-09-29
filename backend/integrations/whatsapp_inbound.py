@@ -342,6 +342,44 @@ def quotation(quote: Dict) -> str:
     return "\n".join(lines)
 
 
+# A count and unit at the start of a line ("2 ", "3 coils ", "20 x "), kept
+# when the rest of the line is replaced by the product the customer chose.
+_LEADING_COUNT = re.compile(
+    r"^\s*\d[\d,]*(?:\.\d+)?\s*(?:[x×]\s*)?"
+    r"(?:(?:nos?|pcs?|pieces?|coils?|units?|rolls?|boxes?|packets?|metres?|"
+    r"meters?|mtrs?)\b\s*)?", re.IGNORECASE)
+_TRAILING_UNIT = re.compile(r"\s+(coils?|rolls?|pieces?|pcs|nos?|boxes?|packets?)\s*$",
+                            re.IGNORECASE)
+
+
+def apply_choice(order_text: str, requested_text: str, option_name: str) -> Optional[str]:
+    """The customer's order with one ambiguous line replaced by their choice.
+
+    "2 Havells MCB 32 amp C curve" + option "Havells MCB SP 32A C-Curve" reads
+    "2 Havells MCB SP 32A C-Curve": the customer's own count and unit are kept
+    and only the words that were ambiguous become the catalogue's name for the
+    product they picked. The order is then read again in full, so every line
+    is looked up and every guard applies exactly as it did the first time.
+
+    Returns None when the ambiguous words cannot be found verbatim in the
+    order - the caller then falls back to ShopFlow's existing clarification
+    path rather than guessing where the line was.
+    """
+    order_text, requested_text = str(order_text or ""), str(requested_text or "").strip()
+    name = clean_text(option_name)
+    if not requested_text or not name:
+        return None
+    start = order_text.lower().find(requested_text.lower())
+    if start < 0:
+        return None
+    prefix = _LEADING_COUNT.match(requested_text).group(0)
+    unit = _TRAILING_UNIT.search(requested_text)
+    replacement = prefix + name
+    if unit and unit.group(1).lower().rstrip("s") not in name.lower():
+        replacement += " " + unit.group(1)
+    return order_text[:start] + replacement + order_text[start + len(requested_text):]
+
+
 def clarification(question: Dict) -> Tuple[str, List[Dict]]:
     """A question for the customer, and the options a number reply picks.
 

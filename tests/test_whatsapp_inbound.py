@@ -504,14 +504,73 @@ def test_10_an_ambiguous_order_is_a_numbered_question_then_a_choice(world):
     assert world.job("wamid.Q1")["waOutcome"] == "NEEDS_CLARIFICATION"
 
     world.script(turn(("search_catalog",
-                       {"requestedText": "2 Havells MCB 32 amp C curve"})),
+                       {"requestedText": "2 Havells MCB SP 32A C-Curve"})),
                  turn(quote_call((MCB, 2))))
-    understood = world.say("1", "wamid.Q2")
+    # The number the customer saw next to SP - the list order is the
+    # engine's, and the stored options follow what was shown.
+    sp = next(line.split(".")[0] for line in question.splitlines()
+              if line[:1].isdigit() and " SP " in line)
+    understood = world.say(sp, "wamid.Q2")
     assert understood.startswith("I understood your order as:")
     assert "2 × Havells" in understood
-    assert world.job("wamid.Q2")["waIntent"] == "CHOICE"
+    row = world.job("wamid.Q2")
+    assert row["waIntent"] == "CHOICE"
+    # The choice was written into the customer's line and the order re-read.
+    assert row["waOrderRead"] == "2 Havells MCB SP 32A C-Curve"
     assert "Total: ₹1,073.08" not in understood
     assert "Total: " in world.say("YES", "wamid.Q3")
+
+
+def test_10b_three_questions_in_turn_end_in_the_canonical_quotation(world):
+    """The demo text names no rating, no length and no pole. Each is asked in
+    turn; each answer is written into the customer's line; then YES quotes."""
+    def ask(line, attribute, options):
+        return turn(("search_catalog", {"requestedText": line})), turn((
+            "request_clarification", {
+                "requestedText": line, "clarifyingAttribute": attribute,
+                "question": f"Which {attribute}?",
+                "options": [{"skuId": s, "value": v} for s, v in options]}))
+
+    world.script(*ask("2 Havells MCB 32 amp C curve", "pole",
+                      [(MCB_DP, "DP"), (MCB, "SP")]))
+    assert "2. " in world.say(CANONICAL, "wamid.M1")
+    world.script(*ask("3 Finolex 1.5 red coil", "length",
+                      [("W-FIN-1.5-RED-180M", "180m"), (WIRE, "90m")]))
+    world.say("2", "wamid.M2")
+    world.script(*ask("20 Anchor modular switch 1 way white", "rating",
+                      [(SWITCH, "10A"), ("SW-ANC-1W16A", "16A")]))
+    world.say("2", "wamid.M3")
+    read = world.job("wamid.M3")["waOrderRead"]
+    assert "Havells MCB SP 32A C-Curve" in read and "Red 90m" in read
+    world.script(turn(*[("search_catalog", {"requestedText": part.strip()})
+                        for part in read.replace(
+                            "20 Anchor modular switch 1 way white",
+                            "20 Anchor Modular Switch 1-Way 10A White").split(",")]),
+                 turn(quote_call((SWITCH, 20), (WIRE, 3), (MCB, 2))))
+    assert world.say("1", "wamid.M4").startswith("I understood your order as:")
+    assert "Anchor Modular Switch 1-Way 10A White" in world.job("wamid.M4")[
+        "waOrderRead"]
+    assert "Total: ₹26,321.64" in world.say("YES", "wamid.M5")
+
+
+@pytest.mark.parametrize("order,requested,name,expected", [
+    ("20 switches, 2 Havells MCB 32 amp C curve", "2 Havells MCB 32 amp C curve",
+     "Havells MCB SP 32A C-Curve", "20 switches, 2 Havells MCB SP 32A C-Curve"),
+    ("3 Finolex 1.5 red coil", "3 Finolex 1.5 red coil",
+     "Finolex 1.5 sqmm FR Wire Red 90m", "3 Finolex 1.5 sqmm FR Wire Red 90m coil"),
+    ("3 coils Finolex red", "3 coils Finolex red", "Finolex Red 90m",
+     "3 coils Finolex Red 90m"),
+    ("2 HAVELLS mcb", "2 Havells MCB", "Havells MCB SP 32A C-Curve",
+     "2 Havells MCB SP 32A C-Curve"),
+])
+def test_10c_a_choice_keeps_the_customers_count_and_unit(order, requested, name,
+                                                          expected):
+    assert wa.apply_choice(order, requested, name) == expected
+
+
+def test_10d_a_choice_that_cannot_be_placed_is_not_guessed():
+    assert wa.apply_choice("2 Havells MCB", "Legrand MCB", "X") is None
+    assert wa.apply_choice("2 Havells MCB", "", "X") is None
 
 
 def test_11_32_amp_is_read_as_32a_and_32_kg_is_not():

@@ -2240,6 +2240,7 @@ def _whatsapp_summary(row: dict) -> dict:
         "replySent": reply.get("sent"),
         "replyReason": reply.get("reason"),
         "replyText": reply.get("text"),
+        "orderRead": row.get("waOrderRead"),
     }
 
 
