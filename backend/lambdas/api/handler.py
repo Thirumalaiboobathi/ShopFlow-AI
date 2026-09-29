@@ -64,6 +64,8 @@ from engine.cost_records import (
     to_plan_decisions,
 )
 from agent import decision_trace
+from agent.quantity_guard import order_lines
+from engine.matching import RESOLVED, resolve_product
 from observability import events
 from engine.credit import (
     InvalidOrderTotalError,
@@ -434,15 +436,50 @@ def _resolve_choice(raw, order_text: str, data) -> dict:
     if sku not in data.products or any(
             c.get("skuId") not in data.products for c in earlier):
         return ask_again("NO_LONGER_AVAILABLE")
-    confirmed = earlier + [{
-        "requestedText": _CONTROL.sub("", str(clarification.get("requestedText")
-                                              or ""))[:200],
-        "skuId": sku,
-    }]
+    line = _answered_line(data, order_text,
+                          _CONTROL.sub("", str(clarification.get("requestedText") or "")),
+                          sku)
+    if line is None:
+        # The question named several lines of the order and the chosen SKU
+        # does not belong to exactly one of them. Not bound, not guessed: the
+        # earlier answers stand and this question is asked again.
+        return {"confirmed": earlier,
+                "outcome": {"applied": False, "reason": "LINE_NOT_IDENTIFIED"}}
+    confirmed = earlier + [{"requestedText": line[:200], "skuId": sku}]
     if len(confirmed) > MAX_CLARIFICATIONS:
         return refuse("too many answered questions for one order")
     return {"confirmed": confirmed,
             "outcome": {"applied": True, "option": option, "skuId": sku}}
+
+
+def _answered_line(data, order_text: str, requested: str, sku: str):
+    """The one line of the customer's order that a chosen SKU answers.
+
+    A confirmed choice is stored against the words it answers, and those words
+    become part of the SKU's identity when the quantity guard pairs quoted SKUs
+    with order lines. The model writes the question's requestedText, and live
+    it has sometimes written the WHOLE order there: an SP breaker bound to
+    "20 Anchor switch, 3 Finolex coil, 2 Havells MCB" then shares every word
+    of every line, all three lines tie, and no quantity can be read.
+
+    So a requestedText stating more than one count is not trusted. The order's
+    own lines are each run through the matcher, and the choice is bound to the
+    single line whose matcher offers that SKU - the same test the agent applies
+    before it accepts a choice. None when no line or more than one line does:
+    the caller then asks again rather than guessing. A requestedText of one
+    line is kept exactly as before.
+    """
+    if sum(1 for l in order_lines(requested) if l["quantity"] is not None) <= 1:
+        return requested
+    matching = []
+    for line in order_lines(order_text):
+        found = resolve_product(data, requested_text=line["text"])
+        offered = {o["skuId"] for o in found.options}
+        if found.status == RESOLVED:
+            offered.add(found.skuId)
+        if sku in offered:
+            matching.append(line["text"])
+    return matching[0] if len(matching) == 1 else None
 
 
 def _enqueue(job_id: str, job_type: str) -> None:
