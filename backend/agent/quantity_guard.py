@@ -62,6 +62,7 @@ CONFLICTING = "CONFLICTING"    # more than one line states a quantity for it
 UNSTATED = "UNSTATED"          # no line states a quantity it can be held to
 UNIT_NOT_SOLD = "UNIT_NOT_SOLD"  # the count is in a unit the shop never sells in
 NEGATIVE = "NEGATIVE"          # the line subtracts: "minus 2", "less 2", "-2"
+AMBIGUOUS_NUMBER = "AMBIGUOUS_NUMBER"  # "2,000": two thousand, or 2 and a typo?
 
 # Units of weight and volume. Nothing in an electrical shop is sold by them,
 # so "3 kg MCB" is not three breakers - it is a question. Before this set the
@@ -154,8 +155,21 @@ MEASURE = "MEASURE"    # a number counted in metres - a quantity or a length
 WEAK = "WEAK"          # "a" / "an"
 
 
+# A number written with digit-group commas: "2,000", "20,000", "1,00,000".
+# The comma used to be read as the end of an order line, so "2,000 Havells
+# MCB" became a line "2" and a line "000 Havells MCB" - and the owner was told
+# the order asked for 0. The comma is kept inside the number instead (as a
+# character no line break matches), and the count is never quoted: whether
+# the customer meant two thousand or wrote "2," and a stray "000" is theirs
+# to say.
+_GROUPED = re.compile(r"(?<![\d,.])(\d{1,3}(?:,\d{2})*,\d{3})(?![\d,])")
+_GROUP_MARK = "⁣"   # INVISIBLE SEPARATOR, never typed in an order
+_GROUPED_TOKEN = re.compile(r"^(\d{1,3})((?:" + _GROUP_MARK + r"\d{2,3})+)$")
+
+
 def _segments(text: str) -> List[str]:
     text = _ABBREVIATION.sub(lambda m: m.group(1) + " ", text or "")
+    text = _GROUPED.sub(lambda m: m.group(1).replace(",", _GROUP_MARK), text)
     return [s.strip() for s in _BREAK.split(text) if s and s.strip()]
 
 
@@ -186,6 +200,17 @@ def _candidates(segment: str) -> List[Dict]:
                      if _NUMERAL.match(word) else _NUMBER_WORDS[word])
             out.append({"at": start, "value": value, "kind": STRONG,
                         "unit": None, "negative": True})
+            continue
+
+        grouped = _GROUPED_TOKEN.match(word)
+        if grouped:
+            written = word.replace(_GROUP_MARK, ",")
+            unit = normalize_uom(after)
+            out.append({"at": start,
+                        "value": int(written.replace(",", "")),
+                        "kind": STRONG,
+                        "unit": unit if unit != METER else None,
+                        "grouped": written, "leading": int(grouped.group(1))})
             continue
 
         numeral = _NUMERAL.match(word)
@@ -259,12 +284,15 @@ def order_lines(text: str) -> List[Dict]:
                 count = next(c for c in strong if lo <= c["at"] < hi)
                 lines.append(_line(part, count["value"], count["unit"], False,
                                    count.get("foreign"),
-                                   count.get("negative", False)))
+                                   count.get("negative", False),
+                                   count.get("grouped"), count.get("leading")))
             continue
         if strong:
             lines.append(_line(segment, strong[0]["value"], strong[0]["unit"],
                                False, strong[0].get("foreign"),
-                               strong[0].get("negative", False)))
+                               strong[0].get("negative", False),
+                               strong[0].get("grouped"),
+                               strong[0].get("leading")))
             continue
         measures = [c for c in found if c["kind"] == MEASURE]
         weak = [c for c in found if c["kind"] == WEAK]
@@ -299,10 +327,21 @@ def negative_lines(text: str) -> List[Dict]:
 
 def _line(text: str, quantity: Optional[int], unit: Optional[str],
           unclear: bool, foreign: Optional[str] = None,
-          negative: bool = False) -> Dict:
-    return {"text": text, "quantity": quantity, "unit": unit,
+          negative: bool = False, grouped: Optional[str] = None,
+          leading: Optional[int] = None) -> Dict:
+    text = text.replace(_GROUP_MARK, ",")
+    line = {"text": text, "quantity": quantity, "unit": unit,
             "unclear": unclear, "foreignUnit": foreign, "negative": negative,
             "tokens": {t for t in _tokens(text) if not t.isdigit()}}
+    if grouped:
+        line["groupedNumber"] = grouped
+        line["leadingNumber"] = leading
+    return line
+
+
+def grouped_number_lines(text: str) -> List[Dict]:
+    """The customer's lines whose count is written with digit-group commas."""
+    return [l for l in order_lines(text) if l.get("groupedNumber")]
 
 
 def _identity(data: Dataset, sku_id: str, matches: Sequence[dict]) -> set:
@@ -369,6 +408,13 @@ def check_quantities(data: Dataset, customer_text: str,
             # beside a line that states a positive count for the same SKU.
             entry["status"] = NEGATIVE
             entry["requestedText"] = signed[0]["text"]
+        elif any(l.get("groupedNumber") for l in stated):
+            # "2,000": never quoted as 2,000, never as 2, never as 0.
+            line = next(l for l in stated if l.get("groupedNumber"))
+            entry["status"] = AMBIGUOUS_NUMBER
+            entry["requestedText"] = line["text"]
+            entry["groupedNumber"] = line["groupedNumber"]
+            entry["leadingNumber"] = line["leadingNumber"]
         elif unclear or not stated:
             entry["status"] = UNSTATED
             source = (unclear or claimed[sku] or [{"text": ""}])[0]
@@ -399,6 +445,14 @@ def check_quantities(data: Dataset, customer_text: str,
     if stray and results and all(r["status"] != NEGATIVE for r in results):
         results[0]["status"] = NEGATIVE
         results[0]["requestedText"] = stray[0]["text"]
+    # The same for a grouped number no quoted SKU claimed.
+    stray = [l for l in lines if l.get("groupedNumber") and id(l) not in placed]
+    if stray and results and all(r["status"] not in (NEGATIVE, AMBIGUOUS_NUMBER)
+                                 for r in results):
+        results[0].update(status=AMBIGUOUS_NUMBER,
+                          requestedText=stray[0]["text"],
+                          groupedNumber=stray[0]["groupedNumber"],
+                          leadingNumber=stray[0]["leadingNumber"])
     return results
 
 
@@ -434,6 +488,11 @@ def question_for(violation: Dict, name: str) -> str:
                 f'for a negative quantity of "{name}". A quantity cannot be '
                 f"negative, so nothing has been quoted. Please confirm how "
                 f"many are wanted.")
+    if violation["status"] == AMBIGUOUS_NUMBER:
+        return (f'The order says "{violation["requestedText"]}". Did you mean '
+                f'a quantity of {violation["groupedNumber"]} or '
+                f'{violation["leadingNumber"]} of "{name}"? Nothing has been '
+                f"quoted. Please confirm the quantity.")
     if violation["status"] == CONFLICTING:
         stated = " and ".join(str(q) for q in violation["statedQuantities"])
         return (f'The order states more than one quantity for "{name}" '

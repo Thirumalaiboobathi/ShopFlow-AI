@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from .models import Dataset, Product
 from .uom import normalize_uom, product_uom
@@ -63,8 +63,51 @@ _COMPOUND = re.compile(
     r"\b(\d+)\s*-?\s*(way|pin|plate|core|module|gang)s?\b")
 
 
+# An explicit current rating: "32 amp", "32 amps", "32 ampere", "32 A" are the
+# catalogue's "32A". Split apart, "32" read as a count and "a" as the article,
+# so a spoken "2 Havells MCB 32 amp C curve" lost its rating and was asked
+# "which size or rating?" although the customer had said it. Only rating
+# language is joined: a bare "32" stays a number, "32 kg" stays a weight. A
+# lower-case lone "a" is joined only where it cannot be the article - at the
+# end, before punctuation, or before a curve or pole word.
+_RATING_FORMS = (
+    # "32 amp", "32 amps", "32 ampere", "32 Amperes" - any case
+    re.compile(r"(?<![\w.])(\d{1,3})\s*-?\s*amp(?:ere)?s?(?![A-Za-z0-9])",
+               re.IGNORECASE),
+    # "32 A", "32A", "32 a" - a lone letter is the unit symbol only where it
+    # cannot be the article or a grade: at the end, before punctuation, or
+    # before a curve, pole or device word ("2 A grade" is left alone)
+    re.compile(r"(?<![\w.])(\d{1,3})\s*-?\s*[Aa](?![A-Za-z0-9])"
+               r"(?=\s*(?:$|[,.;)]|(?i:(?:[bcd]|[bcd]-?curve|curve|sp|dp|tp|"
+               r"mcb|mcbs|rccb|rcbo|isolator|switch|switches|socket|sockets|"
+               r"breaker|fuse)\b)))"),
+)
+
+
+def normalize_ratings(text: str) -> Tuple[str, List[str]]:
+    """Write every explicit current rating as the catalogue does ("32A").
+
+    Returns the text and a note per rewrite, so a caller that shows the
+    owner their own words can say what changed. Wording only: which product
+    the rating belongs to is still the matcher's decision.
+    """
+    notes: List[str] = []
+
+    def one(m: "re.Match") -> str:
+        new = f"{m.group(1)}A"
+        if m.group(0) != new:
+            notes.append(f"{' '.join(m.group(0).split())} -> {new}")
+        return new
+
+    out = text or ""
+    for pattern in _RATING_FORMS:
+        out = pattern.sub(one, out)
+    return out, notes
+
+
 def _compound(text: str) -> str:
-    return _COMPOUND.sub(r"\1\2", (text or "").lower())
+    rated, _ = normalize_ratings(text or "")
+    return _COMPOUND.sub(r"\1\2", rated.lower())
 
 
 def _tokens(text: str) -> List[str]:

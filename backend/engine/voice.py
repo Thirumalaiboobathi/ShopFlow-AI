@@ -44,7 +44,8 @@ from typing import Dict, List, Optional, Tuple
 
 from .margin import margin_view
 from .messages import format_rupees
-from .matching import AMBIGUOUS, NOT_FOUND, RESOLVED, resolve_product
+from .matching import (AMBIGUOUS, NOT_FOUND, RESOLVED, normalize_ratings,
+                       resolve_product)
 from .models import Dataset, money
 
 # --- languages --------------------------------------------------------------
@@ -187,8 +188,14 @@ def normalize_transcript(text: str) -> Tuple[str, List[str]]:
             lowered = cleaned.lower()
             applied.append(f"{key} -> {_ALIASES[key]}")
 
-    # "10amp" and "1.5sqmm" are common; split them so the matcher tokenises.
-    cleaned = re.sub(r"(\d)\s*(amp|sq mm|mm|w|v)\b", r"\1 \2", cleaned,
+    # A spoken current rating is written the catalogue's way: "32 amp" and
+    # "10amp" become "32A" and "10A", and the owner is shown the change. It
+    # used to be split into "32 amp", which the matcher read as a count and
+    # an article, so the rating was lost.
+    cleaned, ratings = normalize_ratings(cleaned)
+    applied.extend(ratings)
+    # "1.5sqmm" is common; split it so the matcher tokenises.
+    cleaned = re.sub(r"(\d)\s*(sq mm|mm|w|v)\b", r"\1 \2", cleaned,
                      flags=re.IGNORECASE)
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
     return cleaned, applied
