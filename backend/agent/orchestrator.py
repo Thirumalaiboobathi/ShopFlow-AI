@@ -181,6 +181,7 @@ def run_order_agent(
     model_id: str = DEFAULT_MODEL_ID,
     language: str = "en",
     customer_text: Optional[str] = None,
+    confirmed: Optional[List[dict]] = None,
 ) -> AgentResult:
     """Turn one customer order into a quotation or a clarification request.
 
@@ -196,6 +197,11 @@ def run_order_agent(
     and "'3 coils Finolex wire' is confirmed as SKU ..." repeats a count that
     must not be read as a second order line. Quantities are held to it.
     Defaults to `order_text`.
+
+    `confirmed` is the customer's answers to earlier clarifications, each a
+    `{"requestedText", "skuId"}` that the API resolved from an option
+    ShopFlow itself offered - never a SKU a client supplied. Those lines are
+    looked up here, by code, before the model runs: see `_confirmed_matches`.
     """
     order_text = (order_text or "").strip()
     if not order_text:
@@ -228,6 +234,11 @@ def run_order_agent(
     ambiguous_searches: Dict[str, dict] = {}
     tool_errors = 0
     result = AgentResult(status=STATUS_FAILED, modelId=model_id)
+    # The customer's confirmed choices, looked up by code. They join the
+    # search record exactly as a model search would, so every guard below
+    # reads them - nothing is skipped because a line was confirmed.
+    choices = _confirmed_matches(data, confirmed)
+    matches.extend(choices)
 
     for turn in range(1, MAX_TURNS + 1):
         response = client.converse(
@@ -289,6 +300,8 @@ def run_order_agent(
                     "content": [{"json": payload}],
                 }})
                 if name == "search_catalog":
+                    payload = _apply_choice(payload, choices)
+                    tool_results[-1]["toolResult"]["content"] = [{"json": payload}]
                     matches.append(payload)
                     if payload.get("status") == "AMBIGUOUS":
                         key = (args.get("requestedText") or "").strip().lower()
@@ -479,6 +492,88 @@ def _prefer_unit_question(result: AgentResult, data: Dataset) -> AgentResult:
         result.summary = question
         return result
     return result
+
+
+# ---------------------------------------------------------------------------
+# A clarification the customer has answered
+# ---------------------------------------------------------------------------
+# Live, a confirmed choice was passed to the model as a sentence - "'Havells
+# MCB 32 amp C curve' is confirmed as SKU MCB-HAV-SP-32A-C" - and the model
+# often skipped searching that line. The coverage guard then, correctly,
+# withheld the quotation: the customer's sentence names Havells and no lookup
+# ever did. Three of three live runs of the website's clarification path
+# ended that way.
+#
+# So the answered line is looked up by code instead of being left to the
+# model to rediscover. The same matcher runs on the same words, and the choice
+# is accepted only if the matcher itself offers that SKU for them - which is
+# what makes it the answer to THIS question rather than a SKU dropped in from
+# anywhere. The lookup joins the search record, so the completeness, coverage
+# and quantity guards all read it exactly as they read a model search.
+
+CUSTOMER_CHOICE = "CUSTOMER_CHOICE"
+
+
+def _confirmed_matches(data: Dataset, confirmed) -> List[dict]:
+    """One RESOLVED match per confirmed choice that the matcher stands behind.
+
+    A choice whose SKU the matcher does not offer for its own words is dropped
+    and logged - the order is then read as if it had not been answered, and
+    asks again. Nothing is substituted.
+    """
+    out: List[dict] = []
+    for choice in confirmed or []:
+        if not isinstance(choice, dict):
+            continue
+        requested = str(choice.get("requestedText") or "").strip()
+        sku = str(choice.get("skuId") or "")
+        if not requested or sku not in data.products:
+            continue
+        found = resolve_product(data, requested_text=requested).as_dict()
+        offered = {o.get("skuId") for o in found.get("options") or []}
+        if found.get("status") == RESOLVED:
+            offered.add(found.get("skuId"))
+        if sku not in offered:
+            log.warning("confirmed choice not offered for its own line; "
+                        "ignored so the question is asked again")
+            continue
+        found.update({"status": RESOLVED, "skuId": sku,
+                      "resolvedBy": CUSTOMER_CHOICE,
+                      "instruction": ("The customer chose this product. Use "
+                                      "this skuId at the quantity the "
+                                      "customer wrote.")})
+        out.append(found)
+    return out
+
+
+def _apply_choice(payload: dict, choices: List[dict]) -> dict:
+    """A model search that re-asks an answered question gets the answer.
+
+    Only when the search came back AMBIGUOUS, one of its own options is a SKU
+    the customer chose, and its words are the answered line's words. Anything
+    else is returned untouched - a choice never overrides a search about a
+    different line, and never resolves to a SKU the search did not offer.
+    """
+    if payload.get("status") != AMBIGUOUS or not choices:
+        return payload
+    offered = {o.get("skuId") for o in payload.get("options") or []}
+    words = _phrase_key(payload.get("requestedText"))
+    for choice in choices:
+        answered = _phrase_key(choice.get("requestedText"))
+        if choice["skuId"] in offered and answered and words and (
+                answered in words or words in answered):
+            return {**payload, "status": RESOLVED, "skuId": choice["skuId"],
+                    "resolvedBy": CUSTOMER_CHOICE,
+                    "instruction": choice["instruction"]}
+    return payload
+
+
+def _phrase_key(text) -> str:
+    """Lower-case words without a leading count: "2 Havells MCB" -> "havells mcb"."""
+    words = re.sub(r"[^a-z0-9.]+", " ", str(text or "").lower()).split()
+    while words and re.fullmatch(r"[\d.,]+", words[0]):
+        words = words[1:]
+    return " ".join(words)
 
 
 def _names_a_product(data: Dataset, order_text: str) -> bool:

@@ -2288,6 +2288,9 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
   // price, a total or a line.
   var lastJobId = null;
   var pendingClarifications = [];
+  // An answer to ShopFlow's own question: the job that asked and the option
+  // number. The server reads the SKU from that job - the page never sends one.
+  var pendingChoice = null;
   var polling = null;
 
   function rupees(n) {
@@ -2776,19 +2779,24 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
     orderBox.value = demo.ambiguousExample ||
       "Anna, 3 coils Finolex 1.5 sq mm wire.";
     pendingClarifications = [];
+    pendingChoice = null;
     clearOutput();
     orderBox.focus();
   });
 
   resetBtn.addEventListener("click", function () {
     pendingClarifications = [];
+    pendingChoice = null;
     orderBox.value = demo.exampleOrder || "";
     clearOutput();
     show(stepsBox, false);
     show(resetBtn, false);
   });
 
-  goBtn.addEventListener("click", function () { submit(orderBox.value); });
+  goBtn.addEventListener("click", function () {
+    pendingChoice = null;   // a typed order is a new order, not an answer
+    submit(orderBox.value);
+  });
   customerSel.addEventListener("change", clearOutput);
 
   // Poll gently and for long enough. A throttled order is retried by the
@@ -2817,16 +2825,16 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
     fetch("/api/orders", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
+      body: JSON.stringify(Object.assign({
         orderText: text.trim(),
         // Empty means a cash sale, and the backend then runs no credit check
         // at all - the anonymous flow is unchanged in every respect.
         customerId: customerSel.value || "",
-        clarifications: pendingClarifications,
         // Presentation only. The matcher, the quotation and the credit check
         // behave identically whatever this says.
         language: lang.code
-      })
+      }, pendingChoice ? { choice: pendingChoice }
+                       : { clarifications: pendingClarifications }))
     }).then(function (r) {
       // Throttled before the order was accepted: nothing was queued, so
       // sending again cannot duplicate it. Bounded, and said out loud.
@@ -2844,7 +2852,12 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
         ? "ShopFlow is busy right now. Nothing was quoted - please send the order again."
         : (res.body.error || "The order was rejected."));
       setSteps("match");
-      statusText.textContent = "Matching products to the catalogue…";
+      statusText.textContent = (res.body.choice && res.body.choice.applied === false)
+        ? "That question has expired - reading the order again…"
+        : "Matching products to the catalogue…";
+      // Answered. The new job carries the answer; the next question, if any,
+      // is answered against the new job.
+      pendingChoice = null;
       lastJobId = res.body.jobId;
       poll(res.body.jobId, 0);
     }).catch(function (e) { fail(e.message); });
@@ -3020,8 +3033,8 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
     }
     if (c.options && c.options.length) {
       html += '<div class="options">';
-      c.options.forEach(function (o) {
-        html += '<button class="option" data-sku="' + esc(o.skuId) + '">' +
+      c.options.forEach(function (o, i) {
+        html += '<button class="option" data-option="' + (i + 1) + '">' +
           '<span class="v">' + esc(o.value || o.name) + '</span>' +
           '<span class="s">' + esc(o.skuId) + ' · ' + rupees(o.sellingPrice) +
           ' per ' + esc(o.unit) + '</span></button>';
@@ -3035,10 +3048,9 @@ var OWNER_HEADERS = Object.freeze({ "x-shopflow-demo-owner": "demo-workspace" })
 
     Array.prototype.forEach.call(clarifyBox.querySelectorAll(".option"), function (btn) {
       btn.addEventListener("click", function () {
-        pendingClarifications = [{
-          requestedText: c.requestedText || "",
-          skuId: btn.getAttribute("data-sku")
-        }];
+        pendingClarifications = [];
+        pendingChoice = { jobId: lastJobId,
+                          option: Number(btn.getAttribute("data-option")) };
         submit(orderBox.value);
       });
     });

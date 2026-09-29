@@ -1188,7 +1188,10 @@ def _publish_order_events(job_id: str, payload: dict, status: str,
 
 def _process_order(job_id: str, item: dict) -> dict:
     order_text = item.get("orderText") or ""
-    clarifications = item.get("clarifications") or []
+    # Choices the API resolved from options ShopFlow offered. The agent looks
+    # these lines up itself; the sentence below only tells the model so.
+    choices = list(item.get("confirmed") or [])
+    clarifications = (item.get("clarifications") or []) + choices
 
     if clarifications:
         # Fold the owner's confirmed choices into the prompt so the agent does
@@ -1211,7 +1214,8 @@ def _process_order(job_id: str, item: dict) -> dict:
         result = run_order_agent(cached_dataset(), order_text,
                                  model_id=MODEL_ID,
                                  language=str(item.get("language") or "en"),
-                                 customer_text=item.get("orderText") or "")
+                                 customer_text=item.get("orderText") or "",
+                                 confirmed=choices)
     except OrderTooLongError as exc:
         # Terminal by definition: the text will be the same length next time.
         _update(job_id, status=STATUS_FAILED, error=str(exc))

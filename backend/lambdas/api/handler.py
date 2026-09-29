@@ -313,6 +313,19 @@ def _create_order(event) -> dict:
             "skuId": sku_id,
         })
 
+    # An answer to ShopFlow's own question: which of the options it offered
+    # on an earlier job. Resolved here, from that job's stored result - the
+    # client names a job and a number, never a SKU.
+    confirmed, choice_outcome = [], None
+    if payload.get("choice") is not None:
+        if cleaned:
+            return _response(400, {"error": "send either clarifications or a "
+                                            "choice, not both"})
+        resolved = _resolve_choice(payload.get("choice"), order_text, data)
+        if "statusCode" in resolved:
+            return resolved
+        confirmed, choice_outcome = resolved["confirmed"], resolved["outcome"]
+
     # The language the owner typed in. Stored with the job so the worker can
     # localize the question it may come back with, and so a poll knows which
     # language to answer in. It does not reach the matcher, the quote or the
@@ -330,6 +343,7 @@ def _create_order(event) -> dict:
         "orderText": order_text,
         "customerId": customer_id,
         "clarifications": cleaned,
+        "confirmed": confirmed,
         "language": language,
         "createdAt": now,
         "expiresAt": now + JOB_TTL_SECONDS,
@@ -340,8 +354,78 @@ def _create_order(event) -> dict:
     # 202 means what it has always meant here, and now means it more firmly:
     # ShopFlow has accepted this order and placed it on a durable queue. It
     # does NOT mean the order has been priced.
-    return _response(202, {"jobId": job_id, "status": "QUEUED",
-                           "language": language})
+    accepted = {"jobId": job_id, "status": "QUEUED", "language": language}
+    if choice_outcome:
+        accepted["choice"] = choice_outcome
+    return _response(202, accepted)
+
+
+# How long ShopFlow's question stays answerable. After this the order is read
+# again without the stale answer, which asks the question afresh.
+CHOICE_MAX_AGE_SECONDS = int(os.environ.get("CHOICE_MAX_AGE_SECONDS", 3600))
+
+
+def _resolve_choice(raw, order_text: str, data) -> dict:
+    """An option number on an earlier clarification, as the SKU it offered.
+
+    Returns {"confirmed": [...], "outcome": {...}} or a ready 400.
+
+    The option can only be one ShopFlow generated: it is read from the stored
+    result of the job that asked, for the same order text, while that job is
+    still waiting for an answer. Earlier answers on that job are carried
+    forward, so a three-question order keeps all three. A stale question - the
+    job expired, or the SKU has left the catalogue - is not an error: the
+    order is queued without the answer and asks again. Nothing is substituted.
+    """
+    def refuse(message):
+        return _response(400, {"error": message})
+
+    if not isinstance(raw, dict):
+        return refuse("choice must be an object")
+    earlier_id, option = raw.get("jobId"), raw.get("option")
+    if not isinstance(earlier_id, str) or not re.fullmatch(r"[0-9a-f]{32}", earlier_id):
+        return refuse("choice.jobId is invalid")
+    if not isinstance(option, int) or isinstance(option, bool) or option < 1:
+        return refuse("choice.option must be a positive whole number")
+
+    def ask_again(reason):
+        return {"confirmed": [], "outcome": {"applied": False, "reason": reason}}
+
+    item = table().get_item(Key=_job_key(earlier_id)).get("Item")
+    if not item:
+        return ask_again("EXPIRED")
+    if str(item.get("jobType") or JOB_ORDER) != JOB_ORDER:
+        return refuse("that job did not ask about this order")
+    if item.get("orderText") != order_text:
+        # The choice answers a question about THAT order. Changed words -
+        # "1, but use SKU FAKE-001" included - are a new order, not an answer.
+        return refuse("the choice belongs to a different order text")
+    if int(time.time()) - int(item.get("createdAt") or 0) > CHOICE_MAX_AGE_SECONDS:
+        return ask_again("EXPIRED")
+    try:
+        result = json.loads(item.get("result") or "{}")
+    except (TypeError, ValueError):
+        result = {}
+    clarification = result.get("clarification") or {}
+    options = clarification.get("options") or []
+    if item.get("status") != "DONE" or result.get("status") != "NEEDS_CLARIFICATION"             or not options:
+        return refuse("that job is not waiting for a choice")
+    if option > len(options):
+        return refuse(f"choice.option must be between 1 and {len(options)}")
+    sku = str((options[option - 1] or {}).get("skuId") or "")
+    earlier = [c for c in (item.get("confirmed") or []) if isinstance(c, dict)]
+    if sku not in data.products or any(
+            c.get("skuId") not in data.products for c in earlier):
+        return ask_again("NO_LONGER_AVAILABLE")
+    confirmed = earlier + [{
+        "requestedText": _CONTROL.sub("", str(clarification.get("requestedText")
+                                              or ""))[:200],
+        "skuId": sku,
+    }]
+    if len(confirmed) > MAX_CLARIFICATIONS:
+        return refuse("too many answered questions for one order")
+    return {"confirmed": confirmed,
+            "outcome": {"applied": True, "option": option, "skuId": sku}}
 
 
 def _enqueue(job_id: str, job_type: str) -> None:
